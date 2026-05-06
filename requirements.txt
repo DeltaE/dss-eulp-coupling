@@ -1,0 +1,19 @@
+# DSS-EULP Coupling Pipeline — Python dependencies
+# Tested with Python 3.9+
+# Install with: pip install -r requirements.txt
+
+# --- Core data handling ---
+pandas
+numpy
+pyarrow
+
+# --- Plotting ---
+matplotlib
+
+# --- EULP downloads (Phase 5a) ---
+requests
+urllib3
+selenium          # only needed for original download scripts; _redo variants use requests only
+
+# --- Phase 7 only: OpenDSS COM interface (Windows) ---
+comtypes; sys_platform == "win32"
