@@ -193,3 +193,8 @@ cython_debug/
 .cursorignore
 .cursorindexingignore
 .claude/
+
+# Large data files (archive on Zenodo, not git)
+1_data_provenance/data_raw/
+1_data_provenance/data_derived/
+1_data_provenance/outputs/

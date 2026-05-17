@@ -1,0 +1,256 @@
+version: 1
+
+paths:
+  data_raw: data_raw
+  historical_data: data_derived/historical
+  outputs: outputs
+
+download_stage:
+  status: recovered_from_legacy_scripts
+  policy: cache_first_fallback_only
+  note: Local reproduction reads the copied CSVs in data_raw. Redownloading is a slow fallback used only when cached source folders are missing or need to be rebuilt.
+  recovered_from:
+    - scripts_legacy/download_residential_metadata.py
+    - scripts_legacy/download_residential_metadata_2.py
+    - scripts_legacy/download_commercial_metadata.py
+    - scripts_legacy/download_commercial_metadata_19_20.py
+    - scripts_legacy/pds_database_address.txt
+  viewer_base_url: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F
+  query_year: 2024
+  metadata_path: metadata_and_annual_results/by_state
+  recovered_downloads:
+    residential_tmy3:
+      release: resstock_tmy3_release_2
+      folder_group: residential_tmy3
+      legacy_script: scripts_legacy/download_residential_metadata.py
+      upgrades: [baseline, upgrade01, upgrade02, upgrade03, upgrade04]
+    residential_amy2018:
+      release: resstock_amy2018_release_2
+      folder_group: residential_amy2018
+      legacy_script: scripts_legacy/download_residential_metadata_2.py
+      upgrades: [baseline, upgrade01, upgrade02, upgrade03, upgrade04]
+    commercial_amy2018:
+      release: comstock_amy2018_release_1
+      folder_group: commercial_amy2018
+      legacy_script: scripts_legacy/download_commercial_metadata.py
+      upgrades: [baseline, upgrade01, upgrade02, upgrade03, upgrade08, upgrade09]
+    commercial_amy2018_late_upgrades:
+      release: comstock_amy2018_release_1
+      folder_group: commercial_amy2018_late_upgrades
+      legacy_script: scripts_legacy/download_commercial_metadata_19_20.py
+      upgrades: [upgrade19, upgrade20]
+
+folder_groups:
+  residential_tmy3:
+    dataset: residential
+    folder_pattern: Metadata_{state}_Residential
+    release: resstock_tmy3_release_2
+  residential_amy2018:
+    dataset: residential
+    folder_pattern: Metadata_{state}_Residential_2
+    release: resstock_amy2018_release_2
+  commercial_amy2018:
+    dataset: commercial
+    folder_pattern: Metadata_{state}_Commercial
+    release: comstock_amy2018_release_1
+  commercial_amy2018_late_upgrades:
+    dataset: commercial
+    folder_pattern: Metadata_{state}_Commercial_2
+    release: comstock_amy2018_release_1
+
+columns:
+  baseline_from_folders_order: source_csv
+  commercial_append_csvs_script_v2:
+    - bldg_id
+    - upgrade
+    - in.sqft
+    - in.building_america_climate_zone
+    - in.state
+    - in.state_name
+    - in.building_subtype
+    - in.comstock_building_type
+    - in.comstock_building_type_group
+    - in.floor_area_category
+    - in.heating_fuel
+    - in.hvac_category
+    - in.hvac_combined_type
+    - in.hvac_cool_type
+    - in.hvac_heat_type
+    - in.hvac_night_variability
+    - in.hvac_system_type
+    - in.hvac_vent_type
+    - in.interior_lighting_generation
+    - in.number_of_stories
+    - in.number_stories
+    - in.year_built
+    - out.district_cooling.cooling.energy_consumption
+    - out.district_cooling.total.energy_consumption
+    - out.district_heating.cooling.energy_consumption
+    - out.district_heating.heating.energy_consumption
+    - out.district_heating.total.energy_consumption
+    - out.district_heating.water_systems.energy_consumption
+    - out.electricity.cooling.energy_consumption
+    - out.electricity.exterior_lighting.energy_consumption
+    - out.electricity.fans.energy_consumption
+    - out.electricity.heat_recovery.energy_consumption
+    - out.electricity.heat_rejection.energy_consumption
+    - out.electricity.heating.energy_consumption
+    - out.electricity.interior_equipment.energy_consumption
+    - out.electricity.interior_lighting.energy_consumption
+    - out.electricity.pumps.energy_consumption
+    - out.electricity.refrigeration.energy_consumption
+    - out.electricity.total.apr.energy_consumption..kwh
+    - out.electricity.total.aug.energy_consumption..kwh
+    - out.electricity.total.dec.energy_consumption..kwh
+    - out.electricity.total.energy_consumption
+    - out.electricity.total.feb.energy_consumption..kwh
+    - out.electricity.total.jan.energy_consumption..kwh
+    - out.electricity.total.jul.energy_consumption..kwh
+    - out.electricity.total.jun.energy_consumption..kwh
+    - out.electricity.total.mar.energy_consumption..kwh
+    - out.electricity.total.may.energy_consumption..kwh
+    - out.electricity.total.nov.energy_consumption..kwh
+    - out.electricity.total.oct.energy_consumption..kwh
+    - out.electricity.total.sep.energy_consumption..kwh
+    - out.electricity.water_systems.energy_consumption
+    - out.natural_gas.heating.energy_consumption
+    - out.natural_gas.interior_equipment.energy_consumption
+    - out.natural_gas.total.energy_consumption
+    - out.natural_gas.water_systems.energy_consumption
+    - out.other_fuel.cooling.energy_consumption
+    - out.other_fuel.heating.energy_consumption
+    - out.other_fuel.total.energy_consumption
+    - out.other_fuel.water_systems.energy_consumption
+    - out.site_energy.total.energy_consumption
+    - out.electricity.total.peak_demand
+    - out.qoi.maximum_daily_peak_apr..kw
+    - out.qoi.maximum_daily_peak_aug..kw
+    - out.qoi.maximum_daily_peak_dec..kw
+    - out.qoi.maximum_daily_peak_feb..kw
+    - out.qoi.maximum_daily_peak_jan..kw
+    - out.qoi.maximum_daily_peak_jul..kw
+    - out.qoi.maximum_daily_peak_jun..kw
+    - out.qoi.maximum_daily_peak_mar..kw
+    - out.qoi.maximum_daily_peak_may..kw
+    - out.qoi.maximum_daily_peak_nov..kw
+    - out.qoi.maximum_daily_peak_oct..kw
+    - out.qoi.maximum_daily_peak_sep..kw
+    - out.qoi.median_daily_peak_apr..kw
+    - out.qoi.median_daily_peak_aug..kw
+    - out.qoi.median_daily_peak_dec..kw
+    - out.qoi.median_daily_peak_feb..kw
+    - out.qoi.median_daily_peak_jan..kw
+    - out.qoi.median_daily_peak_jul..kw
+    - out.qoi.median_daily_peak_jun..kw
+    - out.qoi.median_daily_peak_mar..kw
+    - out.qoi.median_daily_peak_may..kw
+    - out.qoi.median_daily_peak_nov..kw
+    - out.qoi.median_daily_peak_oct..kw
+    - out.qoi.median_daily_peak_sep..kw
+    - out.qoi.minimum_daily_peak_apr..kw
+    - out.qoi.minimum_daily_peak_aug..kw
+    - out.qoi.minimum_daily_peak_dec..kw
+    - out.qoi.minimum_daily_peak_feb..kw
+    - out.qoi.minimum_daily_peak_jan..kw
+    - out.qoi.minimum_daily_peak_jul..kw
+    - out.qoi.minimum_daily_peak_jun..kw
+    - out.qoi.minimum_daily_peak_mar..kw
+    - out.qoi.minimum_daily_peak_may..kw
+    - out.qoi.minimum_daily_peak_nov..kw
+    - out.qoi.minimum_daily_peak_oct..kw
+    - out.qoi.minimum_daily_peak_sep..kw
+  residential_append_csvs_script_v2:
+    - bldg_id
+    - upgrade
+    - in.sqft
+    - in.area_median_income
+    - in.building_america_climate_zone
+    - in.city
+    - in.county
+    - in.vacancy_status
+    - in.geometry_building_type_acs
+    - in.electric_vehicle
+    - in.geometry_stories
+    - in.heating_fuel
+    - in.heating_setpoint
+    - in.heating_setpoint_has_offset
+    - in.heating_setpoint_offset_magnitude
+    - in.heating_setpoint_offset_period
+    - in.hvac_cooling_efficiency
+    - in.representative_income
+    - in.battery
+    - in.bedrooms
+    - in.hvac_cooling_partial_space_conditioning
+    - in.hvac_cooling_type
+    - in.hvac_heating_efficiency
+    - in.hvac_heating_type
+    - in.hvac_heating_type_and_fuel
+    - in.hvac_secondary_heating_efficiency
+    - in.hvac_secondary_heating_fuel
+    - in.hvac_secondary_heating_partial_space_conditioning
+    - in.income
+    - in.occupants
+    - in.plug_load_diversity
+    - in.plug_loads
+    - in.water_heater_efficiency
+    - in.water_heater_fuel
+    - out.params.size_cooling_system_primary_k_btu_h
+    - out.params.size_heat_pump_backup_primary_k_btu_h
+    - out.params.size_heating_system_primary_k_btu_h
+    - out.params.size_heating_system_secondary_k_btu_h
+    - out.params.size_water_heater_gal
+    - out.electricity.heating.energy_consumption.kwh
+    - out.electricity.heating_fans_pumps.energy_consumption.kwh
+    - out.electricity.heating_hp_bkup.energy_consumption.kwh
+    - out.electricity.heating_hp_bkup_fa.energy_consumption.kwh
+    - out.electricity.hot_water.energy_consumption.kwh
+    - out.electricity.summer.peak.kw
+    - out.electricity.total.energy_consumption.kwh
+    - out.electricity.winter.peak.kw
+    - out.fuel_oil.heating.energy_consumption.kwh
+    - out.fuel_oil.heating_hp_bkup.energy_consumption.kwh
+    - out.fuel_oil.hot_water.energy_consumption.kwh
+    - out.fuel_oil.total.energy_consumption.kwh
+    - out.natural_gas.heating.energy_consumption.kwh
+    - out.natural_gas.heating_hp_bkup.energy_consumption.kwh
+    - out.natural_gas.hot_water.energy_consumption.kwh
+    - out.natural_gas.total.energy_consumption.kwh
+    - out.propane.heating.energy_consumption.kwh
+    - out.propane.heating_hp_bkup.energy_consumption.kwh
+    - out.propane.hot_water.energy_consumption.kwh
+    - out.propane.total.energy_consumption.kwh
+    - out.site_energy.total.energy_consumption.kwh
+    - out.load.cooling.energy_delivered.kbtu
+    - out.load.cooling.peak.kbtu_hr
+    - out.load.heating.energy_delivered.kbtu
+    - out.load.heating.peak.kbtu_hr
+    - out.load.hot_water.energy_delivered.kbtu
+  compatibility:
+    append_csvs_script_py_residential_uses_same_set_except:
+      - in.vacancy_status
+      - in.geometry_building_type_acs
+      - in.representative_income
+      - in.battery
+      - in.bedrooms
+
+clusters:
+  paper3_baseline:
+    states: [MI, MT, VT, WA]
+    mode: baseline_from_folders
+    residential_folder_groups: [residential_tmy3]
+    commercial_folder_groups: [commercial_amy2018]
+    residential_upgrades: [baseline]
+    commercial_upgrades: [baseline]
+    output_residential: residential_data_SELECT_STATES_MI_MT_VT_WA.csv
+    output_commercial: commercial_data_SELECT_STATES_MI_MT_VT_WA.csv
+    validation_historical_residential: residential_data_SELECT_STATES_MI_MT_VT_WA.csv
+    validation_historical_commercial: commercial_data_SELECT_STATES_MI_MT_VT_WA.csv
+  canadian_proxy:
+    states: [MI, VT, WA, MT, MN]
+    mode: historical_slice
+    historical_residential: residential_data.csv
+    historical_commercial: commercial_data.csv
+    output_residential: residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv
+    output_commercial: commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv
+    validation_historical_residential: residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv
+    validation_historical_commercial: commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv

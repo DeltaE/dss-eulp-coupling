@@ -1,0 +1,188 @@
+﻿# Local Source Inventory
+
+Generated: 2026-05-06T00:02:37
+
+Source: `C:\Users\luisf\Dropbox\1_RESEARCH\1_FOCUS_PhD\6_Paper_3_Expander\workflow_download_metadata`
+Destination: `C:\Users\luisf\Documents\DSS`
+
+Metadata folders copied/listed: 150
+Legacy scripts copied/listed: 12
+Historical CSV outputs copied/listed: 10
+
+## Legacy Scripts
+- append_csvs_script.py
+- append_csvs_script_V2.py
+- append_csvs_script_select_states.py
+- slice_states_v2.py
+- slice_states_v3.py
+- download_residential_metadata.py
+- download_residential_metadata_2.py
+- download_commercial_metadata.py
+- download_commercial_metadata_19_20.py
+- preview_csvs.py
+- folder_append_multiple.py
+- pds_database_address.txt
+
+## Metadata Folders
+- Metadata_AL_Commercial
+- Metadata_AL_Residential
+- Metadata_AL_Residential_2
+- Metadata_AR_Commercial
+- Metadata_AR_Residential
+- Metadata_AR_Residential_2
+- Metadata_AZ_Commercial
+- Metadata_AZ_Residential
+- Metadata_AZ_Residential_2
+- Metadata_CA_Commercial
+- Metadata_CA_Residential
+- Metadata_CA_Residential_2
+- Metadata_CO_Commercial
+- Metadata_CO_Residential
+- Metadata_CO_Residential_2
+- Metadata_CT_Commercial
+- Metadata_CT_Residential
+- Metadata_CT_Residential_2
+- Metadata_DC_Commercial
+- Metadata_DC_Residential
+- Metadata_DC_Residential_2
+- Metadata_DE_Commercial
+- Metadata_DE_Residential
+- Metadata_DE_Residential_2
+- Metadata_FL_Commercial
+- Metadata_FL_Residential
+- Metadata_FL_Residential_2
+- Metadata_GA_Commercial
+- Metadata_GA_Residential
+- Metadata_GA_Residential_2
+- Metadata_IA_Commercial
+- Metadata_IA_Residential
+- Metadata_IA_Residential_2
+- Metadata_ID_Commercial
+- Metadata_ID_Residential
+- Metadata_ID_Residential_2
+- Metadata_IL_Commercial
+- Metadata_IL_Residential
+- Metadata_IL_Residential_2
+- Metadata_IN_Commercial
+- Metadata_IN_Residential
+- Metadata_IN_Residential_2
+- Metadata_KS_Commercial
+- Metadata_KS_Residential
+- Metadata_KS_Residential_2
+- Metadata_KY_Commercial
+- Metadata_KY_Residential
+- Metadata_KY_Residential_2
+- Metadata_LA_Commercial
+- Metadata_LA_Residential
+- Metadata_LA_Residential_2
+- Metadata_MA_Commercial
+- Metadata_MA_Residential
+- Metadata_MA_Residential_2
+- Metadata_MD_Commercial
+- Metadata_MD_Residential
+- Metadata_MD_Residential_2
+- Metadata_ME_Commercial
+- Metadata_ME_Residential
+- Metadata_ME_Residential_2
+- Metadata_MI_Commercial
+- Metadata_MI_Residential
+- Metadata_MI_Residential_2
+- Metadata_MN
+- Metadata_MN_Commercial
+- Metadata_MN_Commercial_2
+- Metadata_MN_Residential
+- Metadata_MN_Residential_2
+- Metadata_MO_Commercial
+- Metadata_MO_Residential
+- Metadata_MO_Residential_2
+- Metadata_MS_Commercial
+- Metadata_MS_Residential
+- Metadata_MS_Residential_2
+- Metadata_MT_Commercial
+- Metadata_MT_Residential
+- Metadata_MT_Residential_2
+- Metadata_NC_Commercial
+- Metadata_NC_Residential
+- Metadata_NC_Residential_2
+- Metadata_ND_Commercial
+- Metadata_ND_Residential
+- Metadata_ND_Residential_2
+- Metadata_NE_Commercial
+- Metadata_NE_Residential
+- Metadata_NE_Residential_2
+- Metadata_NH_Commercial
+- Metadata_NH_Residential
+- Metadata_NH_Residential_2
+- Metadata_NJ_Commercial
+- Metadata_NJ_Residential
+- Metadata_NJ_Residential_2
+- Metadata_NM_Commercial
+- Metadata_NM_Residential
+- Metadata_NM_Residential_2
+- Metadata_NV_Commercial
+- Metadata_NV_Residential
+- Metadata_NV_Residential_2
+- Metadata_NY_Commercial
+- Metadata_NY_Commercial_2
+- Metadata_NY_Residential
+- Metadata_NY_Residential_2
+- Metadata_OH_Commercial
+- Metadata_OH_Residential
+- Metadata_OH_Residential_2
+- Metadata_OK_Commercial
+- Metadata_OK_Residential
+- Metadata_OK_Residential_2
+- Metadata_OR_Commercial
+- Metadata_OR_Residential
+- Metadata_OR_Residential_2
+- Metadata_PA_Commercial
+- Metadata_PA_Residential
+- Metadata_PA_Residential_2
+- Metadata_RI_Commercial
+- Metadata_RI_Residential
+- Metadata_RI_Residential_2
+- Metadata_SC_Commercial
+- Metadata_SC_Residential
+- Metadata_SC_Residential_2
+- Metadata_SD_Commercial
+- Metadata_SD_Residential
+- Metadata_SD_Residential_2
+- Metadata_TN_Commercial
+- Metadata_TN_Residential
+- Metadata_TN_Residential_2
+- Metadata_TX_Commercial
+- Metadata_TX_Residential
+- Metadata_TX_Residential_2
+- Metadata_UT_Commercial
+- Metadata_UT_Residential
+- Metadata_UT_Residential_2
+- Metadata_VA_Commercial
+- Metadata_VA_Residential
+- Metadata_VA_Residential_2
+- Metadata_VT_Commercial
+- Metadata_VT_Residential
+- Metadata_VT_Residential_2
+- Metadata_WA_Commercial
+- Metadata_WA_Residential
+- Metadata_WA_Residential_2
+- Metadata_WI_Commercial
+- Metadata_WI_Residential
+- Metadata_WI_Residential_2
+- Metadata_WV_Commercial
+- Metadata_WV_Residential
+- Metadata_WV_Residential_2
+- Metadata_WY_Commercial
+- Metadata_WY_Residential
+- Metadata_WY_Residential_2
+
+## Historical CSV Outputs
+- commercial_data.csv (3031857677 bytes)
+- commercial_data_SELECT.csv (505003496 bytes)
+- commercial_data_SELECT_STATES.csv (61014984 bytes)
+- commercial_data_SELECT_STATES_MI_MT_VT_WA.csv (30147091 bytes)
+- commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv (226928644 bytes)
+- residential_data.csv (3116931714 bytes)
+- residential_data_SELECT.csv (311819644 bytes)
+- residential_data_SELECT_STATES.csv (39295615 bytes)
+- residential_data_SELECT_STATES_MI_MT_VT_WA.csv (20185824 bytes)
+- residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv (251412678 bytes)

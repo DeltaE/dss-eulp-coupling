@@ -1,0 +1,1490 @@
+﻿{
+    "generated_at":  "2026-05-06T00:02:38.2846764-06:00",
+    "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata",
+    "destination":  "C:\\Users\\luisf\\Documents\\DSS",
+    "metadata_folders":  150,
+    "historical_csvs":  10,
+    "legacy_files":  12,
+    "operations":  [
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\config",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\docs",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\src",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\src\\eulp_metadata",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\outputs",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical",
+                           "status":  "created",
+                           "bytes":  null,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\.gitignore",
+                           "status":  "created",
+                           "bytes":  107,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\README.md",
+                           "status":  "created",
+                           "bytes":  413,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\append_csvs_script.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\append_csvs_script.py",
+                           "status":  "copied",
+                           "bytes":  8572,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\append_csvs_script_V2.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\append_csvs_script_V2.py",
+                           "status":  "copied",
+                           "bytes":  10543,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\append_csvs_script_select_states.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\append_csvs_script_select_states.py",
+                           "status":  "copied",
+                           "bytes":  6820,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\slice_states_v2.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\slice_states_v2.py",
+                           "status":  "copied",
+                           "bytes":  2768,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\slice_states_v3.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\slice_states_v3.py",
+                           "status":  "copied",
+                           "bytes":  3352,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\download_residential_metadata.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\download_residential_metadata.py",
+                           "status":  "copied",
+                           "bytes":  7406,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\download_residential_metadata_2.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\download_residential_metadata_2.py",
+                           "status":  "copied",
+                           "bytes":  7411,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\download_commercial_metadata.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\download_commercial_metadata.py",
+                           "status":  "copied",
+                           "bytes":  8400,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\download_commercial_metadata_19_20.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\download_commercial_metadata_19_20.py",
+                           "status":  "copied",
+                           "bytes":  8362,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\preview_csvs.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\preview_csvs.py",
+                           "status":  "copied",
+                           "bytes":  1138,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\folder_append_multiple.py",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\folder_append_multiple.py",
+                           "status":  "copied",
+                           "bytes":  99,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\pds_database_address.txt",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\scripts_legacy\\pds_database_address.txt",
+                           "status":  "copied",
+                           "bytes":  135,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\copy_legacy_project.py",
+                           "status":  "created",
+                           "bytes":  4071,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AL_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AL_Commercial",
+                           "status":  "copied",
+                           "bytes":  354208483,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AL_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AL_Residential",
+                           "status":  "copied",
+                           "bytes":  175081223,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AL_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AL_Residential_2",
+                           "status":  "copied",
+                           "bytes":  174834787,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AR_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AR_Commercial",
+                           "status":  "copied",
+                           "bytes":  222550642,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AR_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AR_Residential",
+                           "status":  "copied",
+                           "bytes":  106909531,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AR_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AR_Residential_2",
+                           "status":  "copied",
+                           "bytes":  106860614,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AZ_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AZ_Commercial",
+                           "status":  "copied",
+                           "bytes":  404956017,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AZ_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AZ_Residential",
+                           "status":  "copied",
+                           "bytes":  227861755,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_AZ_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_AZ_Residential_2",
+                           "status":  "copied",
+                           "bytes":  227224254,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CA_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CA_Commercial",
+                           "status":  "copied",
+                           "bytes":  2623380529,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CA_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CA_Residential",
+                           "status":  "copied",
+                           "bytes":  1105562744,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CA_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CA_Residential_2",
+                           "status":  "copied",
+                           "bytes":  1102810715,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CO_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CO_Commercial",
+                           "status":  "copied",
+                           "bytes":  410581357,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CO_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CO_Residential",
+                           "status":  "copied",
+                           "bytes":  184686987,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CO_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CO_Residential_2",
+                           "status":  "copied",
+                           "bytes":  184201759,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CT_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CT_Commercial",
+                           "status":  "copied",
+                           "bytes":  302887808,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CT_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CT_Residential",
+                           "status":  "copied",
+                           "bytes":  121159403,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_CT_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_CT_Residential_2",
+                           "status":  "copied",
+                           "bytes":  121291151,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_DC_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_DC_Commercial",
+                           "status":  "copied",
+                           "bytes":  66001007,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_DC_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_DC_Residential",
+                           "status":  "copied",
+                           "bytes":  24537892,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_DC_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_DC_Residential_2",
+                           "status":  "copied",
+                           "bytes":  24502022,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_DE_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_DE_Commercial",
+                           "status":  "copied",
+                           "bytes":  62939017,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_DE_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_DE_Residential",
+                           "status":  "copied",
+                           "bytes":  34073669,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_DE_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_DE_Residential_2",
+                           "status":  "copied",
+                           "bytes":  33919948,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_FL_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_FL_Commercial",
+                           "status":  "copied",
+                           "bytes":  1669660160,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_FL_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_FL_Residential",
+                           "status":  "copied",
+                           "bytes":  707638612,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_FL_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_FL_Residential_2",
+                           "status":  "copied",
+                           "bytes":  706486979,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_GA_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_GA_Commercial",
+                           "status":  "copied",
+                           "bytes":  771496387,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_GA_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_GA_Residential",
+                           "status":  "copied",
+                           "bytes":  332245498,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_GA_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_GA_Residential_2",
+                           "status":  "copied",
+                           "bytes":  331519131,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IA_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IA_Commercial",
+                           "status":  "copied",
+                           "bytes":  194714397,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IA_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IA_Residential",
+                           "status":  "copied",
+                           "bytes":  111475236,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IA_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IA_Residential_2",
+                           "status":  "copied",
+                           "bytes":  111446694,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ID_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ID_Commercial",
+                           "status":  "copied",
+                           "bytes":  166364533,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ID_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ID_Residential",
+                           "status":  "copied",
+                           "bytes":  54492412,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ID_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ID_Residential_2",
+                           "status":  "copied",
+                           "bytes":  54382974,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IL_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IL_Commercial",
+                           "status":  "copied",
+                           "bytes":  823951153,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IL_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IL_Residential",
+                           "status":  "copied",
+                           "bytes":  435498596,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IL_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IL_Residential_2",
+                           "status":  "copied",
+                           "bytes":  435000345,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IN_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IN_Commercial",
+                           "status":  "copied",
+                           "bytes":  498264343,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IN_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IN_Residential",
+                           "status":  "copied",
+                           "bytes":  230695010,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_IN_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_IN_Residential_2",
+                           "status":  "copied",
+                           "bytes":  230574646,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_KS_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_KS_Commercial",
+                           "status":  "copied",
+                           "bytes":  216301464,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_KS_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_KS_Residential",
+                           "status":  "copied",
+                           "bytes":  102115113,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_KS_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_KS_Residential_2",
+                           "status":  "copied",
+                           "bytes":  102223190,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_KY_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_KY_Commercial",
+                           "status":  "copied",
+                           "bytes":  292100842,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_KY_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_KY_Residential",
+                           "status":  "copied",
+                           "bytes":  156722839,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_KY_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_KY_Residential_2",
+                           "status":  "copied",
+                           "bytes":  156610121,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_LA_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_LA_Commercial",
+                           "status":  "copied",
+                           "bytes":  334257248,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_LA_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_LA_Residential",
+                           "status":  "copied",
+                           "bytes":  159151504,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_LA_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_LA_Residential_2",
+                           "status":  "copied",
+                           "bytes":  159388778,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MA_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MA_Commercial",
+                           "status":  "copied",
+                           "bytes":  463409313,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MA_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MA_Residential",
+                           "status":  "copied",
+                           "bytes":  230462889,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MA_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MA_Residential_2",
+                           "status":  "copied",
+                           "bytes":  230289211,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MD_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MD_Commercial",
+                           "status":  "copied",
+                           "bytes":  374360738,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MD_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MD_Residential",
+                           "status":  "copied",
+                           "bytes":  196063335,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MD_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MD_Residential_2",
+                           "status":  "copied",
+                           "bytes":  195858036,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ME_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ME_Commercial",
+                           "status":  "copied",
+                           "bytes":  122093937,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ME_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ME_Residential",
+                           "status":  "copied",
+                           "bytes":  58156143,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ME_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ME_Residential_2",
+                           "status":  "copied",
+                           "bytes":  58165549,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MI_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MI_Commercial",
+                           "status":  "copied",
+                           "bytes":  835273382,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MI_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MI_Residential",
+                           "status":  "copied",
+                           "bytes":  373087636,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MI_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MI_Residential_2",
+                           "status":  "copied",
+                           "bytes":  372753398,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MN",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MN",
+                           "status":  "copied",
+                           "bytes":  0,
+                           "files":  0
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MN_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MN_Commercial",
+                           "status":  "copied",
+                           "bytes":  353192213,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MN_Commercial_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MN_Commercial_2",
+                           "status":  "copied",
+                           "bytes":  352775329,
+                           "files":  16
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MN_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MN_Residential",
+                           "status":  "copied",
+                           "bytes":  194882240,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MN_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MN_Residential_2",
+                           "status":  "copied",
+                           "bytes":  194623454,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MO_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MO_Commercial",
+                           "status":  "copied",
+                           "bytes":  427346095,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MO_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MO_Residential",
+                           "status":  "copied",
+                           "bytes":  221576729,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MO_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MO_Residential_2",
+                           "status":  "copied",
+                           "bytes":  221611463,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MS_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MS_Commercial",
+                           "status":  "copied",
+                           "bytes":  173319965,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MS_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MS_Residential",
+                           "status":  "copied",
+                           "bytes":  102776789,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MS_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MS_Residential_2",
+                           "status":  "copied",
+                           "bytes":  102877125,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MT_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MT_Commercial",
+                           "status":  "copied",
+                           "bytes":  63368356,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MT_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MT_Residential",
+                           "status":  "copied",
+                           "bytes":  39280211,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_MT_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_MT_Residential_2",
+                           "status":  "copied",
+                           "bytes":  39231863,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NC_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NC_Commercial",
+                           "status":  "copied",
+                           "bytes":  804107413,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NC_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NC_Residential",
+                           "status":  "copied",
+                           "bytes":  352635164,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NC_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NC_Residential_2",
+                           "status":  "copied",
+                           "bytes":  352128739,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ND_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ND_Commercial",
+                           "status":  "copied",
+                           "bytes":  47386659,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ND_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ND_Residential",
+                           "status":  "copied",
+                           "bytes":  28342033,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_ND_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_ND_Residential_2",
+                           "status":  "copied",
+                           "bytes":  28291605,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NE_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NE_Commercial",
+                           "status":  "copied",
+                           "bytes":  133892670,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NE_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NE_Residential",
+                           "status":  "copied",
+                           "bytes":  66446081,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NE_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NE_Residential_2",
+                           "status":  "copied",
+                           "bytes":  66359970,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NH_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NH_Commercial",
+                           "status":  "copied",
+                           "bytes":  110087332,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NH_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NH_Residential",
+                           "status":  "copied",
+                           "bytes":  49906528,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NH_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NH_Residential_2",
+                           "status":  "copied",
+                           "bytes":  49912032,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NJ_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NJ_Commercial",
+                           "status":  "copied",
+                           "bytes":  732716041,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NJ_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NJ_Residential",
+                           "status":  "copied",
+                           "bytes":  294280505,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NJ_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NJ_Residential_2",
+                           "status":  "copied",
+                           "bytes":  293867846,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NM_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NM_Commercial",
+                           "status":  "copied",
+                           "bytes":  154378136,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NM_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NM_Residential",
+                           "status":  "copied",
+                           "bytes":  72778952,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NM_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NM_Residential_2",
+                           "status":  "copied",
+                           "bytes":  72659978,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NV_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NV_Commercial",
+                           "status":  "copied",
+                           "bytes":  187475733,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NV_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NV_Residential",
+                           "status":  "copied",
+                           "bytes":  95813952,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NV_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NV_Residential_2",
+                           "status":  "copied",
+                           "bytes":  95354951,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NY_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NY_Commercial",
+                           "status":  "copied",
+                           "bytes":  1338748542,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NY_Commercial_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NY_Commercial_2",
+                           "status":  "copied",
+                           "bytes":  924492076,
+                           "files":  25
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NY_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NY_Residential",
+                           "status":  "copied",
+                           "bytes":  661751055,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_NY_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_NY_Residential_2",
+                           "status":  "copied",
+                           "bytes":  659541131,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OH_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OH_Commercial",
+                           "status":  "copied",
+                           "bytes":  1017587682,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OH_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OH_Residential",
+                           "status":  "copied",
+                           "bytes":  420222887,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OH_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OH_Residential_2",
+                           "status":  "copied",
+                           "bytes":  419610431,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OK_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OK_Commercial",
+                           "status":  "copied",
+                           "bytes":  333593937,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OK_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OK_Residential",
+                           "status":  "copied",
+                           "bytes":  137124071,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OK_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OK_Residential_2",
+                           "status":  "copied",
+                           "bytes":  136979992,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OR_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OR_Commercial",
+                           "status":  "copied",
+                           "bytes":  345811796,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OR_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OR_Residential",
+                           "status":  "copied",
+                           "bytes":  134060297,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_OR_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_OR_Residential_2",
+                           "status":  "copied",
+                           "bytes":  133858653,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_PA_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_PA_Commercial",
+                           "status":  "copied",
+                           "bytes":  991109146,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_PA_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_PA_Residential",
+                           "status":  "copied",
+                           "bytes":  453741899,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_PA_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_PA_Residential_2",
+                           "status":  "copied",
+                           "bytes":  453316162,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_RI_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_RI_Commercial",
+                           "status":  "copied",
+                           "bytes":  102110257,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_RI_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_RI_Residential",
+                           "status":  "copied",
+                           "bytes":  37575377,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_RI_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_RI_Residential_2",
+                           "status":  "copied",
+                           "bytes":  37631307,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_SC_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_SC_Commercial",
+                           "status":  "copied",
+                           "bytes":  498594780,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_SC_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_SC_Residential",
+                           "status":  "copied",
+                           "bytes":  172367453,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_SC_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_SC_Residential_2",
+                           "status":  "copied",
+                           "bytes":  172204367,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_SD_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_SD_Commercial",
+                           "status":  "copied",
+                           "bytes":  44066488,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_SD_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_SD_Residential",
+                           "status":  "copied",
+                           "bytes":  30465336,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_SD_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_SD_Residential_2",
+                           "status":  "copied",
+                           "bytes":  30451213,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_TN_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_TN_Commercial",
+                           "status":  "copied",
+                           "bytes":  537345450,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_TN_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_TN_Residential",
+                           "status":  "copied",
+                           "bytes":  229803677,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_TN_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_TN_Residential_2",
+                           "status":  "copied",
+                           "bytes":  229509112,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_TX_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_TX_Commercial",
+                           "status":  "copied",
+                           "bytes":  1886433334,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_TX_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_TX_Residential",
+                           "status":  "copied",
+                           "bytes":  830487862,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_TX_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_TX_Residential_2",
+                           "status":  "copied",
+                           "bytes":  830591781,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_UT_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_UT_Commercial",
+                           "status":  "copied",
+                           "bytes":  212911247,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_UT_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_UT_Residential",
+                           "status":  "copied",
+                           "bytes":  83540158,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_UT_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_UT_Residential_2",
+                           "status":  "copied",
+                           "bytes":  83391405,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_VA_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_VA_Commercial",
+                           "status":  "copied",
+                           "bytes":  502436851,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_VA_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_VA_Residential",
+                           "status":  "copied",
+                           "bytes":  275532995,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_VA_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_VA_Residential_2",
+                           "status":  "copied",
+                           "bytes":  275602791,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_VT_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_VT_Commercial",
+                           "status":  "copied",
+                           "bytes":  36413656,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_VT_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_VT_Residential",
+                           "status":  "copied",
+                           "bytes":  26029029,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_VT_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_VT_Residential_2",
+                           "status":  "copied",
+                           "bytes":  26079949,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WA_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WA_Commercial",
+                           "status":  "copied",
+                           "bytes":  462117221,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WA_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WA_Residential",
+                           "status":  "copied",
+                           "bytes":  233040772,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WA_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WA_Residential_2",
+                           "status":  "copied",
+                           "bytes":  232834189,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WI_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WI_Commercial",
+                           "status":  "copied",
+                           "bytes":  465754985,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WI_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WI_Residential",
+                           "status":  "copied",
+                           "bytes":  216673857,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WI_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WI_Residential_2",
+                           "status":  "copied",
+                           "bytes":  216214791,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WV_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WV_Commercial",
+                           "status":  "copied",
+                           "bytes":  156817539,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WV_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WV_Residential",
+                           "status":  "copied",
+                           "bytes":  70408079,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WV_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WV_Residential_2",
+                           "status":  "copied",
+                           "bytes":  70319622,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WY_Commercial",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WY_Commercial",
+                           "status":  "copied",
+                           "bytes":  34368275,
+                           "files":  6
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WY_Residential",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WY_Residential",
+                           "status":  "copied",
+                           "bytes":  21478580,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "directory",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\Metadata_WY_Residential_2",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_raw\\Metadata_WY_Residential_2",
+                           "status":  "copied",
+                           "bytes":  21455896,
+                           "files":  5
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\commercial_data.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\commercial_data.csv",
+                           "status":  "copied",
+                           "bytes":  3031857677,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\commercial_data_SELECT.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\commercial_data_SELECT.csv",
+                           "status":  "copied",
+                           "bytes":  505003496,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\commercial_data_SELECT_STATES.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\commercial_data_SELECT_STATES.csv",
+                           "status":  "copied",
+                           "bytes":  61014984,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\commercial_data_SELECT_STATES_MI_MT_VT_WA.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\commercial_data_SELECT_STATES_MI_MT_VT_WA.csv",
+                           "status":  "copied",
+                           "bytes":  30147091,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv",
+                           "status":  "copied",
+                           "bytes":  226928644,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\residential_data.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\residential_data.csv",
+                           "status":  "copied",
+                           "bytes":  3116931714,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\residential_data_SELECT.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\residential_data_SELECT.csv",
+                           "status":  "copied",
+                           "bytes":  311819644,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\residential_data_SELECT_STATES.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\residential_data_SELECT_STATES.csv",
+                           "status":  "copied",
+                           "bytes":  39295615,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\residential_data_SELECT_STATES_MI_MT_VT_WA.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\residential_data_SELECT_STATES_MI_MT_VT_WA.csv",
+                           "status":  "copied",
+                           "bytes":  20185824,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "C:\\Users\\luisf\\Dropbox\\1_RESEARCH\\1_FOCUS_PhD\\6_Paper_3_Expander\\workflow_download_metadata\\residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\data_derived\\historical\\residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv",
+                           "status":  "copied",
+                           "bytes":  251412678,
+                           "files":  null
+                       },
+                       {
+                           "kind":  "file",
+                           "source":  "generated",
+                           "destination":  "C:\\Users\\luisf\\Documents\\DSS\\docs\\local_source_inventory.md",
+                           "status":  "created",
+                           "bytes":  5417,
+                           "files":  null
+                       }
+                   ]
+}
