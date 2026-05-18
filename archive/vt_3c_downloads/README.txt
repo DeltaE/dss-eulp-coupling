@@ -1,0 +1,3 @@
+1) Bring in commercial_data_SELECT_STATES_FILTERED_NC.csv AND residential_data_SELECT_STATES_FILTERED_NC.csv
+
+2) Execute, download_parquets_commercial_NC.py AND download_parquets_homes_NC.py.

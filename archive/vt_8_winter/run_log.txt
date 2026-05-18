@@ -1,0 +1,1686 @@
+Found 174 circuit folders with power_flow_sim_daily_EV_STO_DG_deploy.py:
+  uhs0_1247_circuit_1_0
+  uhs0_1247_circuit_1_1
+  uhs0_1247_circuit_1_2
+  uhs0_1247_circuit_2_0
+  uhs0_1247_circuit_2_1
+  uhs0_1247_circuit_2_2
+  uhs0_1247_circuit_3_0
+  uhs0_1247_circuit_3_1
+  uhs0_1247_circuit_3_2
+  uhs10_1247_circuit_33_0
+  uhs10_1247_circuit_33_1
+  uhs10_1247_circuit_33_2
+  uhs10_1247_circuit_34_0
+  uhs10_1247_circuit_34_1
+  uhs10_1247_circuit_34_2
+  uhs10_1247_circuit_35_0
+  uhs10_1247_circuit_35_1
+  uhs10_1247_circuit_35_2
+  uhs11_1247_circuit_37_0
+  uhs11_1247_circuit_37_1
+  uhs11_1247_circuit_37_2
+  uhs11_1247_circuit_38_0
+  uhs11_1247_circuit_38_1
+  uhs11_1247_circuit_38_2
+  uhs12_1247_circuit_39_0
+  uhs12_1247_circuit_39_1
+  uhs12_1247_circuit_39_2
+  uhs12_1247_circuit_40_0
+  uhs12_1247_circuit_40_1
+  uhs12_1247_circuit_40_2
+  uhs12_1247_circuit_41_0
+  uhs12_1247_circuit_41_1
+  uhs12_1247_circuit_41_2
+  uhs12_1247_circuit_42_0
+  uhs12_1247_circuit_42_1
+  uhs12_1247_circuit_42_2
+  uhs13_1247_circuit_43_0
+  uhs13_1247_circuit_43_1
+  uhs13_1247_circuit_43_2
+  uhs13_1247_circuit_44_0
+  uhs13_1247_circuit_44_1
+  uhs13_1247_circuit_44_2
+  uhs14_1247_circuit_45_0
+  uhs14_1247_circuit_45_1
+  uhs14_1247_circuit_45_2
+  uhs14_1247_circuit_46_0
+  uhs14_1247_circuit_46_1
+  uhs14_1247_circuit_46_2
+  uhs14_1247_circuit_47_0
+  uhs14_1247_circuit_47_1
+  uhs14_1247_circuit_47_2
+  uhs15_1247_circuit_48_0
+  uhs15_1247_circuit_48_1
+  uhs15_1247_circuit_48_2
+  uhs15_1247_circuit_49_0
+  uhs15_1247_circuit_49_1
+  uhs15_1247_circuit_49_2
+  uhs16_1247_circuit_50_0
+  uhs16_1247_circuit_50_1
+  uhs16_1247_circuit_50_2
+  uhs16_1247_circuit_51_0
+  uhs16_1247_circuit_51_1
+  uhs16_1247_circuit_51_2
+  uhs17_1247_circuit_52_0
+  uhs17_1247_circuit_52_1
+  uhs17_1247_circuit_52_2
+  uhs17_1247_circuit_53_0
+  uhs17_1247_circuit_53_1
+  uhs17_1247_circuit_53_2
+  uhs18_1247_circuit_54_0
+  uhs18_1247_circuit_54_1
+  uhs18_1247_circuit_54_2
+  uhs18_1247_circuit_55_0
+  uhs18_1247_circuit_55_1
+  uhs18_1247_circuit_55_2
+  uhs18_1247_circuit_56_0
+  uhs18_1247_circuit_56_1
+  uhs18_1247_circuit_56_2
+  uhs19_1247_circuit_57_0
+  uhs19_1247_circuit_57_1
+  uhs19_1247_circuit_57_2
+  uhs19_1247_circuit_58_0
+  uhs19_1247_circuit_58_1
+  uhs19_1247_circuit_58_2
+  uhs1_1247_circuit_4_0
+  uhs1_1247_circuit_4_1
+  uhs1_1247_circuit_4_2
+  uhs1_1247_circuit_5_0
+  uhs1_1247_circuit_5_1
+  uhs1_1247_circuit_5_2
+  uhs20_1247_circuit_59_0
+  uhs20_1247_circuit_59_1
+  uhs20_1247_circuit_59_2
+  uhs20_1247_circuit_60_0
+  uhs20_1247_circuit_60_1
+  uhs20_1247_circuit_60_2
+  uhs20_1247_circuit_61_0
+  uhs20_1247_circuit_61_1
+  uhs20_1247_circuit_61_2
+  uhs2_1247_circuit_6_0
+  uhs2_1247_circuit_6_1
+  uhs2_1247_circuit_6_2
+  uhs2_1247_circuit_7_0
+  uhs2_1247_circuit_7_1
+  uhs2_1247_circuit_7_2
+  uhs2_1247_circuit_8_0
+  uhs2_1247_circuit_8_1
+  uhs2_1247_circuit_8_2
+  uhs3_1247_circuit_10_0
+  uhs3_1247_circuit_10_1
+  uhs3_1247_circuit_10_2
+  uhs3_1247_circuit_11_0
+  uhs3_1247_circuit_11_1
+  uhs3_1247_circuit_11_2
+  uhs3_1247_circuit_9_0
+  uhs3_1247_circuit_9_1
+  uhs3_1247_circuit_9_2
+  uhs4_1247_circuit_14_0
+  uhs4_1247_circuit_14_1
+  uhs4_1247_circuit_14_2
+  uhs4_1247_circuit_15_0
+  uhs4_1247_circuit_15_1
+  uhs4_1247_circuit_15_2
+  uhs5_1247_circuit_16_0
+  uhs5_1247_circuit_16_1
+  uhs5_1247_circuit_16_2
+  uhs5_1247_circuit_17_0
+  uhs5_1247_circuit_17_1
+  uhs5_1247_circuit_17_2
+  uhs5_1247_circuit_18_0
+  uhs5_1247_circuit_18_1
+  uhs5_1247_circuit_18_2
+  uhs5_1247_circuit_19_0
+  uhs5_1247_circuit_19_1
+  uhs5_1247_circuit_19_2
+  uhs6_1247_circuit_20_0
+  uhs6_1247_circuit_20_1
+  uhs6_1247_circuit_20_2
+  uhs6_1247_circuit_21_0
+  uhs6_1247_circuit_21_1
+  uhs6_1247_circuit_21_2
+  uhs6_1247_circuit_22_0
+  uhs6_1247_circuit_22_1
+  uhs6_1247_circuit_22_2
+  uhs7_1247_circuit_23_0
+  uhs7_1247_circuit_23_1
+  uhs7_1247_circuit_23_2
+  uhs7_1247_circuit_24_0
+  uhs7_1247_circuit_24_1
+  uhs7_1247_circuit_24_2
+  uhs7_1247_circuit_25_0
+  uhs7_1247_circuit_25_1
+  uhs7_1247_circuit_25_2
+  uhs8_1247_circuit_26_0
+  uhs8_1247_circuit_26_1
+  uhs8_1247_circuit_26_2
+  uhs8_1247_circuit_27_0
+  uhs8_1247_circuit_27_1
+  uhs8_1247_circuit_27_2
+  uhs9_1247_circuit_28_0
+  uhs9_1247_circuit_28_1
+  uhs9_1247_circuit_28_2
+  uhs9_1247_circuit_29_0
+  uhs9_1247_circuit_29_1
+  uhs9_1247_circuit_29_2
+  uhs9_1247_circuit_30_0
+  uhs9_1247_circuit_30_1
+  uhs9_1247_circuit_30_2
+  uhs9_1247_circuit_31_0
+  uhs9_1247_circuit_31_1
+  uhs9_1247_circuit_31_2
+  uhs9_1247_circuit_32_0
+  uhs9_1247_circuit_32_1
+  uhs9_1247_circuit_32_2
+
+================================================================================
+RUN: uhs0_1247_circuit_1_0
+================================================================================
+[uhs0_1247_circuit_1_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs0_1247_circuit_1_0\scenario_assignments.json
+[uhs0_1247_circuit_1_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs0_1247_circuit_1_0] Found 1621 unique base loads.
+[uhs0_1247_circuit_1_0] happens 2
+[uhs0_1247_circuit_1_0] Converged? True
+[uhs0_1247_circuit_1_0] âœ… Finished single-scenario deploy.
+[uhs0_1247_circuit_1_0] Time taken: 3.36 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs0_1247_circuit_1_1
+================================================================================
+[uhs0_1247_circuit_1_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs0_1247_circuit_1_1\scenario_assignments.json
+[uhs0_1247_circuit_1_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs0_1247_circuit_1_1] Found 1621 unique base loads.
+[uhs0_1247_circuit_1_1] happens 2
+[uhs0_1247_circuit_1_1] Converged? True
+[uhs0_1247_circuit_1_1] âœ… Finished single-scenario deploy.
+[uhs0_1247_circuit_1_1] Time taken: 3.48 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs0_1247_circuit_2_0
+================================================================================
+[uhs0_1247_circuit_2_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs0_1247_circuit_2_0\scenario_assignments.json
+[uhs0_1247_circuit_2_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs0_1247_circuit_2_0] Found 1825 unique base loads.
+[uhs0_1247_circuit_2_0] happens 2
+[uhs0_1247_circuit_2_0] Converged? True
+[uhs0_1247_circuit_2_0] âœ… Finished single-scenario deploy.
+[uhs0_1247_circuit_2_0] Time taken: 4.32 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs0_1247_circuit_2_1
+================================================================================
+[uhs0_1247_circuit_2_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs0_1247_circuit_2_1\scenario_assignments.json
+[uhs0_1247_circuit_2_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs0_1247_circuit_2_1] Found 1825 unique base loads.
+[uhs0_1247_circuit_2_1] happens 2
+[uhs0_1247_circuit_2_1] Converged? True
+[uhs0_1247_circuit_2_1] âœ… Finished single-scenario deploy.
+[uhs0_1247_circuit_2_1] Time taken: 4.83 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs0_1247_circuit_3_0
+================================================================================
+[uhs0_1247_circuit_3_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs0_1247_circuit_3_0\scenario_assignments.json
+[uhs0_1247_circuit_3_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs0_1247_circuit_3_0] Found 300 unique base loads.
+[uhs0_1247_circuit_3_0] happens 2
+[uhs0_1247_circuit_3_0] Converged? True
+[uhs0_1247_circuit_3_0] âœ… Finished single-scenario deploy.
+[uhs0_1247_circuit_3_0] Time taken: 0.93 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs0_1247_circuit_3_1
+================================================================================
+[uhs0_1247_circuit_3_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs0_1247_circuit_3_1\scenario_assignments.json
+[uhs0_1247_circuit_3_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs0_1247_circuit_3_1] Found 300 unique base loads.
+[uhs0_1247_circuit_3_1] happens 2
+[uhs0_1247_circuit_3_1] Converged? True
+[uhs0_1247_circuit_3_1] âœ… Finished single-scenario deploy.
+[uhs0_1247_circuit_3_1] Time taken: 1.27 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs10_1247_circuit_33_0
+================================================================================
+[uhs10_1247_circuit_33_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs10_1247_circuit_33_0\scenario_assignments.json
+[uhs10_1247_circuit_33_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs10_1247_circuit_33_0] Found 1050 unique base loads.
+[uhs10_1247_circuit_33_0] happens 2
+[uhs10_1247_circuit_33_0] Converged? True
+[uhs10_1247_circuit_33_0] âœ… Finished single-scenario deploy.
+[uhs10_1247_circuit_33_0] Time taken: 2.30 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs10_1247_circuit_33_1
+================================================================================
+[uhs10_1247_circuit_33_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs10_1247_circuit_33_1\scenario_assignments.json
+[uhs10_1247_circuit_33_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs10_1247_circuit_33_1] Found 1050 unique base loads.
+[uhs10_1247_circuit_33_1] happens 2
+[uhs10_1247_circuit_33_1] Converged? True
+[uhs10_1247_circuit_33_1] âœ… Finished single-scenario deploy.
+[uhs10_1247_circuit_33_1] Time taken: 2.64 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs10_1247_circuit_34_0
+================================================================================
+[uhs10_1247_circuit_34_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs10_1247_circuit_34_0\scenario_assignments.json
+[uhs10_1247_circuit_34_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs10_1247_circuit_34_0] Found 1241 unique base loads.
+[uhs10_1247_circuit_34_0] happens 2
+[uhs10_1247_circuit_34_0] Converged? True
+[uhs10_1247_circuit_34_0] âœ… Finished single-scenario deploy.
+[uhs10_1247_circuit_34_0] Time taken: 2.64 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs10_1247_circuit_34_1
+================================================================================
+[uhs10_1247_circuit_34_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs10_1247_circuit_34_1\scenario_assignments.json
+[uhs10_1247_circuit_34_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs10_1247_circuit_34_1] Found 1241 unique base loads.
+[uhs10_1247_circuit_34_1] happens 2
+[uhs10_1247_circuit_34_1] Converged? True
+[uhs10_1247_circuit_34_1] âœ… Finished single-scenario deploy.
+[uhs10_1247_circuit_34_1] Time taken: 2.83 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs10_1247_circuit_35_0
+================================================================================
+[uhs10_1247_circuit_35_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs10_1247_circuit_35_0\scenario_assignments.json
+[uhs10_1247_circuit_35_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs10_1247_circuit_35_0] Found 586 unique base loads.
+[uhs10_1247_circuit_35_0] happens 2
+[uhs10_1247_circuit_35_0] Converged? True
+[uhs10_1247_circuit_35_0] âœ… Finished single-scenario deploy.
+[uhs10_1247_circuit_35_0] Time taken: 1.52 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs10_1247_circuit_35_1
+================================================================================
+[uhs10_1247_circuit_35_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs10_1247_circuit_35_1\scenario_assignments.json
+[uhs10_1247_circuit_35_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs10_1247_circuit_35_1] Found 586 unique base loads.
+[uhs10_1247_circuit_35_1] happens 2
+[uhs10_1247_circuit_35_1] Converged? True
+[uhs10_1247_circuit_35_1] âœ… Finished single-scenario deploy.
+[uhs10_1247_circuit_35_1] Time taken: 1.79 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs11_1247_circuit_37_0
+================================================================================
+[uhs11_1247_circuit_37_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs11_1247_circuit_37_0\scenario_assignments.json
+[uhs11_1247_circuit_37_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs11_1247_circuit_37_0] Found 1145 unique base loads.
+[uhs11_1247_circuit_37_0] happens 2
+[uhs11_1247_circuit_37_0] Converged? True
+[uhs11_1247_circuit_37_0] âœ… Finished single-scenario deploy.
+[uhs11_1247_circuit_37_0] Time taken: 2.21 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs11_1247_circuit_37_1
+================================================================================
+[uhs11_1247_circuit_37_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs11_1247_circuit_37_1\scenario_assignments.json
+[uhs11_1247_circuit_37_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs11_1247_circuit_37_1] Found 1145 unique base loads.
+[uhs11_1247_circuit_37_1] happens 2
+[uhs11_1247_circuit_37_1] Converged? True
+[uhs11_1247_circuit_37_1] âœ… Finished single-scenario deploy.
+[uhs11_1247_circuit_37_1] Time taken: 2.51 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs11_1247_circuit_38_0
+================================================================================
+[uhs11_1247_circuit_38_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs11_1247_circuit_38_0\scenario_assignments.json
+[uhs11_1247_circuit_38_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs11_1247_circuit_38_0] Found 1564 unique base loads.
+[uhs11_1247_circuit_38_0] happens 2
+[uhs11_1247_circuit_38_0] Converged? True
+[uhs11_1247_circuit_38_0] âœ… Finished single-scenario deploy.
+[uhs11_1247_circuit_38_0] Time taken: 2.99 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs11_1247_circuit_38_1
+================================================================================
+[uhs11_1247_circuit_38_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs11_1247_circuit_38_1\scenario_assignments.json
+[uhs11_1247_circuit_38_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs11_1247_circuit_38_1] Found 1564 unique base loads.
+[uhs11_1247_circuit_38_1] happens 2
+[uhs11_1247_circuit_38_1] Converged? True
+[uhs11_1247_circuit_38_1] âœ… Finished single-scenario deploy.
+[uhs11_1247_circuit_38_1] Time taken: 3.23 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs12_1247_circuit_39_0
+================================================================================
+[uhs12_1247_circuit_39_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs12_1247_circuit_39_0\scenario_assignments.json
+[uhs12_1247_circuit_39_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs12_1247_circuit_39_0] Found 1866 unique base loads.
+[uhs12_1247_circuit_39_0] happens 2
+[uhs12_1247_circuit_39_0] Converged? True
+[uhs12_1247_circuit_39_0] âœ… Finished single-scenario deploy.
+[uhs12_1247_circuit_39_0] Time taken: 3.45 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs12_1247_circuit_39_1
+================================================================================
+[uhs12_1247_circuit_39_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs12_1247_circuit_39_1\scenario_assignments.json
+[uhs12_1247_circuit_39_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs12_1247_circuit_39_1] Found 1866 unique base loads.
+[uhs12_1247_circuit_39_1] happens 2
+[uhs12_1247_circuit_39_1] Converged? True
+[uhs12_1247_circuit_39_1] âœ… Finished single-scenario deploy.
+[uhs12_1247_circuit_39_1] Time taken: 3.43 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs12_1247_circuit_40_0
+================================================================================
+[uhs12_1247_circuit_40_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs12_1247_circuit_40_0\scenario_assignments.json
+[uhs12_1247_circuit_40_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs12_1247_circuit_40_0] Found 919 unique base loads.
+[uhs12_1247_circuit_40_0] happens 2
+[uhs12_1247_circuit_40_0] Converged? True
+[uhs12_1247_circuit_40_0] âœ… Finished single-scenario deploy.
+[uhs12_1247_circuit_40_0] Time taken: 1.98 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs12_1247_circuit_40_1
+================================================================================
+[uhs12_1247_circuit_40_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs12_1247_circuit_40_1\scenario_assignments.json
+[uhs12_1247_circuit_40_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs12_1247_circuit_40_1] Found 919 unique base loads.
+[uhs12_1247_circuit_40_1] happens 2
+[uhs12_1247_circuit_40_1] Converged? True
+[uhs12_1247_circuit_40_1] âœ… Finished single-scenario deploy.
+[uhs12_1247_circuit_40_1] Time taken: 2.08 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs12_1247_circuit_41_0
+================================================================================
+[uhs12_1247_circuit_41_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs12_1247_circuit_41_0\scenario_assignments.json
+[uhs12_1247_circuit_41_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs12_1247_circuit_41_0] Found 450 unique base loads.
+[uhs12_1247_circuit_41_0] happens 2
+[uhs12_1247_circuit_41_0] Converged? True
+[uhs12_1247_circuit_41_0] âœ… Finished single-scenario deploy.
+[uhs12_1247_circuit_41_0] Time taken: 1.05 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs12_1247_circuit_41_1
+================================================================================
+[uhs12_1247_circuit_41_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs12_1247_circuit_41_1\scenario_assignments.json
+[uhs12_1247_circuit_41_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs12_1247_circuit_41_1] Found 450 unique base loads.
+[uhs12_1247_circuit_41_1] happens 2
+[uhs12_1247_circuit_41_1] Converged? True
+[uhs12_1247_circuit_41_1] âœ… Finished single-scenario deploy.
+[uhs12_1247_circuit_41_1] Time taken: 1.09 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs12_1247_circuit_42_0
+================================================================================
+[uhs12_1247_circuit_42_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs12_1247_circuit_42_0\scenario_assignments.json
+[uhs12_1247_circuit_42_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs12_1247_circuit_42_0] Found 1368 unique base loads.
+[uhs12_1247_circuit_42_0] happens 2
+[uhs12_1247_circuit_42_0] Converged? True
+[uhs12_1247_circuit_42_0] âœ… Finished single-scenario deploy.
+[uhs12_1247_circuit_42_0] Time taken: 2.76 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs12_1247_circuit_42_1
+================================================================================
+[uhs12_1247_circuit_42_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs12_1247_circuit_42_1\scenario_assignments.json
+[uhs12_1247_circuit_42_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs12_1247_circuit_42_1] Found 1368 unique base loads.
+[uhs12_1247_circuit_42_1] happens 2
+[uhs12_1247_circuit_42_1] Converged? True
+[uhs12_1247_circuit_42_1] âœ… Finished single-scenario deploy.
+[uhs12_1247_circuit_42_1] Time taken: 3.42 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs13_1247_circuit_43_0
+================================================================================
+[uhs13_1247_circuit_43_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs13_1247_circuit_43_0\scenario_assignments.json
+[uhs13_1247_circuit_43_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs13_1247_circuit_43_0] Found 766 unique base loads.
+[uhs13_1247_circuit_43_0] happens 2
+[uhs13_1247_circuit_43_0] Converged? True
+[uhs13_1247_circuit_43_0] âœ… Finished single-scenario deploy.
+[uhs13_1247_circuit_43_0] Time taken: 1.89 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs13_1247_circuit_43_1
+================================================================================
+[uhs13_1247_circuit_43_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs13_1247_circuit_43_1\scenario_assignments.json
+[uhs13_1247_circuit_43_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs13_1247_circuit_43_1] Found 766 unique base loads.
+[uhs13_1247_circuit_43_1] happens 2
+[uhs13_1247_circuit_43_1] Converged? True
+[uhs13_1247_circuit_43_1] âœ… Finished single-scenario deploy.
+[uhs13_1247_circuit_43_1] Time taken: 2.22 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs13_1247_circuit_44_0
+================================================================================
+[uhs13_1247_circuit_44_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs13_1247_circuit_44_0\scenario_assignments.json
+[uhs13_1247_circuit_44_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs13_1247_circuit_44_0] Found 979 unique base loads.
+[uhs13_1247_circuit_44_0] happens 2
+[uhs13_1247_circuit_44_0] Converged? True
+[uhs13_1247_circuit_44_0] âœ… Finished single-scenario deploy.
+[uhs13_1247_circuit_44_0] Time taken: 1.99 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs13_1247_circuit_44_1
+================================================================================
+[uhs13_1247_circuit_44_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs13_1247_circuit_44_1\scenario_assignments.json
+[uhs13_1247_circuit_44_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs13_1247_circuit_44_1] Found 979 unique base loads.
+[uhs13_1247_circuit_44_1] happens 2
+[uhs13_1247_circuit_44_1] Converged? True
+[uhs13_1247_circuit_44_1] âœ… Finished single-scenario deploy.
+[uhs13_1247_circuit_44_1] Time taken: 1.94 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs14_1247_circuit_45_0
+================================================================================
+[uhs14_1247_circuit_45_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs14_1247_circuit_45_0\scenario_assignments.json
+[uhs14_1247_circuit_45_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs14_1247_circuit_45_0] Found 737 unique base loads.
+[uhs14_1247_circuit_45_0] happens 2
+[uhs14_1247_circuit_45_0] Converged? True
+[uhs14_1247_circuit_45_0] âœ… Finished single-scenario deploy.
+[uhs14_1247_circuit_45_0] Time taken: 1.75 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs14_1247_circuit_45_1
+================================================================================
+[uhs14_1247_circuit_45_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs14_1247_circuit_45_1\scenario_assignments.json
+[uhs14_1247_circuit_45_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs14_1247_circuit_45_1] Found 737 unique base loads.
+[uhs14_1247_circuit_45_1] happens 2
+[uhs14_1247_circuit_45_1] Converged? True
+[uhs14_1247_circuit_45_1] âœ… Finished single-scenario deploy.
+[uhs14_1247_circuit_45_1] Time taken: 2.22 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs14_1247_circuit_46_0
+================================================================================
+[uhs14_1247_circuit_46_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs14_1247_circuit_46_0\scenario_assignments.json
+[uhs14_1247_circuit_46_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs14_1247_circuit_46_0] Found 1397 unique base loads.
+[uhs14_1247_circuit_46_0] happens 2
+[uhs14_1247_circuit_46_0] Converged? True
+[uhs14_1247_circuit_46_0] âœ… Finished single-scenario deploy.
+[uhs14_1247_circuit_46_0] Time taken: 2.78 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs14_1247_circuit_46_1
+================================================================================
+[uhs14_1247_circuit_46_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs14_1247_circuit_46_1\scenario_assignments.json
+[uhs14_1247_circuit_46_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs14_1247_circuit_46_1] Found 1397 unique base loads.
+[uhs14_1247_circuit_46_1] happens 2
+[uhs14_1247_circuit_46_1] Converged? True
+[uhs14_1247_circuit_46_1] âœ… Finished single-scenario deploy.
+[uhs14_1247_circuit_46_1] Time taken: 3.00 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs14_1247_circuit_47_0
+================================================================================
+[uhs14_1247_circuit_47_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs14_1247_circuit_47_0\scenario_assignments.json
+[uhs14_1247_circuit_47_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs14_1247_circuit_47_0] Found 979 unique base loads.
+[uhs14_1247_circuit_47_0] happens 2
+[uhs14_1247_circuit_47_0] Converged? True
+[uhs14_1247_circuit_47_0] âœ… Finished single-scenario deploy.
+[uhs14_1247_circuit_47_0] Time taken: 1.99 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs14_1247_circuit_47_1
+================================================================================
+[uhs14_1247_circuit_47_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs14_1247_circuit_47_1\scenario_assignments.json
+[uhs14_1247_circuit_47_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs14_1247_circuit_47_1] Found 979 unique base loads.
+[uhs14_1247_circuit_47_1] happens 2
+[uhs14_1247_circuit_47_1] Converged? True
+[uhs14_1247_circuit_47_1] âœ… Finished single-scenario deploy.
+[uhs14_1247_circuit_47_1] Time taken: 2.39 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs15_1247_circuit_48_0
+================================================================================
+[uhs15_1247_circuit_48_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs15_1247_circuit_48_0\scenario_assignments.json
+[uhs15_1247_circuit_48_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs15_1247_circuit_48_0] Found 1884 unique base loads.
+[uhs15_1247_circuit_48_0] happens 2
+[uhs15_1247_circuit_48_0] Converged? True
+[uhs15_1247_circuit_48_0] âœ… Finished single-scenario deploy.
+[uhs15_1247_circuit_48_0] Time taken: 4.82 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs15_1247_circuit_48_1
+================================================================================
+[uhs15_1247_circuit_48_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs15_1247_circuit_48_1\scenario_assignments.json
+[uhs15_1247_circuit_48_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs15_1247_circuit_48_1] Found 1884 unique base loads.
+[uhs15_1247_circuit_48_1] happens 2
+[uhs15_1247_circuit_48_1] Converged? True
+[uhs15_1247_circuit_48_1] âœ… Finished single-scenario deploy.
+[uhs15_1247_circuit_48_1] Time taken: 4.49 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs15_1247_circuit_49_0
+================================================================================
+[uhs15_1247_circuit_49_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs15_1247_circuit_49_0\scenario_assignments.json
+[uhs15_1247_circuit_49_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs15_1247_circuit_49_0] Found 485 unique base loads.
+[uhs15_1247_circuit_49_0] happens 2
+[uhs15_1247_circuit_49_0] Converged? True
+[uhs15_1247_circuit_49_0] âœ… Finished single-scenario deploy.
+[uhs15_1247_circuit_49_0] Time taken: 1.40 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs15_1247_circuit_49_1
+================================================================================
+[uhs15_1247_circuit_49_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs15_1247_circuit_49_1\scenario_assignments.json
+[uhs15_1247_circuit_49_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs15_1247_circuit_49_1] Found 485 unique base loads.
+[uhs15_1247_circuit_49_1] happens 2
+[uhs15_1247_circuit_49_1] Converged? True
+[uhs15_1247_circuit_49_1] âœ… Finished single-scenario deploy.
+[uhs15_1247_circuit_49_1] Time taken: 2.18 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs16_1247_circuit_50_0
+================================================================================
+[uhs16_1247_circuit_50_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs16_1247_circuit_50_0\scenario_assignments.json
+[uhs16_1247_circuit_50_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs16_1247_circuit_50_0] Found 1259 unique base loads.
+[uhs16_1247_circuit_50_0] happens 2
+[uhs16_1247_circuit_50_0] Converged? True
+[uhs16_1247_circuit_50_0] âœ… Finished single-scenario deploy.
+[uhs16_1247_circuit_50_0] Time taken: 2.59 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs16_1247_circuit_50_1
+================================================================================
+[uhs16_1247_circuit_50_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs16_1247_circuit_50_1\scenario_assignments.json
+[uhs16_1247_circuit_50_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs16_1247_circuit_50_1] Found 1259 unique base loads.
+[uhs16_1247_circuit_50_1] happens 2
+[uhs16_1247_circuit_50_1] Converged? True
+[uhs16_1247_circuit_50_1] âœ… Finished single-scenario deploy.
+[uhs16_1247_circuit_50_1] Time taken: 3.22 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs16_1247_circuit_51_0
+================================================================================
+[uhs16_1247_circuit_51_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs16_1247_circuit_51_0\scenario_assignments.json
+[uhs16_1247_circuit_51_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs16_1247_circuit_51_0] Found 1717 unique base loads.
+[uhs16_1247_circuit_51_0] happens 2
+[uhs16_1247_circuit_51_0] Converged? True
+[uhs16_1247_circuit_51_0] âœ… Finished single-scenario deploy.
+[uhs16_1247_circuit_51_0] Time taken: 3.53 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs16_1247_circuit_51_1
+================================================================================
+[uhs16_1247_circuit_51_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs16_1247_circuit_51_1\scenario_assignments.json
+[uhs16_1247_circuit_51_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs16_1247_circuit_51_1] Found 1717 unique base loads.
+[uhs16_1247_circuit_51_1] happens 2
+[uhs16_1247_circuit_51_1] Converged? True
+[uhs16_1247_circuit_51_1] âœ… Finished single-scenario deploy.
+[uhs16_1247_circuit_51_1] Time taken: 4.84 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs17_1247_circuit_52_0
+================================================================================
+[uhs17_1247_circuit_52_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs17_1247_circuit_52_0\scenario_assignments.json
+[uhs17_1247_circuit_52_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs17_1247_circuit_52_0] Found 2214 unique base loads.
+[uhs17_1247_circuit_52_0] happens 2
+[uhs17_1247_circuit_52_0] Converged? True
+[uhs17_1247_circuit_52_0] âœ… Finished single-scenario deploy.
+[uhs17_1247_circuit_52_0] Time taken: 4.25 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs17_1247_circuit_52_1
+================================================================================
+[uhs17_1247_circuit_52_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs17_1247_circuit_52_1\scenario_assignments.json
+[uhs17_1247_circuit_52_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs17_1247_circuit_52_1] Found 2214 unique base loads.
+[uhs17_1247_circuit_52_1] happens 2
+[uhs17_1247_circuit_52_1] Converged? True
+[uhs17_1247_circuit_52_1] âœ… Finished single-scenario deploy.
+[uhs17_1247_circuit_52_1] Time taken: 4.47 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs17_1247_circuit_53_0
+================================================================================
+[uhs17_1247_circuit_53_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs17_1247_circuit_53_0\scenario_assignments.json
+[uhs17_1247_circuit_53_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs17_1247_circuit_53_0] Found 834 unique base loads.
+[uhs17_1247_circuit_53_0] happens 2
+[uhs17_1247_circuit_53_0] Converged? True
+[uhs17_1247_circuit_53_0] âœ… Finished single-scenario deploy.
+[uhs17_1247_circuit_53_0] Time taken: 1.92 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs17_1247_circuit_53_1
+================================================================================
+[uhs17_1247_circuit_53_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs17_1247_circuit_53_1\scenario_assignments.json
+[uhs17_1247_circuit_53_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs17_1247_circuit_53_1] Found 834 unique base loads.
+[uhs17_1247_circuit_53_1] happens 2
+[uhs17_1247_circuit_53_1] Converged? True
+[uhs17_1247_circuit_53_1] âœ… Finished single-scenario deploy.
+[uhs17_1247_circuit_53_1] Time taken: 2.30 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs18_1247_circuit_54_0
+================================================================================
+[uhs18_1247_circuit_54_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs18_1247_circuit_54_0\scenario_assignments.json
+[uhs18_1247_circuit_54_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs18_1247_circuit_54_0] Found 1842 unique base loads.
+[uhs18_1247_circuit_54_0] happens 2
+[uhs18_1247_circuit_54_0] Converged? True
+[uhs18_1247_circuit_54_0] âœ… Finished single-scenario deploy.
+[uhs18_1247_circuit_54_0] Time taken: 3.71 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs18_1247_circuit_54_1
+================================================================================
+[uhs18_1247_circuit_54_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs18_1247_circuit_54_1\scenario_assignments.json
+[uhs18_1247_circuit_54_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs18_1247_circuit_54_1] Found 1842 unique base loads.
+[uhs18_1247_circuit_54_1] happens 2
+[uhs18_1247_circuit_54_1] Converged? True
+[uhs18_1247_circuit_54_1] âœ… Finished single-scenario deploy.
+[uhs18_1247_circuit_54_1] Time taken: 4.07 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs18_1247_circuit_55_0
+================================================================================
+[uhs18_1247_circuit_55_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs18_1247_circuit_55_0\scenario_assignments.json
+[uhs18_1247_circuit_55_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs18_1247_circuit_55_0] Found 562 unique base loads.
+[uhs18_1247_circuit_55_0] happens 2
+[uhs18_1247_circuit_55_0] Converged? True
+[uhs18_1247_circuit_55_0] âœ… Finished single-scenario deploy.
+[uhs18_1247_circuit_55_0] Time taken: 1.46 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs18_1247_circuit_55_1
+================================================================================
+[uhs18_1247_circuit_55_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs18_1247_circuit_55_1\scenario_assignments.json
+[uhs18_1247_circuit_55_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs18_1247_circuit_55_1] Found 562 unique base loads.
+[uhs18_1247_circuit_55_1] happens 2
+[uhs18_1247_circuit_55_1] Converged? True
+[uhs18_1247_circuit_55_1] âœ… Finished single-scenario deploy.
+[uhs18_1247_circuit_55_1] Time taken: 1.65 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs18_1247_circuit_56_0
+================================================================================
+[uhs18_1247_circuit_56_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs18_1247_circuit_56_0\scenario_assignments.json
+[uhs18_1247_circuit_56_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs18_1247_circuit_56_0] Found 1284 unique base loads.
+[uhs18_1247_circuit_56_0] happens 2
+[uhs18_1247_circuit_56_0] Converged? True
+[uhs18_1247_circuit_56_0] âœ… Finished single-scenario deploy.
+[uhs18_1247_circuit_56_0] Time taken: 3.09 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs18_1247_circuit_56_1
+================================================================================
+[uhs18_1247_circuit_56_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs18_1247_circuit_56_1\scenario_assignments.json
+[uhs18_1247_circuit_56_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs18_1247_circuit_56_1] Found 1284 unique base loads.
+[uhs18_1247_circuit_56_1] happens 2
+[uhs18_1247_circuit_56_1] Converged? True
+[uhs18_1247_circuit_56_1] âœ… Finished single-scenario deploy.
+[uhs18_1247_circuit_56_1] Time taken: 3.51 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs19_1247_circuit_57_0
+================================================================================
+[uhs19_1247_circuit_57_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs19_1247_circuit_57_0\scenario_assignments.json
+[uhs19_1247_circuit_57_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs19_1247_circuit_57_0] Found 8 unique base loads.
+[uhs19_1247_circuit_57_0] happens 2
+[uhs19_1247_circuit_57_0] Converged? True
+[uhs19_1247_circuit_57_0] âœ… Finished single-scenario deploy.
+[uhs19_1247_circuit_57_0] Time taken: 0.49 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs19_1247_circuit_57_1
+================================================================================
+[uhs19_1247_circuit_57_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs19_1247_circuit_57_1\scenario_assignments.json
+[uhs19_1247_circuit_57_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs19_1247_circuit_57_1] Found 8 unique base loads.
+[uhs19_1247_circuit_57_1] happens 2
+[uhs19_1247_circuit_57_1] Converged? True
+[uhs19_1247_circuit_57_1] âœ… Finished single-scenario deploy.
+[uhs19_1247_circuit_57_1] Time taken: 0.49 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs19_1247_circuit_58_0
+================================================================================
+[uhs19_1247_circuit_58_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs19_1247_circuit_58_0\scenario_assignments.json
+[uhs19_1247_circuit_58_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs19_1247_circuit_58_0] Found 724 unique base loads.
+[uhs19_1247_circuit_58_0] happens 2
+[uhs19_1247_circuit_58_0] Converged? True
+[uhs19_1247_circuit_58_0] âœ… Finished single-scenario deploy.
+[uhs19_1247_circuit_58_0] Time taken: 1.84 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs19_1247_circuit_58_1
+================================================================================
+[uhs19_1247_circuit_58_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs19_1247_circuit_58_1\scenario_assignments.json
+[uhs19_1247_circuit_58_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs19_1247_circuit_58_1] Found 724 unique base loads.
+[uhs19_1247_circuit_58_1] happens 2
+[uhs19_1247_circuit_58_1] Converged? True
+[uhs19_1247_circuit_58_1] âœ… Finished single-scenario deploy.
+[uhs19_1247_circuit_58_1] Time taken: 2.68 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs1_1247_circuit_4_0
+================================================================================
+[uhs1_1247_circuit_4_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs1_1247_circuit_4_0\scenario_assignments.json
+[uhs1_1247_circuit_4_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs1_1247_circuit_4_0] Found 1106 unique base loads.
+[uhs1_1247_circuit_4_0] happens 2
+[uhs1_1247_circuit_4_0] Converged? True
+[uhs1_1247_circuit_4_0] âœ… Finished single-scenario deploy.
+[uhs1_1247_circuit_4_0] Time taken: 2.29 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs1_1247_circuit_4_1
+================================================================================
+[uhs1_1247_circuit_4_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs1_1247_circuit_4_1\scenario_assignments.json
+[uhs1_1247_circuit_4_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs1_1247_circuit_4_1] Found 1106 unique base loads.
+[uhs1_1247_circuit_4_1] happens 2
+[uhs1_1247_circuit_4_1] Converged? True
+[uhs1_1247_circuit_4_1] âœ… Finished single-scenario deploy.
+[uhs1_1247_circuit_4_1] Time taken: 2.28 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs1_1247_circuit_5_0
+================================================================================
+[uhs1_1247_circuit_5_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs1_1247_circuit_5_0\scenario_assignments.json
+[uhs1_1247_circuit_5_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs1_1247_circuit_5_0] Found 2194 unique base loads.
+[uhs1_1247_circuit_5_0] happens 2
+[uhs1_1247_circuit_5_0] Converged? True
+[uhs1_1247_circuit_5_0] âœ… Finished single-scenario deploy.
+[uhs1_1247_circuit_5_0] Time taken: 4.15 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs1_1247_circuit_5_1
+================================================================================
+[uhs1_1247_circuit_5_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs1_1247_circuit_5_1\scenario_assignments.json
+[uhs1_1247_circuit_5_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs1_1247_circuit_5_1] Found 2194 unique base loads.
+[uhs1_1247_circuit_5_1] happens 2
+[uhs1_1247_circuit_5_1] Converged? True
+[uhs1_1247_circuit_5_1] âœ… Finished single-scenario deploy.
+[uhs1_1247_circuit_5_1] Time taken: 4.32 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs20_1247_circuit_59_0
+================================================================================
+[uhs20_1247_circuit_59_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs20_1247_circuit_59_0\scenario_assignments.json
+[uhs20_1247_circuit_59_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs20_1247_circuit_59_0] Found 870 unique base loads.
+[uhs20_1247_circuit_59_0] happens 2
+[uhs20_1247_circuit_59_0] Converged? True
+[uhs20_1247_circuit_59_0] âœ… Finished single-scenario deploy.
+[uhs20_1247_circuit_59_0] Time taken: 1.83 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs20_1247_circuit_59_1
+================================================================================
+[uhs20_1247_circuit_59_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs20_1247_circuit_59_1\scenario_assignments.json
+[uhs20_1247_circuit_59_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs20_1247_circuit_59_1] Found 870 unique base loads.
+[uhs20_1247_circuit_59_1] happens 2
+[uhs20_1247_circuit_59_1] Converged? True
+[uhs20_1247_circuit_59_1] âœ… Finished single-scenario deploy.
+[uhs20_1247_circuit_59_1] Time taken: 2.06 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs20_1247_circuit_60_0
+================================================================================
+[uhs20_1247_circuit_60_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs20_1247_circuit_60_0\scenario_assignments.json
+[uhs20_1247_circuit_60_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs20_1247_circuit_60_0] Found 1094 unique base loads.
+[uhs20_1247_circuit_60_0] happens 2
+[uhs20_1247_circuit_60_0] Converged? True
+[uhs20_1247_circuit_60_0] âœ… Finished single-scenario deploy.
+[uhs20_1247_circuit_60_0] Time taken: 2.12 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs20_1247_circuit_60_1
+================================================================================
+[uhs20_1247_circuit_60_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs20_1247_circuit_60_1\scenario_assignments.json
+[uhs20_1247_circuit_60_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs20_1247_circuit_60_1] Found 1094 unique base loads.
+[uhs20_1247_circuit_60_1] happens 2
+[uhs20_1247_circuit_60_1] Converged? True
+[uhs20_1247_circuit_60_1] âœ… Finished single-scenario deploy.
+[uhs20_1247_circuit_60_1] Time taken: 2.12 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs20_1247_circuit_61_0
+================================================================================
+[uhs20_1247_circuit_61_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs20_1247_circuit_61_0\scenario_assignments.json
+[uhs20_1247_circuit_61_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs20_1247_circuit_61_0] Found 415 unique base loads.
+[uhs20_1247_circuit_61_0] happens 2
+[uhs20_1247_circuit_61_0] Converged? True
+[uhs20_1247_circuit_61_0] âœ… Finished single-scenario deploy.
+[uhs20_1247_circuit_61_0] Time taken: 1.06 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs20_1247_circuit_61_1
+================================================================================
+[uhs20_1247_circuit_61_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs20_1247_circuit_61_1\scenario_assignments.json
+[uhs20_1247_circuit_61_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs20_1247_circuit_61_1] Found 415 unique base loads.
+[uhs20_1247_circuit_61_1] happens 2
+[uhs20_1247_circuit_61_1] Converged? True
+[uhs20_1247_circuit_61_1] âœ… Finished single-scenario deploy.
+[uhs20_1247_circuit_61_1] Time taken: 1.38 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs2_1247_circuit_6_0
+================================================================================
+[uhs2_1247_circuit_6_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs2_1247_circuit_6_0\scenario_assignments.json
+[uhs2_1247_circuit_6_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs2_1247_circuit_6_0] Found 696 unique base loads.
+[uhs2_1247_circuit_6_0] happens 2
+[uhs2_1247_circuit_6_0] Converged? True
+[uhs2_1247_circuit_6_0] âœ… Finished single-scenario deploy.
+[uhs2_1247_circuit_6_0] Time taken: 1.62 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs2_1247_circuit_6_1
+================================================================================
+[uhs2_1247_circuit_6_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs2_1247_circuit_6_1\scenario_assignments.json
+[uhs2_1247_circuit_6_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs2_1247_circuit_6_1] Found 696 unique base loads.
+[uhs2_1247_circuit_6_1] happens 2
+[uhs2_1247_circuit_6_1] Converged? True
+[uhs2_1247_circuit_6_1] âœ… Finished single-scenario deploy.
+[uhs2_1247_circuit_6_1] Time taken: 1.49 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs2_1247_circuit_7_0
+================================================================================
+[uhs2_1247_circuit_7_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs2_1247_circuit_7_0\scenario_assignments.json
+[uhs2_1247_circuit_7_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs2_1247_circuit_7_0] Found 1119 unique base loads.
+[uhs2_1247_circuit_7_0] happens 2
+[uhs2_1247_circuit_7_0] Converged? True
+[uhs2_1247_circuit_7_0] âœ… Finished single-scenario deploy.
+[uhs2_1247_circuit_7_0] Time taken: 2.42 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs2_1247_circuit_7_1
+================================================================================
+[uhs2_1247_circuit_7_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs2_1247_circuit_7_1\scenario_assignments.json
+[uhs2_1247_circuit_7_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs2_1247_circuit_7_1] Found 1119 unique base loads.
+[uhs2_1247_circuit_7_1] happens 2
+[uhs2_1247_circuit_7_1] Converged? True
+[uhs2_1247_circuit_7_1] âœ… Finished single-scenario deploy.
+[uhs2_1247_circuit_7_1] Time taken: 2.55 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs2_1247_circuit_8_0
+================================================================================
+[uhs2_1247_circuit_8_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs2_1247_circuit_8_0\scenario_assignments.json
+[uhs2_1247_circuit_8_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs2_1247_circuit_8_0] Found 767 unique base loads.
+[uhs2_1247_circuit_8_0] happens 2
+[uhs2_1247_circuit_8_0] Converged? True
+[uhs2_1247_circuit_8_0] âœ… Finished single-scenario deploy.
+[uhs2_1247_circuit_8_0] Time taken: 1.72 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs2_1247_circuit_8_1
+================================================================================
+[uhs2_1247_circuit_8_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs2_1247_circuit_8_1\scenario_assignments.json
+[uhs2_1247_circuit_8_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs2_1247_circuit_8_1] Found 767 unique base loads.
+[uhs2_1247_circuit_8_1] happens 2
+[uhs2_1247_circuit_8_1] Converged? True
+[uhs2_1247_circuit_8_1] âœ… Finished single-scenario deploy.
+[uhs2_1247_circuit_8_1] Time taken: 1.58 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs3_1247_circuit_10_0
+================================================================================
+[uhs3_1247_circuit_10_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs3_1247_circuit_10_0\scenario_assignments.json
+[uhs3_1247_circuit_10_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs3_1247_circuit_10_0] Found 481 unique base loads.
+[uhs3_1247_circuit_10_0] happens 2
+[uhs3_1247_circuit_10_0] Converged? True
+[uhs3_1247_circuit_10_0] âœ… Finished single-scenario deploy.
+[uhs3_1247_circuit_10_0] Time taken: 1.34 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs3_1247_circuit_10_1
+================================================================================
+[uhs3_1247_circuit_10_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs3_1247_circuit_10_1\scenario_assignments.json
+[uhs3_1247_circuit_10_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs3_1247_circuit_10_1] Found 481 unique base loads.
+[uhs3_1247_circuit_10_1] happens 2
+[uhs3_1247_circuit_10_1] Converged? True
+[uhs3_1247_circuit_10_1] âœ… Finished single-scenario deploy.
+[uhs3_1247_circuit_10_1] Time taken: 1.70 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs3_1247_circuit_11_0
+================================================================================
+[uhs3_1247_circuit_11_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs3_1247_circuit_11_0\scenario_assignments.json
+[uhs3_1247_circuit_11_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs3_1247_circuit_11_0] Found 296 unique base loads.
+[uhs3_1247_circuit_11_0] happens 2
+[uhs3_1247_circuit_11_0] Converged? True
+[uhs3_1247_circuit_11_0] âœ… Finished single-scenario deploy.
+[uhs3_1247_circuit_11_0] Time taken: 0.92 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs3_1247_circuit_11_1
+================================================================================
+[uhs3_1247_circuit_11_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs3_1247_circuit_11_1\scenario_assignments.json
+[uhs3_1247_circuit_11_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs3_1247_circuit_11_1] Found 296 unique base loads.
+[uhs3_1247_circuit_11_1] happens 2
+[uhs3_1247_circuit_11_1] Converged? True
+[uhs3_1247_circuit_11_1] âœ… Finished single-scenario deploy.
+[uhs3_1247_circuit_11_1] Time taken: 1.22 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs3_1247_circuit_9_0
+================================================================================
+[uhs3_1247_circuit_9_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs3_1247_circuit_9_0\scenario_assignments.json
+[uhs3_1247_circuit_9_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs3_1247_circuit_9_0] Found 831 unique base loads.
+[uhs3_1247_circuit_9_0] happens 2
+[uhs3_1247_circuit_9_0] Converged? True
+[uhs3_1247_circuit_9_0] âœ… Finished single-scenario deploy.
+[uhs3_1247_circuit_9_0] Time taken: 2.04 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs3_1247_circuit_9_1
+================================================================================
+[uhs3_1247_circuit_9_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs3_1247_circuit_9_1\scenario_assignments.json
+[uhs3_1247_circuit_9_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs3_1247_circuit_9_1] Found 831 unique base loads.
+[uhs3_1247_circuit_9_1] happens 2
+[uhs3_1247_circuit_9_1] Converged? True
+[uhs3_1247_circuit_9_1] âœ… Finished single-scenario deploy.
+[uhs3_1247_circuit_9_1] Time taken: 2.48 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs4_1247_circuit_14_0
+================================================================================
+[uhs4_1247_circuit_14_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs4_1247_circuit_14_0\scenario_assignments.json
+[uhs4_1247_circuit_14_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs4_1247_circuit_14_0] Found 518 unique base loads.
+[uhs4_1247_circuit_14_0] happens 2
+[uhs4_1247_circuit_14_0] Converged? True
+[uhs4_1247_circuit_14_0] âœ… Finished single-scenario deploy.
+[uhs4_1247_circuit_14_0] Time taken: 1.34 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs4_1247_circuit_14_1
+================================================================================
+[uhs4_1247_circuit_14_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs4_1247_circuit_14_1\scenario_assignments.json
+[uhs4_1247_circuit_14_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs4_1247_circuit_14_1] Found 518 unique base loads.
+[uhs4_1247_circuit_14_1] happens 2
+[uhs4_1247_circuit_14_1] Converged? True
+[uhs4_1247_circuit_14_1] âœ… Finished single-scenario deploy.
+[uhs4_1247_circuit_14_1] Time taken: 1.80 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs4_1247_circuit_15_0
+================================================================================
+[uhs4_1247_circuit_15_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs4_1247_circuit_15_0\scenario_assignments.json
+[uhs4_1247_circuit_15_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs4_1247_circuit_15_0] Found 264 unique base loads.
+[uhs4_1247_circuit_15_0] happens 2
+[uhs4_1247_circuit_15_0] Converged? True
+[uhs4_1247_circuit_15_0] âœ… Finished single-scenario deploy.
+[uhs4_1247_circuit_15_0] Time taken: 0.87 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs4_1247_circuit_15_1
+================================================================================
+[uhs4_1247_circuit_15_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs4_1247_circuit_15_1\scenario_assignments.json
+[uhs4_1247_circuit_15_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs4_1247_circuit_15_1] Found 264 unique base loads.
+[uhs4_1247_circuit_15_1] happens 2
+[uhs4_1247_circuit_15_1] Converged? True
+[uhs4_1247_circuit_15_1] âœ… Finished single-scenario deploy.
+[uhs4_1247_circuit_15_1] Time taken: 1.03 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs5_1247_circuit_16_0
+================================================================================
+[uhs5_1247_circuit_16_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs5_1247_circuit_16_0\scenario_assignments.json
+[uhs5_1247_circuit_16_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs5_1247_circuit_16_0] Found 796 unique base loads.
+[uhs5_1247_circuit_16_0] happens 2
+[uhs5_1247_circuit_16_0] Converged? True
+[uhs5_1247_circuit_16_0] âœ… Finished single-scenario deploy.
+[uhs5_1247_circuit_16_0] Time taken: 1.62 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs5_1247_circuit_16_1
+================================================================================
+[uhs5_1247_circuit_16_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs5_1247_circuit_16_1\scenario_assignments.json
+[uhs5_1247_circuit_16_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs5_1247_circuit_16_1] Found 796 unique base loads.
+[uhs5_1247_circuit_16_1] happens 2
+[uhs5_1247_circuit_16_1] Converged? True
+[uhs5_1247_circuit_16_1] âœ… Finished single-scenario deploy.
+[uhs5_1247_circuit_16_1] Time taken: 1.53 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs5_1247_circuit_17_0
+================================================================================
+[uhs5_1247_circuit_17_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs5_1247_circuit_17_0\scenario_assignments.json
+[uhs5_1247_circuit_17_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs5_1247_circuit_17_0] Found 921 unique base loads.
+[uhs5_1247_circuit_17_0] happens 2
+[uhs5_1247_circuit_17_0] Converged? True
+[uhs5_1247_circuit_17_0] âœ… Finished single-scenario deploy.
+[uhs5_1247_circuit_17_0] Time taken: 2.01 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs5_1247_circuit_17_1
+================================================================================
+[uhs5_1247_circuit_17_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs5_1247_circuit_17_1\scenario_assignments.json
+[uhs5_1247_circuit_17_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs5_1247_circuit_17_1] Found 921 unique base loads.
+[uhs5_1247_circuit_17_1] happens 2
+[uhs5_1247_circuit_17_1] Converged? True
+[uhs5_1247_circuit_17_1] âœ… Finished single-scenario deploy.
+[uhs5_1247_circuit_17_1] Time taken: 2.14 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs5_1247_circuit_18_0
+================================================================================
+[uhs5_1247_circuit_18_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs5_1247_circuit_18_0\scenario_assignments.json
+[uhs5_1247_circuit_18_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs5_1247_circuit_18_0] Found 1153 unique base loads.
+[uhs5_1247_circuit_18_0] happens 2
+[uhs5_1247_circuit_18_0] Converged? True
+[uhs5_1247_circuit_18_0] âœ… Finished single-scenario deploy.
+[uhs5_1247_circuit_18_0] Time taken: 2.84 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs5_1247_circuit_18_1
+================================================================================
+[uhs5_1247_circuit_18_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs5_1247_circuit_18_1\scenario_assignments.json
+[uhs5_1247_circuit_18_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs5_1247_circuit_18_1] Found 1153 unique base loads.
+[uhs5_1247_circuit_18_1] happens 2
+[uhs5_1247_circuit_18_1] Converged? True
+[uhs5_1247_circuit_18_1] âœ… Finished single-scenario deploy.
+[uhs5_1247_circuit_18_1] Time taken: 3.04 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs5_1247_circuit_19_0
+================================================================================
+[uhs5_1247_circuit_19_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs5_1247_circuit_19_0\scenario_assignments.json
+[uhs5_1247_circuit_19_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs5_1247_circuit_19_0] Found 481 unique base loads.
+[uhs5_1247_circuit_19_0] happens 2
+[uhs5_1247_circuit_19_0] Converged? True
+[uhs5_1247_circuit_19_0] âœ… Finished single-scenario deploy.
+[uhs5_1247_circuit_19_0] Time taken: 2.14 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs5_1247_circuit_19_1
+================================================================================
+[uhs5_1247_circuit_19_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs5_1247_circuit_19_1\scenario_assignments.json
+[uhs5_1247_circuit_19_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs5_1247_circuit_19_1] Found 481 unique base loads.
+[uhs5_1247_circuit_19_1] happens 2
+[uhs5_1247_circuit_19_1] Converged? True
+[uhs5_1247_circuit_19_1] âœ… Finished single-scenario deploy.
+[uhs5_1247_circuit_19_1] Time taken: 1.71 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs6_1247_circuit_20_0
+================================================================================
+[uhs6_1247_circuit_20_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs6_1247_circuit_20_0\scenario_assignments.json
+[uhs6_1247_circuit_20_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs6_1247_circuit_20_0] Found 1056 unique base loads.
+[uhs6_1247_circuit_20_0] happens 2
+[uhs6_1247_circuit_20_0] Converged? True
+[uhs6_1247_circuit_20_0] âœ… Finished single-scenario deploy.
+[uhs6_1247_circuit_20_0] Time taken: 2.03 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs6_1247_circuit_20_1
+================================================================================
+[uhs6_1247_circuit_20_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs6_1247_circuit_20_1\scenario_assignments.json
+[uhs6_1247_circuit_20_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs6_1247_circuit_20_1] Found 1056 unique base loads.
+[uhs6_1247_circuit_20_1] happens 2
+[uhs6_1247_circuit_20_1] Converged? True
+[uhs6_1247_circuit_20_1] âœ… Finished single-scenario deploy.
+[uhs6_1247_circuit_20_1] Time taken: 1.99 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs6_1247_circuit_21_0
+================================================================================
+[uhs6_1247_circuit_21_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs6_1247_circuit_21_0\scenario_assignments.json
+[uhs6_1247_circuit_21_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs6_1247_circuit_21_0] Found 1917 unique base loads.
+[uhs6_1247_circuit_21_0] happens 2
+[uhs6_1247_circuit_21_0] Converged? True
+[uhs6_1247_circuit_21_0] âœ… Finished single-scenario deploy.
+[uhs6_1247_circuit_21_0] Time taken: 4.29 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs6_1247_circuit_21_1
+================================================================================
+[uhs6_1247_circuit_21_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs6_1247_circuit_21_1\scenario_assignments.json
+[uhs6_1247_circuit_21_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs6_1247_circuit_21_1] Found 1917 unique base loads.
+[uhs6_1247_circuit_21_1] happens 2
+[uhs6_1247_circuit_21_1] Converged? True
+[uhs6_1247_circuit_21_1] âœ… Finished single-scenario deploy.
+[uhs6_1247_circuit_21_1] Time taken: 3.72 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs6_1247_circuit_22_0
+================================================================================
+[uhs6_1247_circuit_22_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs6_1247_circuit_22_0\scenario_assignments.json
+[uhs6_1247_circuit_22_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs6_1247_circuit_22_0] Found 1880 unique base loads.
+[uhs6_1247_circuit_22_0] happens 2
+[uhs6_1247_circuit_22_0] Converged? True
+[uhs6_1247_circuit_22_0] âœ… Finished single-scenario deploy.
+[uhs6_1247_circuit_22_0] Time taken: 3.51 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs6_1247_circuit_22_1
+================================================================================
+[uhs6_1247_circuit_22_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs6_1247_circuit_22_1\scenario_assignments.json
+[uhs6_1247_circuit_22_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs6_1247_circuit_22_1] Found 1880 unique base loads.
+[uhs6_1247_circuit_22_1] happens 2
+[uhs6_1247_circuit_22_1] Converged? True
+[uhs6_1247_circuit_22_1] âœ… Finished single-scenario deploy.
+[uhs6_1247_circuit_22_1] Time taken: 3.91 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs7_1247_circuit_23_0
+================================================================================
+[uhs7_1247_circuit_23_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs7_1247_circuit_23_0\scenario_assignments.json
+[uhs7_1247_circuit_23_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs7_1247_circuit_23_0] Found 555 unique base loads.
+[uhs7_1247_circuit_23_0] happens 2
+[uhs7_1247_circuit_23_0] Converged? True
+[uhs7_1247_circuit_23_0] âœ… Finished single-scenario deploy.
+[uhs7_1247_circuit_23_0] Time taken: 1.57 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs7_1247_circuit_23_1
+================================================================================
+[uhs7_1247_circuit_23_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs7_1247_circuit_23_1\scenario_assignments.json
+[uhs7_1247_circuit_23_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs7_1247_circuit_23_1] Found 555 unique base loads.
+[uhs7_1247_circuit_23_1] happens 2
+[uhs7_1247_circuit_23_1] Converged? True
+[uhs7_1247_circuit_23_1] âœ… Finished single-scenario deploy.
+[uhs7_1247_circuit_23_1] Time taken: 1.84 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs7_1247_circuit_24_0
+================================================================================
+[uhs7_1247_circuit_24_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs7_1247_circuit_24_0\scenario_assignments.json
+[uhs7_1247_circuit_24_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs7_1247_circuit_24_0] Found 1719 unique base loads.
+[uhs7_1247_circuit_24_0] happens 2
+[uhs7_1247_circuit_24_0] Converged? True
+[uhs7_1247_circuit_24_0] âœ… Finished single-scenario deploy.
+[uhs7_1247_circuit_24_0] Time taken: 3.55 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs7_1247_circuit_24_1
+================================================================================
+[uhs7_1247_circuit_24_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs7_1247_circuit_24_1\scenario_assignments.json
+[uhs7_1247_circuit_24_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs7_1247_circuit_24_1] Found 1719 unique base loads.
+[uhs7_1247_circuit_24_1] happens 2
+[uhs7_1247_circuit_24_1] Converged? True
+[uhs7_1247_circuit_24_1] âœ… Finished single-scenario deploy.
+[uhs7_1247_circuit_24_1] Time taken: 3.53 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs7_1247_circuit_25_0
+================================================================================
+[uhs7_1247_circuit_25_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs7_1247_circuit_25_0\scenario_assignments.json
+[uhs7_1247_circuit_25_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs7_1247_circuit_25_0] Found 1983 unique base loads.
+[uhs7_1247_circuit_25_0] happens 2
+[uhs7_1247_circuit_25_0] Converged? True
+[uhs7_1247_circuit_25_0] âœ… Finished single-scenario deploy.
+[uhs7_1247_circuit_25_0] Time taken: 3.82 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs7_1247_circuit_25_1
+================================================================================
+[uhs7_1247_circuit_25_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs7_1247_circuit_25_1\scenario_assignments.json
+[uhs7_1247_circuit_25_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs7_1247_circuit_25_1] Found 1983 unique base loads.
+[uhs7_1247_circuit_25_1] happens 2
+[uhs7_1247_circuit_25_1] Converged? True
+[uhs7_1247_circuit_25_1] âœ… Finished single-scenario deploy.
+[uhs7_1247_circuit_25_1] Time taken: 4.63 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs8_1247_circuit_26_0
+================================================================================
+[uhs8_1247_circuit_26_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs8_1247_circuit_26_0\scenario_assignments.json
+[uhs8_1247_circuit_26_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs8_1247_circuit_26_0] Found 1429 unique base loads.
+[uhs8_1247_circuit_26_0] happens 2
+[uhs8_1247_circuit_26_0] Converged? True
+[uhs8_1247_circuit_26_0] âœ… Finished single-scenario deploy.
+[uhs8_1247_circuit_26_0] Time taken: 2.93 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs8_1247_circuit_26_1
+================================================================================
+[uhs8_1247_circuit_26_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs8_1247_circuit_26_1\scenario_assignments.json
+[uhs8_1247_circuit_26_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs8_1247_circuit_26_1] Found 1429 unique base loads.
+[uhs8_1247_circuit_26_1] happens 2
+[uhs8_1247_circuit_26_1] Converged? True
+[uhs8_1247_circuit_26_1] âœ… Finished single-scenario deploy.
+[uhs8_1247_circuit_26_1] Time taken: 3.07 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs8_1247_circuit_27_0
+================================================================================
+[uhs8_1247_circuit_27_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs8_1247_circuit_27_0\scenario_assignments.json
+[uhs8_1247_circuit_27_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs8_1247_circuit_27_0] Found 935 unique base loads.
+[uhs8_1247_circuit_27_0] happens 2
+[uhs8_1247_circuit_27_0] Converged? True
+[uhs8_1247_circuit_27_0] âœ… Finished single-scenario deploy.
+[uhs8_1247_circuit_27_0] Time taken: 2.14 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs8_1247_circuit_27_1
+================================================================================
+[uhs8_1247_circuit_27_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs8_1247_circuit_27_1\scenario_assignments.json
+[uhs8_1247_circuit_27_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs8_1247_circuit_27_1] Found 935 unique base loads.
+[uhs8_1247_circuit_27_1] happens 2
+[uhs8_1247_circuit_27_1] Converged? True
+[uhs8_1247_circuit_27_1] âœ… Finished single-scenario deploy.
+[uhs8_1247_circuit_27_1] Time taken: 2.36 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_28_0
+================================================================================
+[uhs9_1247_circuit_28_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_28_0\scenario_assignments.json
+[uhs9_1247_circuit_28_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_28_0] Found 530 unique base loads.
+[uhs9_1247_circuit_28_0] happens 2
+[uhs9_1247_circuit_28_0] Converged? True
+[uhs9_1247_circuit_28_0] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_28_0] Time taken: 1.18 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_28_1
+================================================================================
+[uhs9_1247_circuit_28_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_28_1\scenario_assignments.json
+[uhs9_1247_circuit_28_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_28_1] Found 530 unique base loads.
+[uhs9_1247_circuit_28_1] happens 2
+[uhs9_1247_circuit_28_1] Converged? True
+[uhs9_1247_circuit_28_1] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_28_1] Time taken: 1.32 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_29_0
+================================================================================
+[uhs9_1247_circuit_29_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_29_0\scenario_assignments.json
+[uhs9_1247_circuit_29_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_29_0] Found 61 unique base loads.
+[uhs9_1247_circuit_29_0] happens 2
+[uhs9_1247_circuit_29_0] Converged? True
+[uhs9_1247_circuit_29_0] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_29_0] Time taken: 0.58 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_29_1
+================================================================================
+[uhs9_1247_circuit_29_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_29_1\scenario_assignments.json
+[uhs9_1247_circuit_29_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_29_1] Found 61 unique base loads.
+[uhs9_1247_circuit_29_1] happens 2
+[uhs9_1247_circuit_29_1] Converged? True
+[uhs9_1247_circuit_29_1] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_29_1] Time taken: 0.65 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_30_0
+================================================================================
+[uhs9_1247_circuit_30_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_30_0\scenario_assignments.json
+[uhs9_1247_circuit_30_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_30_0] Found 1092 unique base loads.
+[uhs9_1247_circuit_30_0] happens 2
+[uhs9_1247_circuit_30_0] Converged? True
+[uhs9_1247_circuit_30_0] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_30_0] Time taken: 2.42 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_30_1
+================================================================================
+[uhs9_1247_circuit_30_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_30_1\scenario_assignments.json
+[uhs9_1247_circuit_30_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_30_1] Found 1092 unique base loads.
+[uhs9_1247_circuit_30_1] happens 2
+[uhs9_1247_circuit_30_1] Converged? True
+[uhs9_1247_circuit_30_1] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_30_1] Time taken: 2.87 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_31_0
+================================================================================
+[uhs9_1247_circuit_31_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_31_0\scenario_assignments.json
+[uhs9_1247_circuit_31_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_31_0] Found 349 unique base loads.
+[uhs9_1247_circuit_31_0] happens 2
+[uhs9_1247_circuit_31_0] Converged? True
+[uhs9_1247_circuit_31_0] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_31_0] Time taken: 0.93 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_31_1
+================================================================================
+[uhs9_1247_circuit_31_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_31_1\scenario_assignments.json
+[uhs9_1247_circuit_31_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_31_1] Found 349 unique base loads.
+[uhs9_1247_circuit_31_1] happens 2
+[uhs9_1247_circuit_31_1] Converged? True
+[uhs9_1247_circuit_31_1] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_31_1] Time taken: 0.96 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_32_0
+================================================================================
+[uhs9_1247_circuit_32_0] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_32_0\scenario_assignments.json
+[uhs9_1247_circuit_32_0] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_32_0] Found 1428 unique base loads.
+[uhs9_1247_circuit_32_0] happens 2
+[uhs9_1247_circuit_32_0] Converged? True
+[uhs9_1247_circuit_32_0] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_32_0] Time taken: 3.09 s
+
+EXIT CODE: 0
+
+================================================================================
+RUN: uhs9_1247_circuit_32_1
+================================================================================
+[uhs9_1247_circuit_32_1] âœ… Loaded scenario assignments: C:\Users\luisfernando\Dropbox\1_RESEARCH\1_FOCUS_PhD\Conferences\Conference_EMH_2025_Ottawa\dist\qc_8_winter\uhs9_1247_circuit_32_1\scenario_assignments.json
+[uhs9_1247_circuit_32_1] EV params â†’ perc=0.99, L2 share=0.99
+[uhs9_1247_circuit_32_1] Found 1428 unique base loads.
+[uhs9_1247_circuit_32_1] happens 2
+[uhs9_1247_circuit_32_1] Converged? True
+[uhs9_1247_circuit_32_1] âœ… Finished single-scenario deploy.
+[uhs9_1247_circuit_32_1] Time taken: 3.48 s
+
+EXIT CODE: 0
+
+------------------------------------------------------------
+Done in 478.1s  |  ok=116  fail=0

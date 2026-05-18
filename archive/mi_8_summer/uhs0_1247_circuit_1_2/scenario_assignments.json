@@ -1,0 +1,65 @@
+{
+  "ev": {
+    "perc": 0.01,
+    "lvl2_perc": 0.01,
+    "seed": 555
+  },
+  "ev_split": {
+    "controlled": 0.01,
+    "uncontrolled": 0.99
+  },
+  "storage": {
+    "perc_3ph": 0.01,
+    "seed": 555
+  },
+  "pv": {
+    "perc_3ph": 0.01,
+    "seed": 555
+  },
+  "disjoint_sets": false,
+  "ev_loads_uncontrolled": [
+    "load_p1ulv48474",
+    "load_p1ulv42797",
+    "load_p1ulv58438",
+    "load_p1ulv55596",
+    "load_p1ulv30244",
+    "load_p1ulv28476",
+    "load_p1ulv45195",
+    "load_p1ulv58381",
+    "load_p1ulv49437",
+    "load_p1ulv48883",
+    "load_p1ulv43603",
+    "load_p1ulv52917",
+    "load_p1ulv2876",
+    "load_p1ulv44754",
+    "load_p1ulv41568"
+  ],
+  "ev_loads_controlled": [
+    "load_p1ulv31647"
+  ],
+  "ev_loads": [
+    "load_p1ulv48474",
+    "load_p1ulv42797",
+    "load_p1ulv58438",
+    "load_p1ulv55596",
+    "load_p1ulv30244",
+    "load_p1ulv28476",
+    "load_p1ulv45195",
+    "load_p1ulv58381",
+    "load_p1ulv49437",
+    "load_p1ulv48883",
+    "load_p1ulv43603",
+    "load_p1ulv52917",
+    "load_p1ulv2876",
+    "load_p1ulv44754",
+    "load_p1ulv41568",
+    "load_p1ulv31647"
+  ],
+  "storage_targets": [
+    "load_p1ulv2826"
+  ],
+  "pv_targets": [
+    "load_p1ulv2826"
+  ],
+  "season": "summer"
+}
