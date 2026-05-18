@@ -1,0 +1,3 @@
+dataset,rows,column_count,output_file
+residential,34381,67,outputs\paper3_baseline\residential_data_SELECT_STATES_MI_MT_VT_WA.csv
+commercial,20605,100,outputs\paper3_baseline\commercial_data_SELECT_STATES_MI_MT_VT_WA.csv

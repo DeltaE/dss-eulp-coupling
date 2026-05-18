@@ -1,0 +1,2 @@
+commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv is renamed as commercial_data_SELECT_STATES.csv
+residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv is renamed as residential_data_SELECT_STATES.csv

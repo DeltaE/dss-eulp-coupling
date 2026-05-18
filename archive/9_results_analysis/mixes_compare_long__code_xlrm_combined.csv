@@ -1,0 +1,5 @@
+id,method,shares_baseline,shares_dm,shares_un,ev_perc,ev_lvl2_perc,storage_perc_3ph,pv_perc_3ph,ev_split_controlled,ev_split_uncontrolled,heating_seed,ev_seed,storage_seed,pv_seed,disjoint_sets,source_folder
+0,LHS,0.2,0.0,0.8,0.99,0.99,0.01,0.01,0.01,0.99,555,555,555,555,False,2_code_xlrm
+1,LHS,0.2,0.6,0.2,0.9898156281893014,0.9898240940989148,0.4918790549334422,0.2407665500197294,0.797234256022029,0.2027657439779709,777,777,777,777,False,2_code_xlrm
+0,Sobol,0.2,0.0,0.8,0.99,0.99,0.01,0.01,0.01,0.99,555,555,555,555,False,2_code_xlrm
+1,Sobol,0.2,0.6,0.2,0.9895437023798004,0.9894621318392456,0.4938503650669008,0.2428446995653212,0.7941920777969063,0.2058079222030937,777,777,777,777,False,2_code_xlrm

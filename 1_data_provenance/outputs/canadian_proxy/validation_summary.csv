@@ -1,0 +1,11 @@
+dataset,check,passed
+residential,row_count,True
+residential,column_count,True
+residential,column_names,True
+residential,state_counts,True
+residential,upgrade_counts,True
+commercial,row_count,True
+commercial,column_count,True
+commercial,column_names,True
+commercial,state_counts,True
+commercial,upgrade_counts,True

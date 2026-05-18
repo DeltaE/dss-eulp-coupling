@@ -1,0 +1,42 @@
+{
+  "0": {
+    "shares": {
+      "baseline": 0.2,
+      "dm": 0.0,
+      "un": 0.8
+    },
+    "heating_seed": 555,
+    "ev_perc": 0.99,
+    "ev_lvl2_perc": 0.99,
+    "ev_seed": 555,
+    "storage_perc_3ph": 0.01,
+    "storage_seed": 555,
+    "pv_perc_3ph": 0.01,
+    "pv_seed": 555,
+    "disjoint_sets": false,
+    "ev_split": {
+      "controlled": 0.01,
+      "uncontrolled": 0.99
+    }
+  },
+  "1": {
+    "shares": {
+      "baseline": 0.2,
+      "dm": 0.6,
+      "un": 0.2
+    },
+    "heating_seed": 777,
+    "ev_perc": 0.9898156281893014,
+    "ev_lvl2_perc": 0.9898240940989149,
+    "ev_seed": 777,
+    "storage_perc_3ph": 0.49187905493344225,
+    "storage_seed": 777,
+    "pv_perc_3ph": 0.24076655001972944,
+    "pv_seed": 777,
+    "disjoint_sets": false,
+    "ev_split": {
+      "controlled": 0.797234256022029,
+      "uncontrolled": 0.20276574397797098
+    }
+  }
+}

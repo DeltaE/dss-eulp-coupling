@@ -197,4 +197,21 @@ cython_debug/
 # Large data files (archive on Zenodo, not git)
 1_data_provenance/data_raw/
 1_data_provenance/data_derived/
-1_data_provenance/outputs/
+1_data_provenance/outputs/*.parquet
+*.pkl
+*.dss
+parquet_data/
+ab_3c_downloads/parquet_*/
+daily_csvs/
+daily_csvs*/
+daily_parquets/
+daily_parquets*/
+profiles_use_bench/
+profiles_use_bench*/
+*.parquet
+data_ev/
+_audit/
+commercial_data_SELECT_STATES.csv
+residential_data_SELECT_STATES.csv
+commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv
+residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv

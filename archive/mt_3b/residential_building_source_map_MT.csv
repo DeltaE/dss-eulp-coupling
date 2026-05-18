@@ -1,0 +1,1239 @@
+bldg_id,Occurrence_Count,Unique_Source_Files
+66997,2,"['res_100.parquet', 'res_377.parquet']"
+144067,2,"['res_332.parquet', 'res_100.parquet']"
+185745,7,"['res_1258.parquet', 'res_825.parquet', 'res_523.parquet', 'res_377.parquet', 'res_1037.parquet', 'res_100.parquet', 'res_520.parquet']"
+208086,4,"['res_100.parquet', 'res_523.parquet', 'res_377.parquet', 'res_520.parquet']"
+275870,2,"['res_100.parquet', 'res_1037.parquet']"
+278604,6,"['res_1258.parquet', 'res_523.parquet', 'res_377.parquet', 'res_1037.parquet', 'res_100.parquet', 'res_520.parquet']"
+87822,2,"['res_1003.parquet', 'res_119.parquet']"
+202373,3,"['res_357.parquet', 'res_1003.parquet', 'res_46.parquet']"
+241842,5,"['res_303.parquet', 'res_881.parquet', 'res_1003.parquet', 'res_742.parquet', 'res_119.parquet']"
+297012,5,"['res_303.parquet', 'res_881.parquet', 'res_1003.parquet', 'res_742.parquet', 'res_119.parquet']"
+315589,6,"['res_303.parquet', 'res_881.parquet', 'res_1003.parquet', 'res_1231.parquet', 'res_742.parquet', 'res_119.parquet']"
+338150,3,"['res_357.parquet', 'res_1003.parquet', 'res_46.parquet']"
+358788,3,"['res_357.parquet', 'res_1003.parquet', 'res_46.parquet']"
+400382,4,"['res_1003.parquet', 'res_46.parquet', 'res_742.parquet', 'res_119.parquet']"
+401970,6,"['res_303.parquet', 'res_881.parquet', 'res_1003.parquet', 'res_1231.parquet', 'res_742.parquet', 'res_119.parquet']"
+475383,5,"['res_303.parquet', 'res_46.parquet', 'res_319.parquet', 'res_1003.parquet', 'res_357.parquet']"
+154367,5,"['res_401.parquet', 'res_1006.parquet', 'res_560.parquet', 'res_798.parquet', 'res_257.parquet']"
+326339,5,"['res_188.parquet', 'res_1006.parquet', 'res_1226.parquet', 'res_394.parquet', 'res_798.parquet']"
+341674,5,"['res_188.parquet', 'res_1006.parquet', 'res_1226.parquet', 'res_394.parquet', 'res_798.parquet']"
+424723,38,"['res_1275.parquet', 'res_846.parquet', 'res_1189.parquet', 'res_905.parquet', 'res_163.parquet', 'res_186.parquet', 'res_210.parquet', 'res_1077.parquet', 'res_419.parquet', 'res_496.parquet', 'res_1009.parquet', 'res_1014.parquet', 'res_538.parquet', 'res_1198.parquet', 'res_876.parquet', 'res_105.parquet', 'res_672.parquet', 'res_1088.parquet', 'res_889.parquet', 'res_439.parquet', 'res_140.parquet', 'res_1180.parquet', 'res_192.parquet', 'res_138.parquet', 'res_717.parquet', 'res_1012.parquet', 'res_112.parquet', 'res_775.parquet', 'res_1179.parquet', 'res_418.parquet', 'res_1102.parquet', 'res_70.parquet', 'res_790.parquet', 'res_557.parquet', 'res_605.parquet', 'res_1121.parquet', 'res_1074.parquet', 'res_1078.parquet']"
+35354,6,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_101.parquet', 'res_898.parquet', 'res_618.parquet']"
+89355,7,"['res_904.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_101.parquet', 'res_1174.parquet', 'res_618.parquet']"
+104836,6,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_101.parquet', 'res_1091.parquet', 'res_618.parquet']"
+108731,5,"['res_958.parquet', 'res_88.parquet', 'res_101.parquet', 'res_898.parquet', 'res_618.parquet']"
+108930,6,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_101.parquet', 'res_1091.parquet', 'res_618.parquet']"
+126858,6,"['res_75.parquet', 'res_88.parquet', 'res_958.parquet', 'res_101.parquet', 'res_1091.parquet', 'res_618.parquet']"
+133911,6,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_101.parquet', 'res_1091.parquet', 'res_618.parquet']"
+216068,6,"['res_904.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_101.parquet', 'res_618.parquet']"
+262962,6,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_101.parquet', 'res_898.parquet', 'res_618.parquet']"
+435745,6,"['res_904.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_101.parquet', 'res_618.parquet']"
+458883,9,"['res_75.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_101.parquet', 'res_929.parquet', 'res_98.parquet', 'res_1091.parquet', 'res_618.parquet']"
+487211,6,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_101.parquet', 'res_1174.parquet', 'res_618.parquet']"
+40240,6,"['res_707.parquet', 'res_30.parquet', 'res_695.parquet', 'res_298.parquet', 'res_1013.parquet', 'res_169.parquet']"
+403956,3,"['res_40.parquet', 'res_1013.parquet', 'res_170.parquet']"
+459725,5,"['res_30.parquet', 'res_1020.parquet', 'res_298.parquet', 'res_1013.parquet', 'res_1103.parquet']"
+476793,7,"['res_707.parquet', 'res_30.parquet', 'res_678.parquet', 'res_1020.parquet', 'res_298.parquet', 'res_1013.parquet', 'res_1103.parquet']"
+93871,16,"['res_703.parquet', 'res_264.parquet', 'res_418.parquet', 'res_310.parquet', 'res_501.parquet', 'res_796.parquet', 'res_819.parquet', 'res_717.parquet', 'res_1124.parquet', 'res_1014.parquet', 'res_217.parquet', 'res_692.parquet', 'res_984.parquet', 'res_860.parquet', 'res_649.parquet', 'res_1069.parquet']"
+16610,9,"['res_1015.parquet', 'res_199.parquet', 'res_582.parquet', 'res_548.parquet', 'res_1115.parquet', 'res_959.parquet', 'res_40.parquet', 'res_1153.parquet', 'res_2.parquet']"
+109092,4,"['res_740.parquet', 'res_1015.parquet', 'res_967.parquet', 'res_1103.parquet']"
+142544,5,"['res_1015.parquet', 'res_967.parquet', 'res_1115.parquet', 'res_740.parquet', 'res_1103.parquet']"
+235082,2,"['res_1015.parquet', 'res_1103.parquet']"
+4953,4,"['res_667.parquet', 'res_1019.parquet', 'res_597.parquet', 'res_1120.parquet']"
+19356,5,"['res_943.parquet', 'res_1019.parquet', 'res_414.parquet', 'res_577.parquet', 'res_1081.parquet']"
+21716,4,"['res_1019.parquet', 'res_943.parquet', 'res_411.parquet', 'res_165.parquet']"
+35515,5,"['res_943.parquet', 'res_1019.parquet', 'res_763.parquet', 'res_1234.parquet', 'res_748.parquet']"
+36708,4,"['res_943.parquet', 'res_1019.parquet', 'res_763.parquet', 'res_298.parquet']"
+41728,4,"['res_943.parquet', 'res_1019.parquet', 'res_763.parquet', 'res_298.parquet']"
+61828,3,"['res_943.parquet', 'res_1019.parquet', 'res_763.parquet']"
+63604,7,"['res_450.parquet', 'res_1019.parquet', 'res_763.parquet', 'res_577.parquet', 'res_740.parquet', 'res_298.parquet', 'res_564.parquet']"
+68202,4,"['res_1019.parquet', 'res_427.parquet', 'res_298.parquet', 'res_1066.parquet']"
+77673,3,"['res_1019.parquet', 'res_427.parquet', 'res_298.parquet']"
+80129,8,"['res_450.parquet', 'res_1019.parquet', 'res_763.parquet', 'res_1034.parquet', 'res_577.parquet', 'res_740.parquet', 'res_298.parquet', 'res_564.parquet']"
+107144,3,"['res_1019.parquet', 'res_1234.parquet', 'res_165.parquet']"
+124863,6,"['res_450.parquet', 'res_1019.parquet', 'res_414.parquet', 'res_763.parquet', 'res_577.parquet', 'res_298.parquet']"
+129560,3,"['res_1019.parquet', 'res_427.parquet', 'res_1183.parquet']"
+136303,6,"['res_450.parquet', 'res_1019.parquet', 'res_763.parquet', 'res_577.parquet', 'res_298.parquet', 'res_564.parquet']"
+138494,4,"['res_1019.parquet', 'res_577.parquet', 'res_298.parquet', 'res_128.parquet']"
+182480,6,"['res_943.parquet', 'res_1066.parquet', 'res_1019.parquet', 'res_414.parquet', 'res_577.parquet', 'res_1081.parquet']"
+183427,3,"['res_1019.parquet', 'res_943.parquet', 'res_411.parquet']"
+188202,6,"['res_1019.parquet', 'res_763.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_564.parquet']"
+201877,6,"['res_943.parquet', 'res_450.parquet', 'res_1019.parquet', 'res_414.parquet', 'res_763.parquet', 'res_577.parquet']"
+203519,4,"['res_1019.parquet', 'res_427.parquet', 'res_298.parquet', 'res_1020.parquet']"
+210280,7,"['res_450.parquet', 'res_1019.parquet', 'res_763.parquet', 'res_577.parquet', 'res_871.parquet', 'res_298.parquet', 'res_564.parquet']"
+244015,7,"['res_450.parquet', 'res_1019.parquet', 'res_763.parquet', 'res_577.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet']"
+249167,3,"['res_1019.parquet', 'res_1234.parquet', 'res_165.parquet']"
+269841,6,"['res_907.parquet', 'res_1019.parquet', 'res_1020.parquet', 'res_763.parquet', 'res_298.parquet', 'res_356.parquet']"
+285884,5,"['res_943.parquet', 'res_1019.parquet', 'res_1120.parquet', 'res_1234.parquet', 'res_165.parquet']"
+299007,5,"['res_1019.parquet', 'res_1120.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet']"
+310544,8,"['res_450.parquet', 'res_907.parquet', 'res_1019.parquet', 'res_1020.parquet', 'res_763.parquet', 'res_577.parquet', 'res_298.parquet', 'res_564.parquet']"
+359999,6,"['res_1019.parquet', 'res_414.parquet', 'res_1034.parquet', 'res_577.parquet', 'res_1081.parquet', 'res_298.parquet']"
+361320,4,"['res_1019.parquet', 'res_943.parquet', 'res_1234.parquet', 'res_165.parquet']"
+370278,4,"['res_1019.parquet', 'res_427.parquet', 'res_1183.parquet', 'res_1081.parquet']"
+385265,3,"['res_943.parquet', 'res_1019.parquet', 'res_763.parquet']"
+387143,3,"['res_1019.parquet', 'res_943.parquet', 'res_165.parquet']"
+408127,4,"['res_1019.parquet', 'res_943.parquet', 'res_1234.parquet', 'res_165.parquet']"
+434908,9,"['res_1268.parquet', 'res_879.parquet', 'res_1019.parquet', 'res_907.parquet', 'res_1020.parquet', 'res_763.parquet', 'res_871.parquet', 'res_298.parquet', 'res_564.parquet']"
+445571,5,"['res_1019.parquet', 'res_1120.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet']"
+454967,5,"['res_1019.parquet', 'res_1120.parquet', 'res_1234.parquet', 'res_165.parquet', 'res_805.parquet']"
+467217,5,"['res_30.parquet', 'res_1019.parquet', 'res_1020.parquet', 'res_298.parquet', 'res_356.parquet']"
+474523,5,"['res_943.parquet', 'res_1019.parquet', 'res_1120.parquet', 'res_763.parquet', 'res_748.parquet']"
+490150,3,"['res_943.parquet', 'res_1019.parquet', 'res_763.parquet']"
+493524,6,"['res_1268.parquet', 'res_879.parquet', 'res_1019.parquet', 'res_667.parquet', 'res_298.parquet', 'res_564.parquet']"
+517613,3,"['res_1019.parquet', 'res_943.parquet', 'res_577.parquet']"
+544168,7,"['res_450.parquet', 'res_907.parquet', 'res_1019.parquet', 'res_1020.parquet', 'res_763.parquet', 'res_298.parquet', 'res_356.parquet']"
+12002,3,"['res_298.parquet', 'res_427.parquet', 'res_1020.parquet']"
+16356,4,"['res_298.parquet', 'res_272.parquet', 'res_1020.parquet', 'res_427.parquet']"
+32107,3,"['res_298.parquet', 'res_427.parquet', 'res_1020.parquet']"
+41077,3,"['res_298.parquet', 'res_427.parquet', 'res_1020.parquet']"
+93514,3,"['res_907.parquet', 'res_298.parquet', 'res_1020.parquet']"
+116394,3,"['res_298.parquet', 'res_427.parquet', 'res_1020.parquet']"
+123404,6,"['res_1268.parquet', 'res_879.parquet', 'res_1020.parquet', 'res_667.parquet', 'res_298.parquet', 'res_564.parquet']"
+129171,4,"['res_298.parquet', 'res_169.parquet', 'res_1020.parquet', 'res_932.parquet']"
+174711,5,"['res_427.parquet', 'res_1020.parquet', 'res_932.parquet', 'res_298.parquet', 'res_169.parquet']"
+177757,3,"['res_298.parquet', 'res_427.parquet', 'res_1020.parquet']"
+195946,3,"['res_298.parquet', 'res_30.parquet', 'res_1020.parquet']"
+222349,3,"['res_298.parquet', 'res_427.parquet', 'res_1020.parquet']"
+355424,5,"['res_30.parquet', 'res_678.parquet', 'res_1020.parquet', 'res_298.parquet', 'res_1103.parquet']"
+370072,6,"['res_1268.parquet', 'res_879.parquet', 'res_1020.parquet', 'res_667.parquet', 'res_298.parquet', 'res_564.parquet']"
+436719,3,"['res_298.parquet', 'res_427.parquet', 'res_1020.parquet']"
+454507,4,"['res_298.parquet', 'res_30.parquet', 'res_356.parquet', 'res_1020.parquet']"
+467499,4,"['res_298.parquet', 'res_30.parquet', 'res_1020.parquet', 'res_1103.parquet']"
+73931,5,"['res_644.parquet', 'res_645.parquet', 'res_182.parquet', 'res_512.parquet', 'res_1023.parquet']"
+151271,5,"['res_644.parquet', 'res_182.parquet', 'res_512.parquet', 'res_1023.parquet', 'res_843.parquet']"
+153454,8,"['res_599.parquet', 'res_251.parquet', 'res_513.parquet', 'res_953.parquet', 'res_1084.parquet', 'res_1023.parquet', 'res_1213.parquet', 'res_396.parquet']"
+194222,6,"['res_644.parquet', 'res_924.parquet', 'res_491.parquet', 'res_224.parquet', 'res_1023.parquet', 'res_843.parquet']"
+211030,7,"['res_644.parquet', 'res_1080.parquet', 'res_182.parquet', 'res_645.parquet', 'res_512.parquet', 'res_1023.parquet', 'res_843.parquet']"
+216907,6,"['res_644.parquet', 'res_924.parquet', 'res_491.parquet', 'res_224.parquet', 'res_1023.parquet', 'res_843.parquet']"
+217886,4,"['res_644.parquet', 'res_1023.parquet', 'res_491.parquet', 'res_843.parquet']"
+225795,7,"['res_645.parquet', 'res_384.parquet', 'res_182.parquet', 'res_251.parquet', 'res_1075.parquet', 'res_1023.parquet', 'res_454.parquet']"
+255145,7,"['res_924.parquet', 'res_549.parquet', 'res_251.parquet', 'res_691.parquet', 'res_1023.parquet', 'res_207.parquet', 'res_396.parquet']"
+276587,7,"['res_645.parquet', 'res_384.parquet', 'res_182.parquet', 'res_251.parquet', 'res_1075.parquet', 'res_1023.parquet', 'res_454.parquet']"
+278296,8,"['res_645.parquet', 'res_1166.parquet', 'res_549.parquet', 'res_251.parquet', 'res_1084.parquet', 'res_1023.parquet', 'res_207.parquet', 'res_396.parquet']"
+336356,6,"['res_644.parquet', 'res_645.parquet', 'res_182.parquet', 'res_512.parquet', 'res_251.parquet', 'res_1023.parquet']"
+339121,8,"['res_599.parquet', 'res_549.parquet', 'res_513.parquet', 'res_251.parquet', 'res_953.parquet', 'res_1084.parquet', 'res_1023.parquet', 'res_396.parquet']"
+369981,2,"['res_644.parquet', 'res_1023.parquet']"
+468648,5,"['res_644.parquet', 'res_182.parquet', 'res_906.parquet', 'res_1023.parquet', 'res_894.parquet']"
+547866,5,"['res_599.parquet', 'res_251.parquet', 'res_953.parquet', 'res_1023.parquet', 'res_396.parquet']"
+457540,4,"['res_653.parquet', 'res_1032.parquet', 'res_815.parquet', 'res_1181.parquet']"
+11666,7,"['res_678.parquet', 'res_967.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_977.parquet', 'res_1103.parquet']"
+13151,7,"['res_678.parquet', 'res_967.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_977.parquet', 'res_1103.parquet']"
+92999,7,"['res_678.parquet', 'res_967.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_977.parquet', 'res_1103.parquet']"
+119035,6,"['res_967.parquet', 'res_667.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_1103.parquet']"
+136424,8,"['res_678.parquet', 'res_967.parquet', 'res_689.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_977.parquet', 'res_1103.parquet']"
+176595,7,"['res_1120.parquet', 'res_967.parquet', 'res_667.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_1103.parquet']"
+192296,6,"['res_1120.parquet', 'res_967.parquet', 'res_667.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet']"
+229622,8,"['res_678.parquet', 'res_967.parquet', 'res_689.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_977.parquet', 'res_1103.parquet']"
+296733,6,"['res_667.parquet', 'res_1034.parquet', 'res_553.parquet', 'res_967.parquet', 'res_298.parquet', 'res_1103.parquet']"
+302120,7,"['res_967.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+396510,6,"['res_1120.parquet', 'res_967.parquet', 'res_667.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet']"
+405347,7,"['res_1268.parquet', 'res_879.parquet', 'res_667.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_564.parquet']"
+433796,7,"['res_1120.parquet', 'res_667.parquet', 'res_1034.parquet', 'res_553.parquet', 'res_967.parquet', 'res_298.parquet', 'res_1103.parquet']"
+503397,7,"['res_678.parquet', 'res_967.parquet', 'res_667.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_1103.parquet']"
+522631,7,"['res_678.parquet', 'res_967.parquet', 'res_667.parquet', 'res_1034.parquet', 'res_740.parquet', 'res_298.parquet', 'res_1103.parquet']"
+402646,1,['res_1036.parquet']
+283213,7,"['res_1200.parquet', 'res_596.parquet', 'res_78.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_181.parquet', 'res_104.parquet']"
+314390,6,"['res_1200.parquet', 'res_596.parquet', 'res_78.parquet', 'res_1079.parquet', 'res_224.parquet', 'res_104.parquet']"
+58700,1,['res_1040.parquet']
+295508,1,['res_1040.parquet']
+445835,2,"['res_686.parquet', 'res_1040.parquet']"
+59584,1,['res_1041.parquet']
+504363,2,"['res_1041.parquet', 'res_829.parquet']"
+9318,4,"['res_292.parquet', 'res_409.parquet', 'res_1042.parquet', 'res_715.parquet']"
+26375,5,"['res_292.parquet', 'res_1042.parquet', 'res_853.parquet', 'res_452.parquet', 'res_1105.parquet']"
+136309,4,"['res_292.parquet', 'res_409.parquet', 'res_1042.parquet', 'res_715.parquet']"
+279107,3,"['res_409.parquet', 'res_1042.parquet', 'res_715.parquet']"
+52939,6,"['res_63.parquet', 'res_966.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_1091.parquet']"
+65095,7,"['res_63.parquet', 'res_966.parquet', 'res_929.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_1091.parquet']"
+96374,6,"['res_63.parquet', 'res_966.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_1091.parquet']"
+114857,6,"['res_63.parquet', 'res_966.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_1174.parquet']"
+157494,6,"['res_63.parquet', 'res_966.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_1174.parquet']"
+188799,6,"['res_63.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_884.parquet', 'res_1091.parquet']"
+199784,5,"['res_198.parquet', 'res_966.parquet', 'res_391.parquet', 'res_160.parquet', 'res_1043.parquet']"
+245761,5,"['res_63.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_884.parquet']"
+254592,8,"['res_947.parquet', 'res_63.parquet', 'res_929.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_884.parquet', 'res_1091.parquet']"
+277862,3,"['res_1043.parquet', 'res_1174.parquet', 'res_160.parquet']"
+360585,6,"['res_63.parquet', 'res_966.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_1091.parquet']"
+435248,4,"['res_1043.parquet', 'res_1174.parquet', 'res_884.parquet', 'res_160.parquet']"
+452497,8,"['res_947.parquet', 'res_63.parquet', 'res_929.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_884.parquet', 'res_1091.parquet']"
+493999,8,"['res_63.parquet', 'res_966.parquet', 'res_929.parquet', 'res_160.parquet', 'res_1117.parquet', 'res_1043.parquet', 'res_884.parquet', 'res_1091.parquet']"
+512644,4,"['res_1043.parquet', 'res_198.parquet', 'res_391.parquet', 'res_160.parquet']"
+89631,2,"['res_1052.parquet', 'res_769.parquet']"
+166040,1,['res_1052.parquet']
+403942,1,['res_1052.parquet']
+423877,2,"['res_1052.parquet', 'res_769.parquet']"
+22022,6,"['res_522.parquet', 'res_307.parquet', 'res_739.parquet', 'res_670.parquet', 'res_1054.parquet', 'res_247.parquet']"
+27882,2,"['res_1054.parquet', 'res_307.parquet']"
+58786,2,"['res_35.parquet', 'res_1054.parquet']"
+78267,2,"['res_203.parquet', 'res_1054.parquet']"
+116343,5,"['res_522.parquet', 'res_739.parquet', 'res_1054.parquet', 'res_247.parquet', 'res_1177.parquet']"
+145700,2,"['res_35.parquet', 'res_1054.parquet']"
+150255,2,"['res_35.parquet', 'res_1054.parquet']"
+486410,3,"['res_203.parquet', 'res_1054.parquet', 'res_307.parquet']"
+3498,1,['res_106.parquet']
+116645,2,"['res_426.parquet', 'res_106.parquet']"
+304771,1,['res_106.parquet']
+449002,3,"['res_873.parquet', 'res_426.parquet', 'res_106.parquet']"
+475702,3,"['res_719.parquet', 'res_171.parquet', 'res_106.parquet']"
+58320,3,"['res_298.parquet', 'res_427.parquet', 'res_1066.parquet']"
+59985,4,"['res_132.parquet', 'res_82.parquet', 'res_1066.parquet', 'res_171.parquet']"
+119560,3,"['res_132.parquet', 'res_82.parquet', 'res_1066.parquet']"
+200799,2,"['res_427.parquet', 'res_1066.parquet']"
+223931,1,['res_1066.parquet']
+227700,3,"['res_82.parquet', 'res_1066.parquet', 'res_461.parquet']"
+245664,3,"['res_298.parquet', 'res_427.parquet', 'res_1066.parquet']"
+286322,2,"['res_427.parquet', 'res_1066.parquet']"
+327264,2,"['res_427.parquet', 'res_1066.parquet']"
+329677,2,"['res_427.parquet', 'res_1066.parquet']"
+362007,1,['res_1066.parquet']
+395250,2,"['res_427.parquet', 'res_1066.parquet']"
+416319,2,"['res_427.parquet', 'res_1066.parquet']"
+433628,2,"['res_427.parquet', 'res_1066.parquet']"
+42104,7,"['res_1067.parquet', 'res_581.parquet', 'res_20.parquet', 'res_7.parquet', 'res_823.parquet', 'res_362.parquet', 'res_710.parquet']"
+3078,1,['res_1070.parquet']
+42387,1,['res_1070.parquet']
+46091,1,['res_1070.parquet']
+63157,1,['res_1070.parquet']
+69298,1,['res_1070.parquet']
+78622,1,['res_1070.parquet']
+81904,1,['res_1070.parquet']
+109635,1,['res_1070.parquet']
+112691,2,"['res_225.parquet', 'res_1070.parquet']"
+127904,1,['res_1070.parquet']
+128855,1,['res_1070.parquet']
+144246,1,['res_1070.parquet']
+248776,1,['res_1070.parquet']
+273713,1,['res_1070.parquet']
+300851,1,['res_1070.parquet']
+343725,1,['res_1070.parquet']
+344448,1,['res_1070.parquet']
+369750,1,['res_1070.parquet']
+369795,1,['res_1070.parquet']
+389674,1,['res_1070.parquet']
+407052,1,['res_1070.parquet']
+421731,1,['res_1070.parquet']
+437064,1,['res_1070.parquet']
+438998,5,"['res_384.parquet', 'res_1157.parquet', 'res_209.parquet', 'res_251.parquet', 'res_1075.parquet']"
+31500,9,"['res_1224.parquet', 'res_561.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+34599,9,"['res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_850.parquet', 'res_85.parquet']"
+37490,9,"['res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_491.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_850.parquet', 'res_1142.parquet']"
+44088,8,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_181.parquet', 'res_850.parquet']"
+59118,10,"['res_1224.parquet', 'res_561.parquet', 'res_314.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+62548,10,"['res_1224.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_491.parquet', 'res_1079.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_1142.parquet']"
+66977,9,"['res_561.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_181.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+73994,11,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_475.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_181.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+92195,9,"['res_1224.parquet', 'res_561.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+111252,11,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_475.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_181.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+111769,6,"['res_561.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_850.parquet', 'res_730.parquet']"
+130936,10,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_475.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+140947,7,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_181.parquet', 'res_850.parquet']"
+142033,4,"['res_1200.parquet', 'res_1079.parquet', 'res_224.parquet', 'res_78.parquet']"
+143709,10,"['res_1160.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_491.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_850.parquet', 'res_1142.parquet']"
+208538,11,"['res_1224.parquet', 'res_85.parquet', 'res_561.parquet', 'res_197.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_344.parquet', 'res_1142.parquet']"
+212024,9,"['res_1224.parquet', 'res_561.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+216000,7,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_850.parquet']"
+217379,10,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_850.parquet', 'res_85.parquet']"
+242925,9,"['res_596.parquet', 'res_561.parquet', 'res_475.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+267760,9,"['res_1224.parquet', 'res_561.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_453.parquet', 'res_85.parquet', 'res_1142.parquet']"
+277210,11,"['res_1224.parquet', 'res_1160.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_491.parquet', 'res_1079.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_1142.parquet']"
+280693,9,"['res_1224.parquet', 'res_561.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+315317,10,"['res_958.parquet', 'res_475.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_181.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet', 'res_852.parquet', 'res_618.parquet']"
+327595,10,"['res_1224.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_491.parquet', 'res_1079.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_1142.parquet']"
+327686,10,"['res_1160.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+331303,8,"['res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_850.parquet', 'res_85.parquet']"
+331937,9,"['res_1224.parquet', 'res_644.parquet', 'res_561.parquet', 'res_898.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_224.parquet', 'res_85.parquet', 'res_1142.parquet']"
+399269,9,"['res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_850.parquet', 'res_85.parquet']"
+416336,10,"['res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+421586,9,"['res_1224.parquet', 'res_561.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+427310,10,"['res_1224.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_1079.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+451931,10,"['res_1224.parquet', 'res_561.parquet', 'res_197.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+453058,9,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_850.parquet', 'res_85.parquet']"
+454505,9,"['res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_850.parquet', 'res_85.parquet']"
+455963,8,"['res_596.parquet', 'res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_850.parquet']"
+477816,9,"['res_1224.parquet', 'res_561.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+490055,9,"['res_1160.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_850.parquet', 'res_1142.parquet']"
+524525,10,"['res_1224.parquet', 'res_635.parquet', 'res_561.parquet', 'res_314.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_363.parquet', 'res_85.parquet', 'res_1142.parquet']"
+546357,10,"['res_596.parquet', 'res_561.parquet', 'res_475.parquet', 'res_363.parquet', 'res_1079.parquet', 'res_114.parquet', 'res_224.parquet', 'res_850.parquet', 'res_85.parquet', 'res_1142.parquet']"
+224432,6,"['res_75.parquet', 'res_324.parquet', 'res_561.parquet', 'res_1083.parquet', 'res_475.parquet', 'res_207.parquet']"
+311190,8,"['res_807.parquet', 'res_1083.parquet', 'res_561.parquet', 'res_898.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet', 'res_207.parquet']"
+387441,1,['res_1089.parquet']
+487708,1,['res_1089.parquet']
+505184,1,['res_1089.parquet']
+520485,1,['res_1089.parquet']
+9222,7,"['res_75.parquet', 'res_88.parquet', 'res_584.parquet', 'res_324.parquet', 'res_98.parquet', 'res_1091.parquet', 'res_618.parquet']"
+13693,9,"['res_38.parquet', 'res_460.parquet', 'res_245.parquet', 'res_208.parquet', 'res_595.parquet', 'res_1162.parquet', 'res_206.parquet', 'res_1248.parquet', 'res_1091.parquet']"
+20815,7,"['res_75.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_324.parquet', 'res_1091.parquet', 'res_618.parquet']"
+29336,7,"['res_75.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_324.parquet', 'res_1091.parquet', 'res_618.parquet']"
+32839,7,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_324.parquet', 'res_929.parquet', 'res_1091.parquet', 'res_618.parquet']"
+43358,7,"['res_75.parquet', 'res_966.parquet', 'res_584.parquet', 'res_324.parquet', 'res_754.parquet', 'res_1091.parquet', 'res_618.parquet']"
+56402,7,"['res_584.parquet', 'res_324.parquet', 'res_929.parquet', 'res_595.parquet', 'res_754.parquet', 'res_1091.parquet', 'res_618.parquet']"
+57772,7,"['res_675.parquet', 'res_995.parquet', 'res_780.parquet', 'res_7.parquet', 'res_823.parquet', 'res_1091.parquet', 'res_1228.parquet']"
+59346,5,"['res_75.parquet', 'res_88.parquet', 'res_324.parquet', 'res_1091.parquet', 'res_618.parquet']"
+74079,10,"['res_947.parquet', 'res_684.parquet', 'res_63.parquet', 'res_929.parquet', 'res_160.parquet', 'res_595.parquet', 'res_754.parquet', 'res_1117.parquet', 'res_884.parquet', 'res_1091.parquet']"
+98207,6,"['res_684.parquet', 'res_245.parquet', 'res_421.parquet', 'res_595.parquet', 'res_1153.parquet', 'res_1091.parquet']"
+126146,6,"['res_684.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+128693,6,"['res_933.parquet', 'res_684.parquet', 'res_324.parquet', 'res_595.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+130079,8,"['res_684.parquet', 'res_63.parquet', 'res_929.parquet', 'res_160.parquet', 'res_595.parquet', 'res_754.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+131145,6,"['res_933.parquet', 'res_584.parquet', 'res_324.parquet', 'res_929.parquet', 'res_595.parquet', 'res_1091.parquet']"
+237138,6,"['res_684.parquet', 'res_339.parquet', 'res_245.parquet', 'res_208.parquet', 'res_595.parquet', 'res_1091.parquet']"
+262114,10,"['res_1108.parquet', 'res_947.parquet', 'res_684.parquet', 'res_460.parquet', 'res_531.parquet', 'res_245.parquet', 'res_421.parquet', 'res_595.parquet', 'res_1153.parquet', 'res_1091.parquet']"
+266943,6,"['res_933.parquet', 'res_675.parquet', 'res_995.parquet', 'res_780.parquet', 'res_823.parquet', 'res_1091.parquet']"
+302046,7,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_324.parquet', 'res_929.parquet', 'res_1091.parquet', 'res_618.parquet']"
+309133,8,"['res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_892.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+312091,7,"['res_584.parquet', 'res_324.parquet', 'res_929.parquet', 'res_595.parquet', 'res_754.parquet', 'res_1091.parquet', 'res_618.parquet']"
+313289,9,"['res_1153.parquet', 'res_38.parquet', 'res_460.parquet', 'res_245.parquet', 'res_208.parquet', 'res_595.parquet', 'res_206.parquet', 'res_1204.parquet', 'res_1091.parquet']"
+316937,8,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_324.parquet', 'res_929.parquet', 'res_1117.parquet', 'res_1091.parquet', 'res_618.parquet']"
+321643,6,"['res_684.parquet', 'res_245.parquet', 'res_595.parquet', 'res_206.parquet', 'res_1153.parquet', 'res_1091.parquet']"
+321836,7,"['res_63.parquet', 'res_88.parquet', 'res_966.parquet', 'res_324.parquet', 'res_929.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+338533,6,"['res_1108.parquet', 'res_460.parquet', 'res_245.parquet', 'res_595.parquet', 'res_1153.parquet', 'res_1091.parquet']"
+347839,6,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_1117.parquet', 'res_1091.parquet', 'res_618.parquet']"
+385607,6,"['res_947.parquet', 'res_160.parquet', 'res_595.parquet', 'res_1117.parquet', 'res_884.parquet', 'res_1091.parquet']"
+385893,10,"['res_684.parquet', 'res_531.parquet', 'res_63.parquet', 'res_421.parquet', 'res_929.parquet', 'res_160.parquet', 'res_595.parquet', 'res_892.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+392721,7,"['res_684.parquet', 'res_63.parquet', 'res_929.parquet', 'res_595.parquet', 'res_754.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+401489,6,"['res_684.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+405081,6,"['res_933.parquet', 'res_675.parquet', 'res_995.parquet', 'res_780.parquet', 'res_823.parquet', 'res_1091.parquet']"
+423918,12,"['res_947.parquet', 'res_684.parquet', 'res_531.parquet', 'res_63.parquet', 'res_421.parquet', 'res_929.parquet', 'res_160.parquet', 'res_595.parquet', 'res_892.parquet', 'res_1117.parquet', 'res_884.parquet', 'res_1091.parquet']"
+426913,5,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+445537,6,"['res_933.parquet', 'res_684.parquet', 'res_208.parquet', 'res_595.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+454091,7,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_324.parquet', 'res_929.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+456181,5,"['res_966.parquet', 'res_324.parquet', 'res_929.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+464253,10,"['res_1108.parquet', 'res_947.parquet', 'res_684.parquet', 'res_460.parquet', 'res_531.parquet', 'res_245.parquet', 'res_421.parquet', 'res_595.parquet', 'res_1153.parquet', 'res_1091.parquet']"
+472451,7,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_324.parquet', 'res_929.parquet', 'res_1091.parquet', 'res_618.parquet']"
+494488,6,"['res_933.parquet', 'res_675.parquet', 'res_995.parquet', 'res_780.parquet', 'res_823.parquet', 'res_1091.parquet']"
+513770,10,"['res_684.parquet', 'res_63.parquet', 'res_421.parquet', 'res_929.parquet', 'res_160.parquet', 'res_595.parquet', 'res_754.parquet', 'res_1117.parquet', 'res_884.parquet', 'res_1091.parquet']"
+526430,7,"['res_684.parquet', 'res_63.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_1117.parquet', 'res_1091.parquet']"
+1092,2,"['res_1094.parquet', 'res_996.parquet']"
+86159,1,['res_1094.parquet']
+104094,2,"['res_1094.parquet', 'res_996.parquet']"
+153453,2,"['res_93.parquet', 'res_1094.parquet']"
+350518,2,"['res_93.parquet', 'res_1094.parquet']"
+410823,1,['res_1094.parquet']
+458266,1,['res_1094.parquet']
+507316,1,['res_1094.parquet']
+529425,2,"['res_93.parquet', 'res_1094.parquet']"
+182535,5,"['res_1099.parquet', 'res_314.parquet', 'res_640.parquet', 'res_1234.parquet', 'res_967.parquet']"
+107,2,"['res_11.parquet', 'res_640.parquet']"
+59805,1,['res_11.parquet']
+3209,6,"['res_977.parquet', 'res_553.parquet', 'res_967.parquet', 'res_455.parquet', 'res_227.parquet', 'res_1103.parquet']"
+14281,6,"['res_597.parquet', 'res_553.parquet', 'res_967.parquet', 'res_298.parquet', 'res_977.parquet', 'res_1103.parquet']"
+21261,6,"['res_1120.parquet', 'res_1234.parquet', 'res_553.parquet', 'res_967.parquet', 'res_748.parquet', 'res_1103.parquet']"
+36277,4,"['res_740.parquet', 'res_977.parquet', 'res_967.parquet', 'res_1103.parquet']"
+46996,8,"['res_531.parquet', 'res_421.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+78745,10,"['res_1108.parquet', 'res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_160.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+80723,6,"['res_977.parquet', 'res_553.parquet', 'res_967.parquet', 'res_455.parquet', 'res_227.parquet', 'res_1103.parquet']"
+115810,8,"['res_531.parquet', 'res_421.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+128944,5,"['res_667.parquet', 'res_553.parquet', 'res_967.parquet', 'res_298.parquet', 'res_1103.parquet']"
+195538,9,"['res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+200860,10,"['res_1268.parquet', 'res_879.parquet', 'res_967.parquet', 'res_667.parquet', 'res_1184.parquet', 'res_740.parquet', 'res_142.parquet', 'res_564.parquet', 'res_298.parquet', 'res_1103.parquet']"
+208328,6,"['res_597.parquet', 'res_1120.parquet', 'res_667.parquet', 'res_967.parquet', 'res_298.parquet', 'res_1103.parquet']"
+226110,5,"['res_1120.parquet', 'res_667.parquet', 'res_967.parquet', 'res_597.parquet', 'res_1103.parquet']"
+231055,3,"['res_298.parquet', 'res_678.parquet', 'res_1103.parquet']"
+242343,8,"['res_531.parquet', 'res_421.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+244567,7,"['res_1108.parquet', 'res_977.parquet', 'res_553.parquet', 'res_967.parquet', 'res_455.parquet', 'res_227.parquet', 'res_1103.parquet']"
+268443,4,"['res_967.parquet', 'res_421.parquet', 'res_553.parquet', 'res_1103.parquet']"
+270956,7,"['res_1108.parquet', 'res_977.parquet', 'res_553.parquet', 'res_967.parquet', 'res_455.parquet', 'res_227.parquet', 'res_1103.parquet']"
+284066,4,"['res_967.parquet', 'res_421.parquet', 'res_553.parquet', 'res_1103.parquet']"
+290349,6,"['res_421.parquet', 'res_1234.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_1103.parquet']"
+302989,7,"['res_421.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+338628,6,"['res_977.parquet', 'res_553.parquet', 'res_967.parquet', 'res_455.parquet', 'res_227.parquet', 'res_1103.parquet']"
+344751,9,"['res_1108.parquet', 'res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+386807,6,"['res_421.parquet', 'res_1120.parquet', 'res_553.parquet', 'res_967.parquet', 'res_597.parquet', 'res_1103.parquet']"
+394490,4,"['res_967.parquet', 'res_421.parquet', 'res_553.parquet', 'res_1103.parquet']"
+396530,6,"['res_421.parquet', 'res_667.parquet', 'res_553.parquet', 'res_967.parquet', 'res_597.parquet', 'res_1103.parquet']"
+402453,4,"['res_967.parquet', 'res_1120.parquet', 'res_899.parquet', 'res_1103.parquet']"
+440505,6,"['res_421.parquet', 'res_1234.parquet', 'res_553.parquet', 'res_967.parquet', 'res_227.parquet', 'res_1103.parquet']"
+442350,5,"['res_967.parquet', 'res_740.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+445126,6,"['res_1108.parquet', 'res_967.parquet', 'res_740.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+461886,8,"['res_1108.parquet', 'res_421.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+484947,10,"['res_1268.parquet', 'res_879.parquet', 'res_967.parquet', 'res_667.parquet', 'res_1184.parquet', 'res_740.parquet', 'res_142.parquet', 'res_564.parquet', 'res_298.parquet', 'res_1103.parquet']"
+492040,8,"['res_1108.parquet', 'res_531.parquet', 'res_421.parquet', 'res_553.parquet', 'res_967.parquet', 'res_977.parquet', 'res_227.parquet', 'res_1103.parquet']"
+514429,7,"['res_421.parquet', 'res_1120.parquet', 'res_1234.parquet', 'res_553.parquet', 'res_967.parquet', 'res_748.parquet', 'res_1103.parquet']"
+517693,5,"['res_1120.parquet', 'res_667.parquet', 'res_967.parquet', 'res_597.parquet', 'res_1103.parquet']"
+541502,6,"['res_421.parquet', 'res_1234.parquet', 'res_553.parquet', 'res_967.parquet', 'res_748.parquet', 'res_1103.parquet']"
+39113,1,['res_1104.parquet']
+192300,1,['res_1104.parquet']
+201863,1,['res_1104.parquet']
+275562,1,['res_1104.parquet']
+301,7,"['res_938.parquet', 'res_861.parquet', 'res_380.parquet', 'res_932.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+7486,4,"['res_938.parquet', 'res_1106.parquet', 'res_462.parquet', 'res_82.parquet']"
+9275,6,"['res_938.parquet', 'res_380.parquet', 'res_932.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+32451,7,"['res_938.parquet', 'res_861.parquet', 'res_380.parquet', 'res_932.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+54316,4,"['res_272.parquet', 'res_938.parquet', 'res_1106.parquet', 'res_462.parquet']"
+56000,5,"['res_938.parquet', 'res_380.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+87948,6,"['res_938.parquet', 'res_380.parquet', 'res_932.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+121985,2,"['res_380.parquet', 'res_1106.parquet']"
+135840,4,"['res_938.parquet', 'res_1106.parquet', 'res_462.parquet', 'res_82.parquet']"
+176502,5,"['res_938.parquet', 'res_82.parquet', 'res_1106.parquet', 'res_798.parquet', 'res_462.parquet']"
+229601,7,"['res_938.parquet', 'res_861.parquet', 'res_380.parquet', 'res_932.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+235109,4,"['res_938.parquet', 'res_1106.parquet', 'res_462.parquet', 'res_82.parquet']"
+262579,6,"['res_938.parquet', 'res_380.parquet', 'res_932.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+311002,5,"['res_938.parquet', 'res_82.parquet', 'res_861.parquet', 'res_1106.parquet', 'res_462.parquet']"
+372207,8,"['res_938.parquet', 'res_863.parquet', 'res_380.parquet', 'res_427.parquet', 'res_932.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+418448,3,"['res_938.parquet', 'res_1106.parquet', 'res_462.parquet']"
+429767,5,"['res_938.parquet', 'res_82.parquet', 'res_861.parquet', 'res_1106.parquet', 'res_462.parquet']"
+506438,6,"['res_938.parquet', 'res_380.parquet', 'res_427.parquet', 'res_1106.parquet', 'res_272.parquet', 'res_462.parquet']"
+540902,4,"['res_938.parquet', 'res_1106.parquet', 'res_462.parquet', 'res_82.parquet']"
+19379,4,"['res_1108.parquet', 'res_245.parquet', 'res_548.parquet', 'res_1115.parquet']"
+43604,8,"['res_1108.parquet', 'res_947.parquet', 'res_531.parquet', 'res_245.parquet', 'res_421.parquet', 'res_160.parquet', 'res_514.parquet', 'res_553.parquet']"
+118797,7,"['res_1108.parquet', 'res_947.parquet', 'res_531.parquet', 'res_245.parquet', 'res_421.parquet', 'res_160.parquet', 'res_514.parquet']"
+120236,10,"['res_1108.parquet', 'res_460.parquet', 'res_245.parquet', 'res_287.parquet', 'res_548.parquet', 'res_1115.parquet', 'res_595.parquet', 'res_582.parquet', 'res_1153.parquet', 'res_2.parquet']"
+132306,6,"['res_1108.parquet', 'res_947.parquet', 'res_245.parquet', 'res_595.parquet', 'res_1153.parquet', 'res_460.parquet']"
+316244,8,"['res_1108.parquet', 'res_947.parquet', 'res_245.parquet', 'res_287.parquet', 'res_595.parquet', 'res_582.parquet', 'res_1153.parquet', 'res_460.parquet']"
+337190,7,"['res_1108.parquet', 'res_947.parquet', 'res_531.parquet', 'res_245.parquet', 'res_421.parquet', 'res_160.parquet', 'res_514.parquet']"
+359333,7,"['res_1108.parquet', 'res_947.parquet', 'res_245.parquet', 'res_595.parquet', 'res_582.parquet', 'res_1153.parquet', 'res_460.parquet']"
+365710,7,"['res_1108.parquet', 'res_947.parquet', 'res_245.parquet', 'res_421.parquet', 'res_595.parquet', 'res_1153.parquet', 'res_460.parquet']"
+376680,11,"['res_1108.parquet', 'res_1153.parquet', 'res_460.parquet', 'res_245.parquet', 'res_287.parquet', 'res_548.parquet', 'res_595.parquet', 'res_822.parquet', 'res_582.parquet', 'res_1204.parquet', 'res_2.parquet']"
+395319,9,"['res_1108.parquet', 'res_947.parquet', 'res_531.parquet', 'res_245.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_1117.parquet', 'res_514.parquet']"
+415874,8,"['res_1108.parquet', 'res_947.parquet', 'res_245.parquet', 'res_287.parquet', 'res_595.parquet', 'res_582.parquet', 'res_1153.parquet', 'res_460.parquet']"
+481187,10,"['res_1108.parquet', 'res_947.parquet', 'res_460.parquet', 'res_245.parquet', 'res_287.parquet', 'res_548.parquet', 'res_595.parquet', 'res_582.parquet', 'res_1153.parquet', 'res_2.parquet']"
+57173,2,"['res_1155.parquet', 'res_1109.parquet']"
+94967,2,"['res_1155.parquet', 'res_1109.parquet']"
+288734,1,['res_1109.parquet']
+332742,2,"['res_1155.parquet', 'res_1109.parquet']"
+202090,2,"['res_1110.parquet', 'res_1277.parquet']"
+486032,6,"['res_988.parquet', 'res_617.parquet', 'res_1277.parquet', 'res_408.parquet', 'res_13.parquet', 'res_1110.parquet']"
+515458,3,"['res_1110.parquet', 'res_649.parquet', 'res_1277.parquet']"
+63687,1,['res_1112.parquet']
+72691,2,"['res_1112.parquet', 'res_651.parquet']"
+87532,1,['res_1112.parquet']
+136441,1,['res_1112.parquet']
+137768,1,['res_1112.parquet']
+147259,2,"['res_1112.parquet', 'res_35.parquet']"
+174741,1,['res_1112.parquet']
+196140,1,['res_1112.parquet']
+202687,1,['res_1112.parquet']
+204761,2,"['res_1112.parquet', 'res_651.parquet']"
+268200,1,['res_1112.parquet']
+453783,1,['res_1112.parquet']
+489576,1,['res_1112.parquet']
+540363,1,['res_1112.parquet']
+44149,4,"['res_644.parquet', 'res_1113.parquet', 'res_894.parquet', 'res_182.parquet']"
+113175,4,"['res_1157.parquet', 'res_1113.parquet', 'res_240.parquet', 'res_752.parquet']"
+190918,2,"['res_752.parquet', 'res_1113.parquet']"
+216487,5,"['res_752.parquet', 'res_334.parquet', 'res_240.parquet', 'res_1113.parquet', 'res_536.parquet']"
+256192,6,"['res_182.parquet', 'res_627.parquet', 'res_334.parquet', 'res_305.parquet', 'res_1113.parquet', 'res_894.parquet']"
+312392,4,"['res_1157.parquet', 'res_828.parquet', 'res_1113.parquet', 'res_752.parquet']"
+527227,3,"['res_644.parquet', 'res_1113.parquet', 'res_182.parquet']"
+99076,7,"['res_460.parquet', 'res_245.parquet', 'res_548.parquet', 'res_1115.parquet', 'res_582.parquet', 'res_1153.parquet', 'res_2.parquet']"
+110418,5,"['res_245.parquet', 'res_548.parquet', 'res_1115.parquet', 'res_582.parquet', 'res_1153.parquet']"
+140071,13,"['res_460.parquet', 'res_245.parquet', 'res_548.parquet', 'res_1115.parquet', 'res_1162.parquet', 'res_822.parquet', 'res_995.parquet', 'res_206.parquet', 'res_772.parquet', 'res_959.parquet', 'res_582.parquet', 'res_1248.parquet', 'res_2.parquet']"
+180039,12,"['res_582.parquet', 'res_579.parquet', 'res_652.parquet', 'res_548.parquet', 'res_1115.parquet', 'res_1162.parquet', 'res_995.parquet', 'res_7.parquet', 'res_959.parquet', 'res_267.parquet', 'res_1248.parquet', 'res_822.parquet']"
+21944,8,"['res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_514.parquet', 'res_1117.parquet', 'res_884.parquet']"
+96263,7,"['res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_514.parquet', 'res_1117.parquet']"
+110286,4,"['res_947.parquet', 'res_884.parquet', 'res_160.parquet', 'res_1117.parquet']"
+134052,4,"['res_514.parquet', 'res_884.parquet', 'res_160.parquet', 'res_1117.parquet']"
+252435,5,"['res_160.parquet', 'res_514.parquet', 'res_1117.parquet', 'res_884.parquet', 'res_340.parquet']"
+252620,8,"['res_947.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_754.parquet', 'res_514.parquet', 'res_1117.parquet', 'res_884.parquet']"
+267613,6,"['res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_160.parquet', 'res_514.parquet', 'res_1117.parquet']"
+316876,7,"['res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_514.parquet', 'res_1117.parquet']"
+350661,6,"['res_947.parquet', 'res_160.parquet', 'res_514.parquet', 'res_1117.parquet', 'res_884.parquet', 'res_340.parquet']"
+415757,7,"['res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_160.parquet', 'res_595.parquet', 'res_514.parquet', 'res_1117.parquet']"
+505850,5,"['res_160.parquet', 'res_514.parquet', 'res_1117.parquet', 'res_884.parquet', 'res_340.parquet']"
+82224,3,"['res_967.parquet', 'res_1120.parquet', 'res_899.parquet']"
+274043,2,"['res_1120.parquet', 'res_899.parquet']"
+307523,4,"['res_667.parquet', 'res_597.parquet', 'res_1120.parquet', 'res_967.parquet']"
+494976,7,"['res_1159.parquet', 'res_1128.parquet', 'res_146.parquet', 'res_695.parquet', 'res_298.parquet', 'res_169.parquet', 'res_97.parquet']"
+36308,2,"['res_526.parquet', 'res_1135.parquet']"
+68953,2,"['res_526.parquet', 'res_1135.parquet']"
+217839,4,"['res_888.parquet', 'res_546.parquet', 'res_82.parquet', 'res_1135.parquet']"
+340021,7,"['res_82.parquet', 'res_171.parquet', 'res_914.parquet', 'res_888.parquet', 'res_546.parquet', 'res_1183.parquet', 'res_1135.parquet']"
+496046,7,"['res_82.parquet', 'res_171.parquet', 'res_914.parquet', 'res_888.parquet', 'res_546.parquet', 'res_1183.parquet', 'res_1135.parquet']"
+508041,4,"['res_1183.parquet', 'res_546.parquet', 'res_888.parquet', 'res_1135.parquet']"
+9342,1,['res_1138.parquet']
+88623,8,"['res_1224.parquet', 'res_561.parquet', 'res_363.parquet', 'res_114.parquet', 'res_224.parquet', 'res_453.parquet', 'res_85.parquet', 'res_1142.parquet']"
+249629,5,"['res_635.parquet', 'res_561.parquet', 'res_114.parquet', 'res_224.parquet', 'res_730.parquet']"
+427686,5,"['res_314.parquet', 'res_114.parquet', 'res_181.parquet', 'res_850.parquet', 'res_618.parquet']"
+1403,7,"['res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet', 'res_1142.parquet']"
+7647,9,"['res_958.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_181.parquet', 'res_850.parquet', 'res_1142.parquet', 'res_852.parquet', 'res_618.parquet']"
+10778,3,"['res_470.parquet', 'res_1142.parquet', 'res_224.parquet']"
+28314,10,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_1142.parquet']"
+44017,3,"['res_470.parquet', 'res_1142.parquet', 'res_224.parquet']"
+64084,10,"['res_1224.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_344.parquet', 'res_1142.parquet']"
+143261,11,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_1142.parquet', 'res_436.parquet']"
+156064,3,"['res_1142.parquet', 'res_224.parquet', 'res_314.parquet']"
+159510,11,"['res_1224.parquet', 'res_924.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_1142.parquet', 'res_436.parquet']"
+175578,8,"['res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_181.parquet', 'res_850.parquet', 'res_1142.parquet']"
+195762,5,"['res_1146.parquet', 'res_470.parquet', 'res_224.parquet', 'res_1142.parquet', 'res_624.parquet']"
+202377,9,"['res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_491.parquet', 'res_363.parquet', 'res_850.parquet', 'res_1142.parquet', 'res_436.parquet']"
+213745,3,"['res_1142.parquet', 'res_224.parquet', 'res_314.parquet']"
+215932,10,"['res_1224.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_344.parquet', 'res_1142.parquet']"
+226832,8,"['res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet', 'res_1142.parquet']"
+227544,6,"['res_1224.parquet', 'res_561.parquet', 'res_470.parquet', 'res_363.parquet', 'res_224.parquet', 'res_1142.parquet']"
+235368,6,"['res_1224.parquet', 'res_561.parquet', 'res_470.parquet', 'res_363.parquet', 'res_224.parquet', 'res_1142.parquet']"
+242234,4,"['res_470.parquet', 'res_1142.parquet', 'res_224.parquet', 'res_314.parquet']"
+282869,11,"['res_1224.parquet', 'res_924.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_1142.parquet', 'res_436.parquet']"
+283073,7,"['res_1224.parquet', 'res_635.parquet', 'res_561.parquet', 'res_314.parquet', 'res_363.parquet', 'res_224.parquet', 'res_1142.parquet']"
+288603,7,"['res_1224.parquet', 'res_644.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_1142.parquet']"
+293470,8,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_1142.parquet']"
+343012,8,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_1142.parquet']"
+403636,8,"['res_1224.parquet', 'res_644.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_453.parquet', 'res_1142.parquet']"
+407406,8,"['res_1224.parquet', 'res_644.parquet', 'res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_1142.parquet']"
+426622,9,"['res_958.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_181.parquet', 'res_850.parquet', 'res_1142.parquet', 'res_852.parquet', 'res_618.parquet']"
+448131,8,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_1142.parquet']"
+454559,9,"['res_1160.parquet', 'res_958.parquet', 'res_197.parquet', 'res_475.parquet', 'res_181.parquet', 'res_850.parquet', 'res_1142.parquet', 'res_852.parquet', 'res_618.parquet']"
+466157,3,"['res_470.parquet', 'res_1142.parquet', 'res_224.parquet']"
+487485,6,"['res_1224.parquet', 'res_561.parquet', 'res_363.parquet', 'res_224.parquet', 'res_453.parquet', 'res_1142.parquet']"
+489600,8,"['res_958.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_850.parquet', 'res_1142.parquet', 'res_852.parquet', 'res_618.parquet']"
+496513,7,"['res_1160.parquet', 'res_958.parquet', 'res_88.parquet', 'res_475.parquet', 'res_181.parquet', 'res_1142.parquet', 'res_618.parquet']"
+528669,4,"['res_1224.parquet', 'res_1142.parquet', 'res_224.parquet', 'res_470.parquet']"
+545718,7,"['res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet', 'res_1142.parquet']"
+135655,1,['res_1144.parquet']
+166598,1,['res_1144.parquet']
+204231,1,['res_1144.parquet']
+90560,5,"['res_1146.parquet', 'res_314.parquet', 'res_229.parquet', 'res_664.parquet', 'res_624.parquet']"
+112553,2,"['res_1146.parquet', 'res_314.parquet']"
+167944,3,"['res_664.parquet', 'res_1146.parquet', 'res_314.parquet']"
+214098,5,"['res_1146.parquet', 'res_314.parquet', 'res_229.parquet', 'res_664.parquet', 'res_624.parquet']"
+317533,4,"['res_229.parquet', 'res_1146.parquet', 'res_624.parquet', 'res_314.parquet']"
+344652,3,"['res_664.parquet', 'res_1146.parquet', 'res_314.parquet']"
+408049,4,"['res_1146.parquet', 'res_470.parquet', 'res_314.parquet', 'res_624.parquet']"
+488832,5,"['res_1146.parquet', 'res_314.parquet', 'res_229.parquet', 'res_664.parquet', 'res_624.parquet']"
+519214,4,"['res_664.parquet', 'res_1146.parquet', 'res_887.parquet', 'res_314.parquet']"
+528576,3,"['res_1146.parquet', 'res_470.parquet', 'res_314.parquet']"
+539925,3,"['res_664.parquet', 'res_1146.parquet', 'res_314.parquet']"
+159135,1,['res_1148.parquet']
+325668,1,['res_1148.parquet']
+332702,1,['res_1148.parquet']
+499687,1,['res_1148.parquet']
+525414,2,"['res_1253.parquet', 'res_1148.parquet']"
+25591,2,"['res_1149.parquet', 'res_1223.parquet']"
+252098,1,['res_1149.parquet']
+146221,10,"['res_1153.parquet', 'res_245.parquet', 'res_148.parquet', 'res_287.parquet', 'res_595.parquet', 'res_822.parquet', 'res_206.parquet', 'res_582.parquet', 'res_1204.parquet', 'res_460.parquet']"
+1853,1,['res_1155.parquet']
+58427,1,['res_1155.parquet']
+65135,1,['res_1155.parquet']
+84355,1,['res_1155.parquet']
+108254,2,"['res_1155.parquet', 'res_268.parquet']"
+112755,1,['res_1155.parquet']
+183198,1,['res_1155.parquet']
+187371,1,['res_1155.parquet']
+232007,1,['res_1155.parquet']
+321929,1,['res_1155.parquet']
+350035,1,['res_1155.parquet']
+353483,1,['res_1155.parquet']
+372452,2,"['res_1155.parquet', 'res_268.parquet']"
+375098,1,['res_1155.parquet']
+394566,1,['res_1155.parquet']
+429745,1,['res_1155.parquet']
+118679,5,"['res_968.parquet', 'res_121.parquet', 'res_1157.parquet', 'res_664.parquet', 'res_278.parquet']"
+170488,5,"['res_968.parquet', 'res_752.parquet', 'res_240.parquet', 'res_1157.parquet', 'res_278.parquet']"
+170814,3,"['res_1157.parquet', 'res_664.parquet', 'res_240.parquet']"
+204159,6,"['res_968.parquet', 'res_240.parquet', 'res_121.parquet', 'res_1157.parquet', 'res_664.parquet', 'res_278.parquet']"
+305252,3,"['res_1157.parquet', 'res_664.parquet', 'res_240.parquet']"
+324393,5,"['res_1187.parquet', 'res_752.parquet', 'res_290.parquet', 'res_1157.parquet', 'res_457.parquet']"
+427492,2,"['res_1157.parquet', 'res_664.parquet']"
+473458,2,"['res_1157.parquet', 'res_664.parquet']"
+537910,4,"['res_1157.parquet', 'res_664.parquet', 'res_240.parquet', 'res_752.parquet']"
+257610,1,['res_116.parquet']
+460616,1,['res_116.parquet']
+108785,1,['res_1161.parquet']
+215607,1,['res_1161.parquet']
+219441,1,['res_1161.parquet']
+116468,9,"['res_1173.parquet', 'res_171.parquet', 'res_461.parquet', 'res_131.parquet', 'res_82.parquet', 'res_914.parquet', 'res_888.parquet', 'res_546.parquet', 'res_1183.parquet']"
+133654,8,"['res_1173.parquet', 'res_171.parquet', 'res_131.parquet', 'res_82.parquet', 'res_914.parquet', 'res_888.parquet', 'res_546.parquet', 'res_1183.parquet']"
+38070,3,"['res_966.parquet', 'res_1174.parquet', 'res_160.parquet']"
+114109,8,"['res_807.parquet', 'res_958.parquet', 'res_898.parquet', 'res_475.parquet', 'res_850.parquet', 'res_1174.parquet', 'res_852.parquet', 'res_618.parquet']"
+183734,6,"['res_958.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_1174.parquet', 'res_618.parquet']"
+183986,9,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_1174.parquet', 'res_852.parquet', 'res_618.parquet']"
+288346,4,"['res_966.parquet', 'res_584.parquet', 'res_1174.parquet', 'res_88.parquet']"
+356183,8,"['res_807.parquet', 'res_958.parquet', 'res_898.parquet', 'res_475.parquet', 'res_850.parquet', 'res_1174.parquet', 'res_852.parquet', 'res_618.parquet']"
+378910,7,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_898.parquet', 'res_475.parquet', 'res_1174.parquet', 'res_618.parquet']"
+393137,5,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_1174.parquet', 'res_618.parquet']"
+395721,6,"['res_904.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_1174.parquet', 'res_618.parquet']"
+415875,5,"['res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_1174.parquet', 'res_618.parquet']"
+463956,5,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_1174.parquet', 'res_618.parquet']"
+508034,9,"['res_807.parquet', 'res_958.parquet', 'res_88.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_1174.parquet', 'res_852.parquet', 'res_618.parquet']"
+524356,6,"['res_904.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_1174.parquet', 'res_618.parquet']"
+337335,3,"['res_697.parquet', 'res_312.parquet', 'res_1176.parquet']"
+371830,4,"['res_697.parquet', 'res_604.parquet', 'res_1195.parquet', 'res_1176.parquet']"
+538357,3,"['res_697.parquet', 'res_1195.parquet', 'res_1176.parquet']"
+119073,5,"['res_522.parquet', 'res_1256.parquet', 'res_739.parquet', 'res_247.parquet', 'res_1177.parquet']"
+150214,5,"['res_522.parquet', 'res_1256.parquet', 'res_739.parquet', 'res_430.parquet', 'res_1177.parquet']"
+469082,5,"['res_522.parquet', 'res_1256.parquet', 'res_739.parquet', 'res_247.parquet', 'res_1177.parquet']"
+132930,3,"['res_1178.parquet', 'res_655.parquet', 'res_79.parquet']"
+468325,3,"['res_653.parquet', 'res_1181.parquet', 'res_815.parquet']"
+57049,10,"['res_171.parquet', 'res_131.parquet', 'res_461.parquet', 'res_914.parquet', 'res_451.parquet', 'res_546.parquet', 'res_888.parquet', 'res_132.parquet', 'res_955.parquet', 'res_1183.parquet']"
+223148,3,"['res_1183.parquet', 'res_82.parquet', 'res_461.parquet']"
+354532,7,"['res_82.parquet', 'res_171.parquet', 'res_131.parquet', 'res_914.parquet', 'res_888.parquet', 'res_546.parquet', 'res_1183.parquet']"
+13375,4,"['res_324.parquet', 'res_561.parquet', 'res_1186.parquet', 'res_823.parquet']"
+106657,11,"['res_675.parquet', 'res_216.parquet', 'res_561.parquet', 'res_475.parquet', 'res_780.parquet', 'res_1186.parquet', 'res_823.parquet', 'res_362.parquet', 'res_1255.parquet', 'res_317.parquet', 'res_710.parquet']"
+134544,6,"['res_216.parquet', 'res_1186.parquet', 'res_7.parquet', 'res_823.parquet', 'res_362.parquet', 'res_710.parquet']"
+144694,8,"['res_216.parquet', 'res_561.parquet', 'res_475.parquet', 'res_780.parquet', 'res_1186.parquet', 'res_823.parquet', 'res_362.parquet', 'res_1255.parquet']"
+153945,5,"['res_1186.parquet', 'res_823.parquet', 'res_7.parquet', 'res_362.parquet', 'res_710.parquet']"
+406029,4,"['res_561.parquet', 'res_1186.parquet', 'res_823.parquet', 'res_362.parquet']"
+412039,8,"['res_616.parquet', 'res_324.parquet', 'res_561.parquet', 'res_475.parquet', 'res_780.parquet', 'res_1186.parquet', 'res_823.parquet', 'res_1255.parquet']"
+538267,8,"['res_324.parquet', 'res_561.parquet', 'res_475.parquet', 'res_780.parquet', 'res_1186.parquet', 'res_823.parquet', 'res_1255.parquet', 'res_317.parquet']"
+543184,7,"['res_1187.parquet', 'res_318.parquet', 'res_1190.parquet', 'res_280.parquet', 'res_1220.parquet', 'res_968.parquet', 'res_1209.parquet']"
+46094,2,"['res_794.parquet', 'res_119.parquet']"
+90871,1,['res_119.parquet']
+120493,1,['res_119.parquet']
+160384,4,"['res_46.parquet', 'res_303.parquet', 'res_742.parquet', 'res_119.parquet']"
+172430,4,"['res_881.parquet', 'res_303.parquet', 'res_742.parquet', 'res_119.parquet']"
+190616,2,"['res_303.parquet', 'res_119.parquet']"
+314702,4,"['res_881.parquet', 'res_303.parquet', 'res_742.parquet', 'res_119.parquet']"
+328292,4,"['res_881.parquet', 'res_1231.parquet', 'res_303.parquet', 'res_119.parquet']"
+337759,2,"['res_890.parquet', 'res_119.parquet']"
+406129,4,"['res_357.parquet', 'res_46.parquet', 'res_890.parquet', 'res_119.parquet']"
+450800,2,"['res_991.parquet', 'res_119.parquet']"
+451767,1,['res_119.parquet']
+454483,4,"['res_881.parquet', 'res_1231.parquet', 'res_303.parquet', 'res_119.parquet']"
+475473,3,"['res_890.parquet', 'res_991.parquet', 'res_119.parquet']"
+518672,4,"['res_881.parquet', 'res_303.parquet', 'res_742.parquet', 'res_119.parquet']"
+88697,8,"['res_1190.parquet', 'res_752.parquet', 'res_968.parquet', 'res_290.parquet', 'res_240.parquet', 'res_1209.parquet', 'res_278.parquet', 'res_457.parquet']"
+479520,1,['res_1194.parquet']
+114962,1,['res_1195.parquet']
+235495,3,"['res_697.parquet', 'res_604.parquet', 'res_1195.parquet']"
+245711,4,"['res_433.parquet', 'res_697.parquet', 'res_604.parquet', 'res_1195.parquet']"
+388614,2,"['res_1195.parquet', 'res_1267.parquet']"
+403077,2,"['res_1195.parquet', 'res_766.parquet']"
+495487,2,"['res_697.parquet', 'res_1195.parquet']"
+505357,2,"['res_604.parquet', 'res_1195.parquet']"
+39658,5,"['res_1200.parquet', 'res_78.parquet', 'res_391.parquet', 'res_872.parquet', 'res_181.parquet']"
+62256,5,"['res_1200.parquet', 'res_78.parquet', 'res_391.parquet', 'res_872.parquet', 'res_181.parquet']"
+69392,4,"['res_1200.parquet', 'res_224.parquet', 'res_78.parquet', 'res_596.parquet']"
+189550,2,"['res_1200.parquet', 'res_391.parquet']"
+239289,1,['res_1200.parquet']
+246638,5,"['res_1200.parquet', 'res_78.parquet', 'res_391.parquet', 'res_872.parquet', 'res_181.parquet']"
+303239,1,['res_1200.parquet']
+307734,1,['res_1200.parquet']
+342072,2,"['res_1200.parquet', 'res_391.parquet']"
+365944,3,"['res_966.parquet', 'res_1200.parquet', 'res_391.parquet']"
+431714,1,['res_1200.parquet']
+441900,1,['res_1200.parquet']
+102854,3,"['res_1205.parquet', 'res_162.parquet', 'res_621.parquet']"
+200667,2,"['res_1205.parquet', 'res_162.parquet']"
+243835,3,"['res_93.parquet', 'res_1205.parquet', 'res_21.parquet']"
+410093,1,['res_1205.parquet']
+410527,3,"['res_1205.parquet', 'res_162.parquet', 'res_621.parquet']"
+105900,3,"['res_278.parquet', 'res_393.parquet', 'res_121.parquet']"
+186188,1,['res_1212.parquet']
+189311,3,"['res_371.parquet', 'res_1212.parquet', 'res_241.parquet']"
+340409,1,['res_1212.parquet']
+384892,1,['res_1212.parquet']
+431193,3,"['res_371.parquet', 'res_1212.parquet', 'res_241.parquet']"
+119460,4,"['res_318.parquet', 'res_280.parquet', 'res_1220.parquet', 'res_681.parquet']"
+63328,10,"['res_1224.parquet', 'res_469.parquet', 'res_924.parquet', 'res_220.parquet', 'res_561.parquet', 'res_549.parquet', 'res_363.parquet', 'res_224.parquet', 'res_283.parquet', 'res_207.parquet']"
+87541,9,"['res_1224.parquet', 'res_924.parquet', 'res_220.parquet', 'res_561.parquet', 'res_549.parquet', 'res_363.parquet', 'res_224.parquet', 'res_283.parquet', 'res_207.parquet']"
+93869,7,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet']"
+155028,8,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet']"
+158072,7,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet']"
+249373,10,"['res_1224.parquet', 'res_469.parquet', 'res_924.parquet', 'res_220.parquet', 'res_549.parquet', 'res_224.parquet', 'res_283.parquet', 'res_691.parquet', 'res_207.parquet', 'res_396.parquet']"
+451045,8,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet']"
+458539,10,"['res_1224.parquet', 'res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet', 'res_850.parquet', 'res_344.parquet', 'res_207.parquet', 'res_436.parquet']"
+475326,7,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet']"
+499681,7,"['res_1224.parquet', 'res_644.parquet', 'res_924.parquet', 'res_561.parquet', 'res_491.parquet', 'res_363.parquet', 'res_224.parquet']"
+61072,4,"['res_1226.parquet', 'res_289.parquet', 'res_188.parquet', 'res_881.parquet']"
+112011,3,"['res_1226.parquet', 'res_188.parquet', 'res_881.parquet']"
+123539,5,"['res_156.parquet', 'res_1226.parquet', 'res_881.parquet', 'res_914.parquet', 'res_1267.parquet']"
+154106,9,"['res_832.parquet', 'res_171.parquet', 'res_131.parquet', 'res_1226.parquet', 'res_156.parquet', 'res_914.parquet', 'res_451.parquet', 'res_1267.parquet', 'res_642.parquet']"
+160458,4,"['res_1226.parquet', 'res_289.parquet', 'res_881.parquet', 'res_466.parquet']"
+179411,4,"['res_1226.parquet', 'res_188.parquet', 'res_1231.parquet', 'res_881.parquet']"
+216380,7,"['res_794.parquet', 'res_171.parquet', 'res_131.parquet', 'res_1226.parquet', 'res_451.parquet', 'res_779.parquet', 'res_642.parquet']"
+225460,6,"['res_188.parquet', 'res_1226.parquet', 'res_451.parquet', 'res_289.parquet', 'res_642.parquet', 'res_53.parquet']"
+260286,8,"['res_794.parquet', 'res_171.parquet', 'res_131.parquet', 'res_1226.parquet', 'res_914.parquet', 'res_451.parquet', 'res_289.parquet', 'res_642.parquet']"
+264067,4,"['res_1226.parquet', 'res_289.parquet', 'res_304.parquet', 'res_881.parquet']"
+332563,3,"['res_1226.parquet', 'res_188.parquet', 'res_798.parquet']"
+343688,3,"['res_1226.parquet', 'res_188.parquet', 'res_798.parquet']"
+354020,6,"['res_171.parquet', 'res_131.parquet', 'res_1226.parquet', 'res_914.parquet', 'res_132.parquet', 'res_642.parquet']"
+367287,2,"['res_1226.parquet', 'res_188.parquet']"
+403922,5,"['res_131.parquet', 'res_1226.parquet', 'res_779.parquet', 'res_132.parquet', 'res_642.parquet']"
+460187,7,"['res_171.parquet', 'res_131.parquet', 'res_1226.parquet', 'res_914.parquet', 'res_451.parquet', 'res_132.parquet', 'res_642.parquet']"
+486622,7,"['res_188.parquet', 'res_131.parquet', 'res_1226.parquet', 'res_451.parquet', 'res_132.parquet', 'res_53.parquet', 'res_642.parquet']"
+497181,8,"['res_794.parquet', 'res_171.parquet', 'res_131.parquet', 'res_1226.parquet', 'res_914.parquet', 'res_451.parquet', 'res_132.parquet', 'res_642.parquet']"
+113262,1,['res_1229.parquet']
+291082,1,['res_1229.parquet']
+418786,1,['res_1229.parquet']
+133225,1,['res_123.parquet']
+237384,1,['res_123.parquet']
+997,3,"['res_881.parquet', 'res_1231.parquet', 'res_303.parquet']"
+19587,4,"['res_881.parquet', 'res_1231.parquet', 'res_742.parquet', 'res_303.parquet']"
+344467,2,"['res_881.parquet', 'res_1231.parquet']"
+409742,3,"['res_881.parquet', 'res_1231.parquet', 'res_742.parquet']"
+9444,1,['res_1232.parquet']
+1623,3,"['res_967.parquet', 'res_1234.parquet', 'res_553.parquet']"
+66492,4,"['res_967.parquet', 'res_1234.parquet', 'res_165.parquet', 'res_805.parquet']"
+109588,1,['res_1234.parquet']
+281964,4,"['res_967.parquet', 'res_227.parquet', 'res_1234.parquet', 'res_553.parquet']"
+369202,4,"['res_967.parquet', 'res_1234.parquet', 'res_165.parquet', 'res_553.parquet']"
+399429,1,['res_1234.parquet']
+457710,3,"['res_967.parquet', 'res_1234.parquet', 'res_553.parquet']"
+516015,4,"['res_967.parquet', 'res_227.parquet', 'res_1234.parquet', 'res_553.parquet']"
+520607,4,"['res_967.parquet', 'res_373.parquet', 'res_1234.parquet', 'res_165.parquet']"
+377168,2,"['res_380.parquet', 'res_1239.parquet']"
+353253,7,"['res_958.parquet', 'res_88.parquet', 'res_391.parquet', 'res_314.parquet', 'res_181.parquet', 'res_1252.parquet', 'res_618.parquet']"
+110662,1,['res_1253.parquet']
+65660,6,"['res_75.parquet', 'res_324.parquet', 'res_561.parquet', 'res_475.parquet', 'res_780.parquet', 'res_1255.parquet']"
+543717,5,"['res_75.parquet', 'res_324.parquet', 'res_561.parquet', 'res_475.parquet', 'res_1255.parquet']"
+100280,5,"['res_1256.parquet', 'res_968.parquet', 'res_240.parquet', 'res_664.parquet', 'res_278.parquet']"
+306909,4,"['res_278.parquet', 'res_1256.parquet', 'res_430.parquet', 'res_393.parquet']"
+146230,2,"['res_523.parquet', 'res_1258.parquet']"
+157543,1,['res_1261.parquet']
+117464,2,"['res_355.parquet', 'res_1264.parquet']"
+215981,2,"['res_1266.parquet', 'res_46.parquet']"
+46979,2,"['res_881.parquet', 'res_1267.parquet']"
+120159,2,"['res_466.parquet', 'res_1267.parquet']"
+142425,3,"['res_881.parquet', 'res_466.parquet', 'res_1267.parquet']"
+273552,11,"['res_832.parquet', 'res_171.parquet', 'res_131.parquet', 'res_461.parquet', 'res_993.parquet', 'res_914.parquet', 'res_451.parquet', 'res_888.parquet', 'res_1267.parquet', 'res_955.parquet', 'res_642.parquet']"
+301875,6,"['res_832.parquet', 'res_171.parquet', 'res_156.parquet', 'res_914.parquet', 'res_451.parquet', 'res_1267.parquet']"
+457398,2,"['res_466.parquet', 'res_1267.parquet']"
+239542,1,['res_1270.parquet']
+547068,1,['res_1270.parquet']
+97519,7,"['res_1273.parquet', 'res_216.parquet', 'res_675.parquet', 'res_475.parquet', 'res_780.parquet', 'res_823.parquet', 'res_710.parquet']"
+266112,5,"['res_1273.parquet', 'res_675.parquet', 'res_324.parquet', 'res_780.parquet', 'res_823.parquet']"
+535419,4,"['res_780.parquet', 'res_324.parquet', 'res_1273.parquet', 'res_823.parquet']"
+20381,1,['res_1276.parquet']
+545429,2,"['res_534.parquet', 'res_1276.parquet']"
+277291,5,"['res_760.parquet', 'res_916.parquet', 'res_1277.parquet', 'res_178.parquet', 'res_649.parquet']"
+234488,9,"['res_1283.parquet', 'res_675.parquet', 'res_216.parquet', 'res_475.parquet', 'res_995.parquet', 'res_780.parquet', 'res_7.parquet', 'res_823.parquet', 'res_710.parquet']"
+166028,5,"['res_82.parquet', 'res_131.parquet', 'res_779.parquet', 'res_132.parquet', 'res_642.parquet']"
+177325,4,"['res_642.parquet', 'res_132.parquet', 'res_82.parquet', 'res_131.parquet']"
+185597,3,"['res_132.parquet', 'res_82.parquet', 'res_131.parquet']"
+449477,5,"['res_82.parquet', 'res_131.parquet', 'res_779.parquet', 'res_132.parquet', 'res_642.parquet']"
+437679,2,"['res_696.parquet', 'res_134.parquet']"
+90749,1,['res_137.parquet']
+146501,1,['res_137.parquet']
+306289,4,"['res_391.parquet', 'res_872.parquet', 'res_181.parquet', 'res_137.parquet']"
+310402,2,"['res_391.parquet', 'res_137.parquet']"
+131963,2,"['res_292.parquet', 'res_141.parquet']"
+253235,2,"['res_292.parquet', 'res_141.parquet']"
+33684,3,"['res_145.parquet', 'res_466.parquet', 'res_744.parquet']"
+170712,1,['res_145.parquet']
+254420,2,"['res_145.parquet', 'res_826.parquet']"
+289951,1,['res_145.parquet']
+311258,2,"['res_873.parquet', 'res_145.parquet']"
+63481,5,"['res_171.parquet', 'res_156.parquet', 'res_914.parquet', 'res_546.parquet', 'res_719.parquet']"
+113739,4,"['res_914.parquet', 'res_556.parquet', 'res_546.parquet', 'res_156.parquet']"
+271797,1,['res_156.parquet']
+421409,7,"['res_832.parquet', 'res_171.parquet', 'res_156.parquet', 'res_993.parquet', 'res_914.parquet', 'res_451.parquet', 'res_955.parquet']"
+2498,7,"['res_160.parquet', 'res_373.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_884.parquet', 'res_227.parquet']"
+101078,4,"['res_198.parquet', 'res_391.parquet', 'res_314.parquet', 'res_160.parquet']"
+139999,7,"['res_160.parquet', 'res_373.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_884.parquet', 'res_227.parquet']"
+174071,5,"['res_947.parquet', 'res_531.parquet', 'res_421.parquet', 'res_160.parquet', 'res_514.parquet']"
+184651,1,['res_160.parquet']
+210687,3,"['res_391.parquet', 'res_314.parquet', 'res_160.parquet']"
+210978,7,"['res_160.parquet', 'res_373.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_884.parquet', 'res_227.parquet']"
+358176,5,"['res_160.parquet', 'res_514.parquet', 'res_553.parquet', 'res_884.parquet', 'res_340.parquet']"
+472621,7,"['res_947.parquet', 'res_160.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_884.parquet', 'res_227.parquet']"
+492902,5,"['res_160.parquet', 'res_514.parquet', 'res_553.parquet', 'res_884.parquet', 'res_340.parquet']"
+253797,1,['res_162.parquet']
+436169,1,['res_162.parquet']
+477191,1,['res_162.parquet']
+519532,1,['res_162.parquet']
+87233,7,"['res_709.parquet', 'res_863.parquet', 'res_932.parquet', 'res_695.parquet', 'res_298.parquet', 'res_169.parquet', 'res_97.parquet']"
+271426,6,"['res_863.parquet', 'res_427.parquet', 'res_932.parquet', 'res_695.parquet', 'res_298.parquet', 'res_169.parquet']"
+481916,6,"['res_863.parquet', 'res_763.parquet', 'res_695.parquet', 'res_298.parquet', 'res_169.parquet', 'res_97.parquet']"
+497559,5,"['res_863.parquet', 'res_695.parquet', 'res_298.parquet', 'res_169.parquet', 'res_97.parquet']"
+90553,3,"['res_241.parquet', 'res_371.parquet', 'res_173.parquet']"
+261038,3,"['res_241.parquet', 'res_371.parquet', 'res_173.parquet']"
+48833,5,"['res_88.parquet', 'res_391.parquet', 'res_314.parquet', 'res_181.parquet', 'res_618.parquet']"
+61842,7,"['res_198.parquet', 'res_88.parquet', 'res_966.parquet', 'res_391.parquet', 'res_314.parquet', 'res_181.parquet', 'res_618.parquet']"
+137877,6,"['res_958.parquet', 'res_88.parquet', 'res_898.parquet', 'res_391.parquet', 'res_181.parquet', 'res_618.parquet']"
+203399,4,"['res_966.parquet', 'res_181.parquet', 'res_391.parquet', 'res_618.parquet']"
+229685,2,"['res_181.parquet', 'res_391.parquet']"
+334052,3,"['res_181.parquet', 'res_391.parquet', 'res_618.parquet']"
+335422,6,"['res_958.parquet', 'res_88.parquet', 'res_391.parquet', 'res_314.parquet', 'res_181.parquet', 'res_618.parquet']"
+346754,3,"['res_966.parquet', 'res_181.parquet', 'res_391.parquet']"
+377150,6,"['res_958.parquet', 'res_88.parquet', 'res_391.parquet', 'res_475.parquet', 'res_181.parquet', 'res_618.parquet']"
+385302,7,"['res_958.parquet', 'res_88.parquet', 'res_898.parquet', 'res_391.parquet', 'res_475.parquet', 'res_181.parquet', 'res_618.parquet']"
+443477,6,"['res_88.parquet', 'res_966.parquet', 'res_391.parquet', 'res_314.parquet', 'res_181.parquet', 'res_618.parquet']"
+459389,8,"['res_904.parquet', 'res_198.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_391.parquet', 'res_181.parquet', 'res_618.parquet']"
+497167,6,"['res_958.parquet', 'res_88.parquet', 'res_898.parquet', 'res_391.parquet', 'res_181.parquet', 'res_618.parquet']"
+501241,4,"['res_78.parquet', 'res_872.parquet', 'res_181.parquet', 'res_391.parquet']"
+513565,5,"['res_88.parquet', 'res_391.parquet', 'res_314.parquet', 'res_181.parquet', 'res_618.parquet']"
+525637,6,"['res_88.parquet', 'res_966.parquet', 'res_391.parquet', 'res_314.parquet', 'res_181.parquet', 'res_618.parquet']"
+272876,2,"['res_627.parquet', 'res_182.parquet']"
+298929,2,"['res_644.parquet', 'res_182.parquet']"
+401600,5,"['res_644.parquet', 'res_645.parquet', 'res_182.parquet', 'res_842.parquet', 'res_512.parquet']"
+426144,4,"['res_627.parquet', 'res_305.parquet', 'res_894.parquet', 'res_182.parquet']"
+513358,4,"['res_627.parquet', 'res_906.parquet', 'res_894.parquet', 'res_182.parquet']"
+8792,1,['res_184.parquet']
+143096,1,['res_184.parquet']
+549292,2,"['res_184.parquet', 'res_806.parquet']"
+24494,2,"['res_881.parquet', 'res_188.parquet']"
+95990,3,"['res_881.parquet', 'res_188.parquet', 'res_560.parquet']"
+274027,3,"['res_188.parquet', 'res_560.parquet', 'res_798.parquet']"
+475427,2,"['res_188.parquet', 'res_560.parquet']"
+113456,1,['res_196.parquet']
+143210,2,"['res_196.parquet', 'res_231.parquet']"
+200755,1,['res_196.parquet']
+42443,8,"['res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet', 'res_436.parquet']"
+57347,6,"['res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet']"
+344718,7,"['res_807.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet']"
+404713,7,"['res_807.parquet', 'res_561.parquet', 'res_898.parquet', 'res_197.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet']"
+4605,6,"['res_58.parquet', 'res_198.parquet', 'res_793.parquet', 'res_373.parquet', 'res_967.parquet', 'res_227.parquet']"
+107701,7,"['res_904.parquet', 'res_198.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_391.parquet', 'res_618.parquet']"
+169980,7,"['res_904.parquet', 'res_198.parquet', 'res_88.parquet', 'res_966.parquet', 'res_584.parquet', 'res_391.parquet', 'res_618.parquet']"
+150820,4,"['res_944.parquet', 'res_464.parquet', 'res_205.parquet', 'res_26.parquet']"
+271955,3,"['res_944.parquet', 'res_205.parquet', 'res_26.parquet']"
+298637,1,['res_205.parquet']
+379055,3,"['res_944.parquet', 'res_464.parquet', 'res_205.parquet']"
+388541,3,"['res_944.parquet', 'res_205.parquet', 'res_26.parquet']"
+434447,3,"['res_944.parquet', 'res_464.parquet', 'res_205.parquet']"
+459092,3,"['res_944.parquet', 'res_464.parquet', 'res_205.parquet']"
+475737,2,"['res_205.parquet', 'res_26.parquet']"
+488284,3,"['res_944.parquet', 'res_464.parquet', 'res_205.parquet']"
+490543,3,"['res_944.parquet', 'res_464.parquet', 'res_205.parquet']"
+537430,1,['res_205.parquet']
+44653,5,"['res_75.parquet', 'res_561.parquet', 'res_324.parquet', 'res_475.parquet', 'res_207.parquet']"
+164182,6,"['res_75.parquet', 'res_561.parquet', 'res_898.parquet', 'res_475.parquet', 'res_363.parquet', 'res_207.parquet']"
+210194,8,"['res_561.parquet', 'res_898.parquet', 'res_491.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet', 'res_207.parquet', 'res_436.parquet']"
+238697,5,"['res_924.parquet', 'res_561.parquet', 'res_549.parquet', 'res_363.parquet', 'res_207.parquet']"
+260961,6,"['res_75.parquet', 'res_561.parquet', 'res_898.parquet', 'res_475.parquet', 'res_363.parquet', 'res_207.parquet']"
+277309,6,"['res_75.parquet', 'res_561.parquet', 'res_898.parquet', 'res_475.parquet', 'res_363.parquet', 'res_207.parquet']"
+341215,2,"['res_93.parquet', 'res_21.parquet']"
+354298,2,"['res_93.parquet', 'res_21.parquet']"
+439711,5,"['res_46.parquet', 'res_211.parquet', 'res_303.parquet', 'res_61.parquet', 'res_319.parquet']"
+62887,6,"['res_675.parquet', 'res_216.parquet', 'res_995.parquet', 'res_780.parquet', 'res_7.parquet', 'res_823.parquet']"
+467265,4,"['res_271.parquet', 'res_222.parquet', 'res_910.parquet', 'res_488.parquet']"
+14800,4,"['res_416.parquet', 'res_224.parquet', 'res_635.parquet', 'res_658.parquet']"
+43052,3,"['res_664.parquet', 'res_224.parquet', 'res_314.parquet']"
+46991,5,"['res_259.parquet', 'res_887.parquet', 'res_224.parquet', 'res_730.parquet', 'res_624.parquet']"
+118112,5,"['res_635.parquet', 'res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_224.parquet']"
+149272,3,"['res_416.parquet', 'res_224.parquet', 'res_658.parquet']"
+155191,3,"['res_416.parquet', 'res_224.parquet', 'res_635.parquet']"
+164151,6,"['res_635.parquet', 'res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_363.parquet', 'res_224.parquet']"
+214774,2,"['res_416.parquet', 'res_224.parquet']"
+239044,5,"['res_635.parquet', 'res_561.parquet', 'res_887.parquet', 'res_224.parquet', 'res_730.parquet']"
+249482,3,"['res_887.parquet', 'res_224.parquet', 'res_314.parquet']"
+250953,3,"['res_730.parquet', 'res_887.parquet', 'res_224.parquet']"
+262694,3,"['res_730.parquet', 'res_887.parquet', 'res_224.parquet']"
+270090,2,"['res_416.parquet', 'res_224.parquet']"
+289335,2,"['res_730.parquet', 'res_224.parquet']"
+338826,1,['res_224.parquet']
+365913,4,"['res_730.parquet', 'res_561.parquet', 'res_224.parquet', 'res_635.parquet']"
+393831,3,"['res_664.parquet', 'res_224.parquet', 'res_314.parquet']"
+404634,6,"['res_635.parquet', 'res_561.parquet', 'res_314.parquet', 'res_664.parquet', 'res_363.parquet', 'res_224.parquet']"
+454222,2,"['res_416.parquet', 'res_224.parquet']"
+461518,2,"['res_416.parquet', 'res_224.parquet']"
+526207,4,"['res_644.parquet', 'res_224.parquet', 'res_491.parquet', 'res_924.parquet']"
+312489,1,['res_225.parquet']
+355927,1,['res_225.parquet']
+448361,1,['res_225.parquet']
+168204,5,"['res_947.parquet', 'res_514.parquet', 'res_553.parquet', 'res_967.parquet', 'res_227.parquet']"
+186958,4,"['res_967.parquet', 'res_227.parquet', 'res_514.parquet', 'res_553.parquet']"
+266849,4,"['res_967.parquet', 'res_227.parquet', 'res_514.parquet', 'res_553.parquet']"
+486243,4,"['res_58.parquet', 'res_373.parquet', 'res_227.parquet', 'res_967.parquet']"
+169549,3,"['res_236.parquet', 'res_41.parquet', 'res_327.parquet']"
+94199,4,"['res_477.parquet', 'res_999.parquet', 'res_897.parquet', 'res_239.parquet']"
+343072,3,"['res_897.parquet', 'res_999.parquet', 'res_239.parquet']"
+511952,2,"['res_897.parquet', 'res_239.parquet']"
+429139,5,"['res_696.parquet', 'res_24.parquet', 'res_90.parquet', 'res_431.parquet', 'res_409.parquet']"
+10615,4,"['res_278.parquet', 'res_664.parquet', 'res_240.parquet', 'res_968.parquet']"
+6067,2,"['res_371.parquet', 'res_241.parquet']"
+147301,3,"['res_247.parquet', 'res_963.parquet', 'res_307.parquet']"
+45270,2,"['res_250.parquet', 'res_464.parquet']"
+68786,2,"['res_250.parquet', 'res_26.parquet']"
+77846,3,"['res_250.parquet', 'res_464.parquet', 'res_4.parquet']"
+87365,4,"['res_278.parquet', 'res_250.parquet', 'res_393.parquet', 'res_26.parquet']"
+121812,2,"['res_250.parquet', 'res_393.parquet']"
+131164,2,"['res_250.parquet', 'res_393.parquet']"
+167200,3,"['res_250.parquet', 'res_393.parquet', 'res_26.parquet']"
+173774,4,"['res_278.parquet', 'res_250.parquet', 'res_393.parquet', 'res_26.parquet']"
+182543,4,"['res_278.parquet', 'res_250.parquet', 'res_393.parquet', 'res_430.parquet']"
+185464,2,"['res_278.parquet', 'res_250.parquet']"
+203702,2,"['res_250.parquet', 'res_393.parquet']"
+205010,1,['res_250.parquet']
+229216,3,"['res_250.parquet', 'res_464.parquet', 'res_4.parquet']"
+258130,3,"['res_250.parquet', 'res_464.parquet', 'res_4.parquet']"
+335229,4,"['res_4.parquet', 'res_250.parquet', 'res_393.parquet', 'res_26.parquet']"
+384762,2,"['res_250.parquet', 'res_393.parquet']"
+387501,2,"['res_250.parquet', 'res_393.parquet']"
+424490,2,"['res_250.parquet', 'res_393.parquet']"
+537120,3,"['res_278.parquet', 'res_250.parquet', 'res_393.parquet']"
+153908,5,"['res_355.parquet', 'res_599.parquet', 'res_251.parquet', 'res_953.parquet', 'res_454.parquet']"
+45917,2,"['res_257.parquet', 'res_560.parquet']"
+56220,3,"['res_504.parquet', 'res_257.parquet', 'res_560.parquet']"
+68236,3,"['res_504.parquet', 'res_257.parquet', 'res_560.parquet']"
+72339,3,"['res_257.parquet', 'res_560.parquet', 'res_742.parquet']"
+121900,3,"['res_881.parquet', 'res_257.parquet', 'res_560.parquet']"
+218794,3,"['res_881.parquet', 'res_257.parquet', 'res_742.parquet']"
+251530,3,"['res_881.parquet', 'res_257.parquet', 'res_742.parquet']"
+254017,3,"['res_257.parquet', 'res_560.parquet', 'res_798.parquet']"
+439221,3,"['res_257.parquet', 'res_560.parquet', 'res_798.parquet']"
+455900,3,"['res_257.parquet', 'res_560.parquet', 'res_798.parquet']"
+519339,3,"['res_881.parquet', 'res_257.parquet', 'res_560.parquet']"
+535363,3,"['res_504.parquet', 'res_257.parquet', 'res_560.parquet']"
+549539,4,"['res_380.parquet', 'res_272.parquet', 'res_257.parquet', 'res_427.parquet']"
+88600,2,"['res_259.parquet', 'res_887.parquet']"
+152998,3,"['res_259.parquet', 'res_887.parquet', 'res_314.parquet']"
+197290,2,"['res_259.parquet', 'res_887.parquet']"
+203427,2,"['res_259.parquet', 'res_887.parquet']"
+238424,2,"['res_259.parquet', 'res_887.parquet']"
+441863,2,"['res_259.parquet', 'res_887.parquet']"
+519625,2,"['res_259.parquet', 'res_887.parquet']"
+12086,3,"['res_278.parquet', 'res_393.parquet', 'res_26.parquet']"
+165005,1,['res_26.parquet']
+185640,2,"['res_626.parquet', 'res_26.parquet']"
+241924,2,"['res_4.parquet', 'res_26.parquet']"
+342472,2,"['res_464.parquet', 'res_26.parquet']"
+438252,1,['res_26.parquet']
+527104,2,"['res_944.parquet', 'res_26.parquet']"
+533148,3,"['res_4.parquet', 'res_464.parquet', 'res_26.parquet']"
+19218,1,['res_261.parquet']
+129217,1,['res_261.parquet']
+411750,1,['res_261.parquet']
+427948,3,"['res_332.parquet', 'res_517.parquet', 'res_263.parquet']"
+500793,4,"['res_267.parquet', 'res_40.parquet', 'res_581.parquet', 'res_579.parquet']"
+14308,2,"['res_268.parquet', 'res_835.parquet']"
+107737,1,['res_268.parquet']
+235894,2,"['res_268.parquet', 'res_325.parquet']"
+326872,2,"['res_268.parquet', 'res_325.parquet']"
+330245,2,"['res_268.parquet', 'res_325.parquet']"
+388387,2,"['res_268.parquet', 'res_835.parquet']"
+529951,2,"['res_268.parquet', 'res_835.parquet']"
+156849,3,"['res_473.parquet', 'res_271.parquet', 'res_558.parquet']"
+471837,1,['res_271.parquet']
+64056,7,"['res_938.parquet', 'res_863.parquet', 'res_380.parquet', 'res_427.parquet', 'res_932.parquet', 'res_272.parquet', 'res_462.parquet']"
+530139,6,"['res_938.parquet', 'res_863.parquet', 'res_380.parquet', 'res_427.parquet', 'res_932.parquet', 'res_272.parquet']"
+542868,6,"['res_709.parquet', 'res_863.parquet', 'res_427.parquet', 'res_932.parquet', 'res_298.parquet', 'res_272.parquet']"
+483905,3,"['res_606.parquet', 'res_350.parquet', 'res_273.parquet']"
+50257,2,"['res_278.parquet', 'res_393.parquet']"
+184066,2,"['res_278.parquet', 'res_393.parquet']"
+289569,1,['res_278.parquet']
+530284,2,"['res_278.parquet', 'res_393.parquet']"
+58337,1,['res_282.parquet']
+497166,1,['res_282.parquet']
+401664,3,"['res_881.parquet', 'res_289.parquet', 'res_466.parquet']"
+314691,3,"['res_292.parquet', 'res_507.parquet', 'res_715.parquet']"
+231960,2,"['res_298.parquet', 'res_427.parquet']"
+296672,2,"['res_298.parquet', 'res_427.parquet']"
+363269,2,"['res_298.parquet', 'res_427.parquet']"
+481305,2,"['res_298.parquet', 'res_427.parquet']"
+3675,2,"['res_604.parquet', 'res_308.parquet']"
+35532,3,"['res_433.parquet', 'res_604.parquet', 'res_308.parquet']"
+48363,2,"['res_604.parquet', 'res_308.parquet']"
+71775,3,"['res_433.parquet', 'res_604.parquet', 'res_308.parquet']"
+172290,3,"['res_433.parquet', 'res_604.parquet', 'res_308.parquet']"
+184844,2,"['res_911.parquet', 'res_308.parquet']"
+281193,2,"['res_604.parquet', 'res_308.parquet']"
+285988,2,"['res_911.parquet', 'res_308.parquet']"
+364657,2,"['res_604.parquet', 'res_308.parquet']"
+404276,3,"['res_433.parquet', 'res_604.parquet', 'res_308.parquet']"
+468338,4,"['res_433.parquet', 'res_604.parquet', 'res_911.parquet', 'res_308.parquet']"
+107052,2,"['res_312.parquet', 'res_890.parquet']"
+281307,3,"['res_861.parquet', 'res_312.parquet', 'res_991.parquet']"
+392905,2,"['res_312.parquet', 'res_890.parquet']"
+458847,4,"['res_433.parquet', 'res_697.parquet', 'res_312.parquet', 'res_604.parquet']"
+36710,2,"['res_664.parquet', 'res_314.parquet']"
+76359,3,"['res_664.parquet', 'res_887.parquet', 'res_314.parquet']"
+108490,2,"['res_411.parquet', 'res_314.parquet']"
+121727,2,"['res_526.parquet', 'res_314.parquet']"
+157373,3,"['res_664.parquet', 'res_540.parquet', 'res_314.parquet']"
+165478,2,"['res_664.parquet', 'res_314.parquet']"
+186151,2,"['res_664.parquet', 'res_314.parquet']"
+211153,3,"['res_664.parquet', 'res_887.parquet', 'res_314.parquet']"
+240641,3,"['res_664.parquet', 'res_540.parquet', 'res_314.parquet']"
+303704,3,"['res_664.parquet', 'res_540.parquet', 'res_314.parquet']"
+308136,2,"['res_540.parquet', 'res_314.parquet']"
+315381,2,"['res_540.parquet', 'res_314.parquet']"
+361644,3,"['res_894.parquet', 'res_540.parquet', 'res_314.parquet']"
+406640,3,"['res_664.parquet', 'res_887.parquet', 'res_314.parquet']"
+447591,2,"['res_664.parquet', 'res_314.parquet']"
+454715,3,"['res_664.parquet', 'res_887.parquet', 'res_314.parquet']"
+523599,2,"['res_664.parquet', 'res_314.parquet']"
+524708,2,"['res_664.parquet', 'res_314.parquet']"
+548907,2,"['res_540.parquet', 'res_314.parquet']"
+3760,5,"['res_75.parquet', 'res_324.parquet', 'res_898.parquet', 'res_475.parquet', 'res_618.parquet']"
+140818,6,"['res_75.parquet', 'res_88.parquet', 'res_324.parquet', 'res_898.parquet', 'res_475.parquet', 'res_618.parquet']"
+308825,5,"['res_75.parquet', 'res_88.parquet', 'res_324.parquet', 'res_898.parquet', 'res_618.parquet']"
+312679,2,"['res_561.parquet', 'res_324.parquet']"
+325203,4,"['res_324.parquet', 'res_88.parquet', 'res_75.parquet', 'res_618.parquet']"
+327218,4,"['res_324.parquet', 'res_75.parquet', 'res_475.parquet', 'res_618.parquet']"
+343215,3,"['res_561.parquet', 'res_324.parquet', 'res_953.parquet']"
+388929,5,"['res_75.parquet', 'res_324.parquet', 'res_475.parquet', 'res_754.parquet', 'res_618.parquet']"
+434846,3,"['res_324.parquet', 'res_75.parquet', 'res_618.parquet']"
+483112,4,"['res_324.parquet', 'res_88.parquet', 'res_75.parquet', 'res_618.parquet']"
+523854,4,"['res_324.parquet', 'res_754.parquet', 'res_75.parquet', 'res_618.parquet']"
+20054,1,['res_325.parquet']
+40822,1,['res_325.parquet']
+105405,1,['res_325.parquet']
+223633,2,"['res_604.parquet', 'res_325.parquet']"
+251857,1,['res_325.parquet']
+335035,1,['res_325.parquet']
+68676,2,"['res_41.parquet', 'res_327.parquet']"
+162253,1,['res_33.parquet']
+50466,1,['res_331.parquet']
+64578,1,['res_331.parquet']
+152565,1,['res_331.parquet']
+187946,1,['res_331.parquet']
+195116,1,['res_331.parquet']
+228980,1,['res_331.parquet']
+240042,1,['res_331.parquet']
+276922,1,['res_331.parquet']
+286079,1,['res_331.parquet']
+345764,1,['res_331.parquet']
+345899,1,['res_331.parquet']
+422792,1,['res_331.parquet']
+516369,1,['res_331.parquet']
+134970,4,"['res_894.parquet', 'res_627.parquet', 'res_334.parquet', 'res_540.parquet']"
+276973,3,"['res_627.parquet', 'res_334.parquet', 'res_894.parquet']"
+2684,1,['res_35.parquet']
+27108,1,['res_35.parquet']
+29367,1,['res_35.parquet']
+64092,1,['res_35.parquet']
+71895,1,['res_35.parquet']
+113471,1,['res_35.parquet']
+201491,1,['res_35.parquet']
+211306,1,['res_35.parquet']
+229823,1,['res_35.parquet']
+233769,1,['res_35.parquet']
+241858,1,['res_35.parquet']
+244205,1,['res_35.parquet']
+251825,1,['res_35.parquet']
+274969,1,['res_35.parquet']
+303731,1,['res_35.parquet']
+309234,1,['res_35.parquet']
+315501,1,['res_35.parquet']
+350403,1,['res_35.parquet']
+361356,1,['res_35.parquet']
+367875,1,['res_35.parquet']
+427260,1,['res_35.parquet']
+435341,1,['res_35.parquet']
+519844,1,['res_35.parquet']
+492793,2,"['res_606.parquet', 'res_350.parquet']"
+20806,2,"['res_90.parquet', 'res_354.parquet']"
+44732,3,"['res_357.parquet', 'res_505.parquet', 'res_46.parquet']"
+46037,3,"['res_561.parquet', 'res_953.parquet', 'res_362.parquet']"
+518994,3,"['res_599.parquet', 'res_953.parquet', 'res_362.parquet']"
+41709,5,"['res_75.parquet', 'res_561.parquet', 'res_898.parquet', 'res_475.parquet', 'res_363.parquet']"
+244421,6,"['res_807.parquet', 'res_561.parquet', 'res_898.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet']"
+379077,6,"['res_807.parquet', 'res_561.parquet', 'res_898.parquet', 'res_475.parquet', 'res_363.parquet', 'res_850.parquet']"
+520452,2,"['res_967.parquet', 'res_373.parquet']"
+392513,2,"['res_523.parquet', 'res_377.parquet']"
+466189,2,"['res_523.parquet', 'res_377.parquet']"
+26775,2,"['res_380.parquet', 'res_427.parquet']"
+76376,2,"['res_380.parquet', 'res_427.parquet']"
+85763,2,"['res_380.parquet', 'res_427.parquet']"
+369897,1,['res_39.parquet']
+490684,1,['res_39.parquet']
+341425,2,"['res_872.parquet', 'res_391.parquet']"
+158039,1,['res_393.parquet']
+164060,1,['res_393.parquet']
+501497,1,['res_393.parquet']
+124799,2,"['res_4.parquet', 'res_464.parquet']"
+126144,2,"['res_4.parquet', 'res_464.parquet']"
+341617,2,"['res_4.parquet', 'res_464.parquet']"
+124374,1,['res_406.parquet']
+42376,2,"['res_945.parquet', 'res_407.parquet']"
+544992,1,['res_416.parquet']
+24299,1,['res_426.parquet']
+482981,2,"['res_601.parquet', 'res_426.parquet']"
+74792,3,"['res_433.parquet', 'res_697.parquet', 'res_604.parquet']"
+232048,3,"['res_433.parquet', 'res_697.parquet', 'res_604.parquet']"
+380717,1,['res_433.parquet']
+395454,3,"['res_433.parquet', 'res_697.parquet', 'res_604.parquet']"
+441904,2,"['res_433.parquet', 'res_911.parquet']"
+539430,1,['res_433.parquet']
+195301,2,"['res_505.parquet', 'res_46.parquet']"
+268372,3,"['res_881.parquet', 'res_46.parquet', 'res_742.parquet']"
+301570,4,"['res_505.parquet', 'res_537.parquet', 'res_46.parquet', 'res_890.parquet']"
+500436,2,"['res_505.parquet', 'res_46.parquet']"
+538346,4,"['res_505.parquet', 'res_537.parquet', 'res_46.parquet', 'res_890.parquet']"
+19780,1,['res_464.parquet']
+28947,1,['res_464.parquet']
+46333,1,['res_464.parquet']
+54723,1,['res_464.parquet']
+159477,1,['res_464.parquet']
+206766,2,"['res_944.parquet', 'res_464.parquet']"
+218390,2,"['res_944.parquet', 'res_464.parquet']"
+250113,1,['res_464.parquet']
+256919,1,['res_464.parquet']
+290123,1,['res_464.parquet']
+293307,1,['res_464.parquet']
+311073,1,['res_464.parquet']
+361095,1,['res_464.parquet']
+361258,2,"['res_464.parquet', 'res_877.parquet']"
+363478,1,['res_464.parquet']
+389737,1,['res_464.parquet']
+389747,1,['res_464.parquet']
+507257,1,['res_464.parquet']
+189748,1,['res_466.parquet']
+205465,1,['res_466.parquet']
+216237,1,['res_466.parquet']
+252385,1,['res_466.parquet']
+339186,1,['res_466.parquet']
+362011,2,"['res_881.parquet', 'res_466.parquet']"
+500378,1,['res_466.parquet']
+500664,1,['res_466.parquet']
+502568,1,['res_466.parquet']
+124611,8,"['res_807.parquet', 'res_469.parquet', 'res_958.parquet', 'res_898.parquet', 'res_475.parquet', 'res_850.parquet', 'res_852.parquet', 'res_618.parquet']"
+4789,2,"['res_627.parquet', 'res_470.parquet']"
+30616,2,"['res_627.parquet', 'res_470.parquet']"
+158098,2,"['res_627.parquet', 'res_470.parquet']"
+338319,2,"['res_627.parquet', 'res_470.parquet']"
+370023,2,"['res_627.parquet', 'res_470.parquet']"
+504650,2,"['res_627.parquet', 'res_470.parquet']"
+182751,5,"['res_75.parquet', 'res_561.parquet', 'res_898.parquet', 'res_475.parquet', 'res_618.parquet']"
+194407,7,"['res_807.parquet', 'res_958.parquet', 'res_898.parquet', 'res_475.parquet', 'res_850.parquet', 'res_852.parquet', 'res_618.parquet']"
+362152,6,"['res_958.parquet', 'res_898.parquet', 'res_475.parquet', 'res_850.parquet', 'res_852.parquet', 'res_618.parquet']"
+248786,3,"['res_477.parquet', 'res_999.parquet', 'res_897.parquet']"
+394476,2,"['res_477.parquet', 'res_897.parquet']"
+184573,3,"['res_844.parquet', 'res_910.parquet', 'res_488.parquet']"
+372987,4,"['res_844.parquet', 'res_999.parquet', 'res_910.parquet', 'res_488.parquet']"
+68619,2,"['res_653.parquet', 'res_497.parquet']"
+542398,1,['res_497.parquet']
+171099,1,['res_504.parquet']
+199481,2,"['res_504.parquet', 'res_560.parquet']"
+498903,2,"['res_522.parquet', 'res_739.parquet']"
+182303,1,['res_523.parquet']
+237098,1,['res_523.parquet']
+401253,1,['res_526.parquet']
+90404,1,['res_532.parquet']
+170750,1,['res_532.parquet']
+209507,1,['res_532.parquet']
+332131,1,['res_532.parquet']
+477985,1,['res_532.parquet']
+494052,2,"['res_552.parquet', 'res_764.parquet']"
+500992,2,"['res_606.parquet', 'res_568.parquet']"
+46898,1,['res_585.parquet']
+282534,1,['res_585.parquet']
+296894,1,['res_585.parquet']
+393147,1,['res_585.parquet']
+519297,1,['res_585.parquet']
+547149,1,['res_585.parquet']
+80880,1,['res_59.parquet']
+97067,1,['res_59.parquet']
+104450,1,['res_59.parquet']
+322241,1,['res_59.parquet']
+338075,1,['res_59.parquet']
+488143,1,['res_59.parquet']
+474707,2,"['res_78.parquet', 'res_596.parquet']"
+266801,3,"['res_827.parquet', 'res_598.parquet', 'res_844.parquet']"
+67060,1,['res_604.parquet']
+8088,1,['res_608.parquet']
+143283,1,['res_608.parquet']
+292240,1,['res_62.parquet']
+24893,1,['res_624.parquet']
+256604,1,['res_624.parquet']
+433290,2,"['res_624.parquet', 'res_658.parquet']"
+66425,1,['res_625.parquet']
+218502,1,['res_625.parquet']
+335259,1,['res_625.parquet']
+420545,1,['res_625.parquet']
+466104,1,['res_625.parquet']
+470813,1,['res_625.parquet']
+87964,1,['res_626.parquet']
+102182,2,"['res_626.parquet', 'res_944.parquet']"
+180027,2,"['res_626.parquet', 'res_944.parquet']"
+284193,2,"['res_626.parquet', 'res_944.parquet']"
+490218,2,"['res_626.parquet', 'res_944.parquet']"
+542391,1,['res_630.parquet']
+342822,2,"['res_9.parquet', 'res_636.parquet']"
+537446,1,['res_640.parquet']
+66764,2,"['res_644.parquet', 'res_842.parquet']"
+109105,3,"['res_735.parquet', 'res_769.parquet', 'res_654.parquet']"
+358611,3,"['res_735.parquet', 'res_769.parquet', 'res_654.parquet']"
+450837,3,"['res_735.parquet', 'res_769.parquet', 'res_654.parquet']"
+459022,3,"['res_735.parquet', 'res_769.parquet', 'res_654.parquet']"
+207999,1,['res_656.parquet']
+254011,1,['res_656.parquet']
+536354,1,['res_656.parquet']
+15131,1,['res_663.parquet']
+16631,2,"['res_663.parquet', 'res_917.parquet']"
+22595,1,['res_663.parquet']
+25667,1,['res_663.parquet']
+77947,1,['res_663.parquet']
+90680,1,['res_663.parquet']
+96993,1,['res_663.parquet']
+146315,1,['res_663.parquet']
+161011,1,['res_663.parquet']
+177158,1,['res_663.parquet']
+180045,1,['res_663.parquet']
+180194,1,['res_663.parquet']
+186500,1,['res_663.parquet']
+193550,1,['res_663.parquet']
+210576,2,"['res_663.parquet', 'res_917.parquet']"
+238008,1,['res_663.parquet']
+238279,2,"['res_663.parquet', 'res_917.parquet']"
+248533,1,['res_663.parquet']
+265217,1,['res_663.parquet']
+278606,1,['res_663.parquet']
+289268,2,"['res_663.parquet', 'res_917.parquet']"
+308637,1,['res_663.parquet']
+322954,1,['res_663.parquet']
+338394,1,['res_663.parquet']
+363070,1,['res_663.parquet']
+404556,1,['res_663.parquet']
+408933,1,['res_663.parquet']
+469152,1,['res_663.parquet']
+514170,1,['res_663.parquet']
+517490,1,['res_663.parquet']
+518506,1,['res_663.parquet']
+523208,1,['res_663.parquet']
+525725,1,['res_663.parquet']
+546869,1,['res_663.parquet']
+512321,1,['res_664.parquet']
+312728,5,"['res_933.parquet', 'res_675.parquet', 'res_995.parquet', 'res_780.parquet', 'res_823.parquet']"
+125713,1,['res_68.parquet']
+482660,1,['res_68.parquet']
+62479,1,['res_701.parquet']
+163404,1,['res_701.parquet']
+194770,1,['res_701.parquet']
+319084,1,['res_701.parquet']
+396402,1,['res_701.parquet']
+39446,1,['res_715.parquet']
+340356,1,['res_735.parquet']
+356468,2,"['res_735.parquet', 'res_769.parquet']"
+396048,1,['res_736.parquet']
+197957,1,['res_747.parquet']
+66138,1,['res_76.parquet']
+67723,1,['res_769.parquet']
+89982,1,['res_769.parquet']
+192778,1,['res_769.parquet']
+199056,1,['res_769.parquet']
+260209,1,['res_769.parquet']
+288936,1,['res_769.parquet']
+352572,1,['res_769.parquet']
+401307,1,['res_769.parquet']
+416063,1,['res_769.parquet']
+106698,1,['res_795.parquet']
+30280,2,"['res_938.parquet', 'res_798.parquet']"
+39934,1,['res_798.parquet']
+317903,1,['res_806.parquet']
+549845,1,['res_806.parquet']
+298314,1,['res_809.parquet']
+420874,1,['res_817.parquet']
+3726,1,['res_82.parquet']
+62918,1,['res_82.parquet']
+209604,1,['res_82.parquet']
+12172,1,['res_829.parquet']
+47761,1,['res_829.parquet']
+220815,1,['res_847.parquet']
+298010,1,['res_847.parquet']
+417448,1,['res_847.parquet']
+394316,1,['res_873.parquet']
+319281,1,['res_877.parquet']
+218877,1,['res_887.parquet']
+238652,1,['res_887.parquet']
+274791,1,['res_887.parquet']
+386390,1,['res_887.parquet']
+361049,2,"['res_897.parquet', 'res_999.parquet']"
+51014,1,['res_911.parquet']
+68917,1,['res_911.parquet']
+308560,1,['res_911.parquet']
+144965,1,['res_917.parquet']
+441920,1,['res_917.parquet']
+86578,1,['res_93.parquet']
+183486,1,['res_93.parquet']
+512986,1,['res_931.parquet']
+190447,1,['res_940.parquet']
+106173,1,['res_944.parquet']
+194636,1,['res_944.parquet']
+264164,1,['res_944.parquet']
+312768,1,['res_944.parquet']
+372842,1,['res_944.parquet']
+405209,1,['res_944.parquet']
+493870,1,['res_944.parquet']
+220672,1,['res_963.parquet']
+96946,1,['res_979.parquet']
+480344,1,['res_979.parquet']
+485022,1,['res_991.parquet']
+22193,1,['res_996.parquet']
+148244,1,['res_996.parquet']
+148738,1,['res_996.parquet']
+209112,1,['res_996.parquet']
+266004,1,['res_996.parquet']
+280024,1,['res_996.parquet']
+343811,1,['res_996.parquet']
+451140,1,['res_996.parquet']
