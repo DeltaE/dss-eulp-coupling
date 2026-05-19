@@ -8,10 +8,18 @@ Created on Mon Mar 17 09:42:15 2025
 import pandas as pd
 from ast import literal_eval
 import time
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
 
 START_TIME = time.time()
 
-STATE_STR = 'NC'
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+STATE_STR = STATE
 
 # ===================================================
 # =========== RESIDENTIAL FILTERING SECTION =========

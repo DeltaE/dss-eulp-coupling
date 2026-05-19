@@ -15,18 +15,27 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_PROCESS = time.time()
 
-STR_STATE = 'NC'
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+STR_STATE = STATE
 STR_TITLE = STR_STATE
 
-EXTERNAL_FOLDER_STR = '3c_eulp_downloads'
+SCRIPT_DIR = Path(__file__).resolve().parent
+PARQUET_DATA_ROOT = Path(cfg.get('parquet_data_root', '../parquet_data'))
+if not PARQUET_DATA_ROOT.is_absolute():
+    PARQUET_DATA_ROOT = (SCRIPT_DIR / PARQUET_DATA_ROOT).resolve()
 
 # 🔹 NEW: Store df_curve per feeder
 df_curve_per_feeder = {}  # 🔹 NEW
 
 # Load required parquet summary
-df_summary_result = pd.read_csv(STR_STATE + "_required_parquets_per_feeder.csv")
+df_summary_result = pd.read_csv(SCRIPT_DIR / (STR_STATE + "_required_parquets_per_feeder.csv"))
 
 # Dictionary to store peak daily curves per month per feeder
 peak_load_curves = {}
@@ -47,7 +56,7 @@ for feeder in df_summary_result["Feeder"].unique():
     # Iterate through each load profile in the feeder
     for _, row in df_feeder.iterrows():
         # parquet_path = './' + row["Parquet_Folder"] + '/' + row["Parquet_File"]
-        parquet_path = Path('..') / EXTERNAL_FOLDER_STR / row['Parquet_Folder'] / row['Parquet_File']
+        parquet_path = PARQUET_DATA_ROOT / row['Parquet_Folder'] / row['Parquet_File']
 
         # print('Check path')
         # sys.exit()
@@ -236,7 +245,7 @@ if BOOL_SAVE_SLICES:
             df_feeder_rows = df_summary_result[df_summary_result["Feeder"] == feeder]
             for _, row in df_feeder_rows.iterrows():
                 # parquet_path = './' + row["Parquet_Folder"] + '/' + row["Parquet_File"]
-                parquet_path = Path('..') / EXTERNAL_FOLDER_STR / row['Parquet_Folder'] / row['Parquet_File']
+                parquet_path = PARQUET_DATA_ROOT / row['Parquet_Folder'] / row['Parquet_File']
                 try:
                     table = pq.read_table(parquet_path)
                     df_full = table.to_pandas()
@@ -275,7 +284,7 @@ if BOOL_SAVE_SLICES:
             df_feeder_rows = df_summary_result[df_summary_result["Feeder"] == feeder]
             for _, row in df_feeder_rows.iterrows():
                 # parquet_path = './' + row["Parquet_Folder"] + '/' + row["Parquet_File"]
-                parquet_path = Path('..') / EXTERNAL_FOLDER_STR / row['Parquet_Folder'] / row['Parquet_File']
+                parquet_path = PARQUET_DATA_ROOT / row['Parquet_Folder'] / row['Parquet_File']
                 try:
                     table = pq.read_table(parquet_path)
                     df_full = table.to_pandas()

@@ -17,6 +17,9 @@ import matplotlib.ticker as mticker
 import os
 import sys
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 # ══════════════════════════════════════════════════════════════════════
 # CONFIGURATION
 # ══════════════════════════════════════════════════════════════════════
@@ -32,9 +35,13 @@ import sys
 #       └── methodsx_figures/          ← this script lives here
 #           └── figure_generation_methodsx.py
 
-BASE = os.path.dirname(os.path.abspath(__file__))          # .../methodsx_figures/
-RESULTS_DIR = os.path.normpath(os.path.join(BASE, ".."))   # .../9_results_analysis/
-DIST_DIR = os.path.normpath(os.path.join(BASE, "..", ".."))  # .../dist/
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+RESULTS_DIR = BASE
+DIST_DIR = os.path.normpath(os.path.join(BASE, ".."))
 
 AGGREGATE_CSV = os.path.join(RESULTS_DIR, "aggregate_m2_combined.csv")
 CIRCUIT_SUMMARY_CSV = os.path.join(RESULTS_DIR, "circuit_summary_combined.csv")
@@ -42,10 +49,7 @@ CIRCUIT_SUMMARY_CSV = os.path.join(RESULTS_DIR, "circuit_summary_combined.csv")
 # Stage 3B commercial matching outputs (one per state).
 # Each must have at least: a Tolerance column and one row per matched load.
 MATCHING_FILES = {
-    "MT": os.path.join(DIST_DIR, "ab_3b", "df_com_matches_out_MT.csv"),
-    "WA": os.path.join(DIST_DIR, "bc_3b", "df_com_matches_out_WA.csv"),
-    "MI": os.path.join(DIST_DIR, "on_3b", "df_com_matches_out_MI.csv"),
-    "VT": os.path.join(DIST_DIR, "qc_3b", "df_com_matches_out_VT.csv"),
+    STATE: os.path.join(DIST_DIR, "3_tolerance_matching", f"df_com_matches_out_{STATE}.csv"),
 }
 
 OUT_DIR = BASE
@@ -53,9 +57,9 @@ OUT_DIR = BASE
 # ══════════════════════════════════════════════════════════════════════
 # PROVINCE → STATE MAPPING & VARIANT LABELS
 # ══════════════════════════════════════════════════════════════════════
-PROV_TO_STATE = {"ab": "MT", "bc": "WA", "on": "MI", "qc": "VT"}
-STATES_ORDER = ["MT", "WA", "MI", "VT"]
-STATE_COLOURS = {"MT": "#1f77b4", "WA": "#ff7f0e", "MI": "#2ca02c", "VT": "#d62728"}
+PROV_TO_STATE = {STATE.lower(): STATE, STATE: STATE}
+STATES_ORDER = [STATE]
+STATE_COLOURS = {STATE: "#1f77b4"}
 
 SCENARIO_LABELS = {
     0: "Scenario 0 — high EV, uncontrolled",

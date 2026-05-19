@@ -11,9 +11,15 @@ import sys
 from copy import deepcopy
 import time
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_TIME = time.time()
 
-STATE_STR = 'NC'
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+STATE_STR = STATE
 
 '''
 GOAL: to find a suitable match, per state, to each row in review_parquet_matches.csv

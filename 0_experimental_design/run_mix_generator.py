@@ -26,8 +26,14 @@ Notes
 
 import json
 import math
+import os
+import sys
+from pathlib import Path
 import numpy as np
 import pandas as pd
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
 
 # Matplotlib for headless environments
 import matplotlib
@@ -43,22 +49,27 @@ except Exception:
 
 # ============================ CONFIG ============================
 
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+SCRIPT_DIR = Path(__file__).resolve().parent
+
 # >>>>>>>>>>>>>>>>>>>>> EDIT THIS PLACEHOLDER <<<<<<<<<<<<<<<<<<<<
 N_CASES      = 1  # <-- PLACEHOLDER. Number of variable scenarios (1..N). "0" stays fixed.
 
 BASE_SEED    = 123          # reproducibility for sampling engines
-SEED0_FIXED  = 555          # seed for case "0"
+SEED0_FIXED  = int(cfg.get('random_seed', 555))          # seed for case "0"
 SEED_STEP    = 222          # seeds follow 555, 777, 999, ... (seed = SEED0_FIXED + SEED_STEP*case_id)
 
 # Output files
-OUT_JSON_LHS   = "mixes_lhs.json"
-OUT_JSON_SOBOL = "mixes_sobol.json"
-OUT_LONG       = "mixes_compare_long.csv"
-OUT_SUMMARY    = "lhs_vs_sobol_summary.csv"
+OUT_JSON_LHS   = SCRIPT_DIR / "mixes_lhs.json"
+OUT_JSON_SOBOL = SCRIPT_DIR / "mixes_sobol.json"
+OUT_LONG       = SCRIPT_DIR / "mixes_compare_long.csv"
+OUT_SUMMARY    = SCRIPT_DIR / "lhs_vs_sobol_summary.csv"
 
 # Plots (optional)
-FIG_UNITCUBE   = "compare_unitcube_pairs.png"
-FIG_OVERLAY    = "overlay_ev_vs_pv.png"
+FIG_UNITCUBE   = SCRIPT_DIR / "compare_unitcube_pairs.png"
+FIG_OVERLAY    = SCRIPT_DIR / "overlay_ev_vs_pv.png"
 
 # -------- Bounds for fields that vary (percent/fractions in [0,1]) --------
 # Tune these to your project. The examples you gave (0.10/0.35 EV, 0.05/0.12 storage, 0.05/0.10 PV)
@@ -390,4 +401,3 @@ if __name__ == "__main__":
     print(" -> wrote param_histograms_lhs_vs_sobol.png")
 
     print("Done.")
-

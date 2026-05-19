@@ -9,13 +9,21 @@ import pandas as pd
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 # =========================
 # Configuration
 # =========================
 
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+
 # States & case label
-STATES_OF_INTEREST = ["NC"]           # e.g. ["NC", "TX", ...]
-CASE_ID = "20250330_comm_NC"
+STATES_OF_INTEREST = [STATE]           # e.g. ["NC", "TX", ...]
+CASE_ID = f"{DOWNLOAD_DATE}_comm_{STATE}"
 
 # Dataset location
 QUERY_YEAR = 2024
@@ -28,7 +36,7 @@ UPGRADES = [0, 1, 2, 3, 8, 9, 19, 20]
 
 # Your per-state metadata CSVs (same naming pattern you use today)
 # Example: ./commercial_data_SELECT_STATES_FILTERED_NC.csv
-METADATA_CSV_TEMPLATE = "./commercial_data_SELECT_STATES_FILTERED_NC.csv"
+METADATA_CSV_TEMPLATE = "./commercial_data_SELECT_STATES_FILTERED_{STATE}.csv"
 
 # Output folder
 DOWNLOAD_DIR_TEMPLATE = f"./parquet_commercial_{CASE_ID}"

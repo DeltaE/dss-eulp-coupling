@@ -11,14 +11,22 @@ import sys
 import numpy as np
 import time
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_PROCESS = time.time()
 
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Create output folder
-output_folder = "get_scenario_csv_controls"
+output_folder = os.path.join(SCRIPT_DIR, "get_scenario_csv_controls")
 os.makedirs(output_folder, exist_ok=True)
 
 # Load scenario summary
-scenario_file = os.path.join("plot_parquet_differences", "combined_scenarios.csv")
+scenario_file = os.path.join(SCRIPT_DIR, "plot_parquet_differences", "combined_scenarios.csv")
 if not os.path.exists(scenario_file):
     print(f"❌ Scenario file not found: {scenario_file}")
     sys.exit()
@@ -36,13 +44,15 @@ for _, row in df_scenarios.iterrows():
 
 # Define base filenames (without suffix)
 base_files = [
-    "MT_required_parquets_per_feeder",
-    "MT_parquet_and_bldgs"
+    f"{STATE}_required_parquets_per_feeder",
+    f"{STATE}_parquet_and_bldgs"
 ]
 
 # Process each file
 for base in base_files:
-    input_path = f"{base}.csv"
+    input_path = os.path.join(SCRIPT_DIR, "..", "5b_profile_generation", f"{base}.csv")
+    if not os.path.exists(input_path):
+        input_path = os.path.join(SCRIPT_DIR, f"{base}.csv")
     if not os.path.exists(input_path):
         print(f"❌ File not found: {input_path}")
         sys.exit()
@@ -91,5 +101,4 @@ print(f"⏱️  Total time: {END_PROCESS - START_PROCESS:.2f} seconds")
 END_PROCESS = time.time()
 TIME_ELAPSED = -START_PROCESS + END_PROCESS
 print(str(TIME_ELAPSED) + ' seconds /', str(TIME_ELAPSED/60) + ' minutes.')
-
 

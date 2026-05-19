@@ -25,6 +25,9 @@ from typing import Optional, Iterable
 from collections import defaultdict
 import math, random
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
 COLLECT_ASSIGN_FULL = True
@@ -39,6 +42,9 @@ THIS SCRIPT WITH A FILTER IS USED AFTER DISCOVERY OF CIRCUITS WITH RUN ERRORS (T
 SKIP_CIRCUITS = {36, 12, 13}
 
 START_PROCESS = time.time()
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
 
 FORCE_NPTS = 96
 FORCE_INTERVAL = 0.25
@@ -46,7 +52,15 @@ FORCE_INTERVAL = 0.25
 # -----------------------
 # === USER CONFIG ===
 # -----------------------
-BASE_DIR = Path('.').resolve()
+BASE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = BASE_DIR.parent
+
+
+def resolve_config_path(path_value):
+    path = Path(path_value)
+    if path.is_absolute():
+        return path
+    return (REPO_ROOT / path).resolve()
 
 BOOL_PASS_ON_EXISTING_FOLDER = False  # True → skip if exists; False → delete/replace
 
@@ -115,10 +129,10 @@ REVERSE_CIRCUIT_MAP = {
     "uhs20_1247--udt9897": "circuit_61",
 }
 
-SMARTDS_ROOT = (BASE_DIR / '..' / '3_smartds').resolve()
-HP_BASELINE_ROOT = (BASE_DIR / '..' / 'ab_4_profhp').resolve()
-HP_DM_ROOT       = (BASE_DIR / '..' / 'ab_6_profhp_dm').resolve()
-HP_UN_ROOT       = (BASE_DIR / '..' / 'ab_7_profhp_un').resolve()
+SMARTDS_ROOT = resolve_config_path(cfg.get('smart_ds_root', '../3_smartds'))
+HP_BASELINE_ROOT = (REPO_ROOT / (STATE + '_4_profhp')).resolve()
+HP_DM_ROOT       = (REPO_ROOT / (STATE + '_6_profhp_dm')).resolve()
+HP_UN_ROOT       = (REPO_ROOT / (STATE + '_7_profhp_un')).resolve()
 
 PROFILES_USE_BENCH_DIR = (BASE_DIR / 'profiles_use_bench').resolve()
 PROFILES_USE_BENCH_DIR.mkdir(exist_ok=True)
@@ -136,14 +150,12 @@ DEFAULT_DISJOINT  = True
 RUN_AFTER_PREP = False # True
 
 # State/Season used to build bucket name: "<STATE>_<circuit_n>_<SEASON>"
-STATE  = os.environ.get('STATE', 'MT')
-SEASON = os.environ.get('SEASON', 'summer')
 
 # Optional: default split between controlled vs uncontrolled EVs when a mix omits it
 EV_SPLIT_CTL_DEFAULT = float(os.environ.get('EV_SPLIT_CONTROLLED', '0.5'))  # 0..1
 
 # Path to your DOE-generated mixes file
-MIXES_FILE = Path("mixes_lhs.json")   # or mixes_sobol.json
+MIXES_FILE = REPO_ROOT / "0_experimental_design" / "mixes_lhs.json"   # or mixes_sobol.json
 
 with MIXES_FILE.open("r", encoding="utf-8") as f:
     MIXES = json.load(f)

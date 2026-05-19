@@ -9,6 +9,9 @@ from selenium.webdriver.common.by import By
 
 import pandas as pd
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 '''
 Commercial link:
     https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fcomstock_amy2018_release_1%2F
@@ -80,15 +83,20 @@ we want to donwload.
 The configuration starts here.
 '''
 
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+
 # STATES_OF_INTEREST = ['CA', 'NC', 'TX', 'MN', 'FL', 'MI', 'NY']  # THis constant defines the state
-STATES_OF_INTEREST = ['NC']  # THis constant defines the state
-CASE_ID = '20250330_comm_NC'  # This constant defines the metadata file after filtering for desired characteristics
+STATES_OF_INTEREST = [STATE]  # THis constant defines the state
+CASE_ID = DOWNLOAD_DATE + '_comm_' + STATE  # This constant defines the metadata file after filtering for desired characteristics
 
 # The dictionary below will help select specific parquet files to focus analysis
 
 '''
 column_selection_case = {
-    'State':['NC'],
+    'State': STATES_OF_INTEREST,
     'bldg_id':[
     230291, 227605, 227194, 230841, 234257, 226834, 230918, 224430, 235167, 231933,
     227704, 225861, 233114, 225292, 228644, 229300, 227326, 233946, 233114, 233689,
@@ -133,7 +141,7 @@ column_selection_case = {
 
 
 column_selection_case = {
-    'State':['NC'],
+    'State': STATES_OF_INTEREST,
     'bldg_id':[
     227194,     227605,     230291,     225038,     226834,     230841,     234257,     226675,     226096,     230918,     233327,     233584,
     229341,     227513,     231933,     224430,     233185,     233222,     227704,     235684,     228644,     225958,     233114,     226488,

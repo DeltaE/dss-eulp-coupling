@@ -8,25 +8,27 @@ Created on Wed Nov 12 18:19:52 2025
 # Minimal, procedural script for appending CSVs across run folders and tagging season/design.
 
 from pathlib import Path
+import os
+import sys
 import pandas as pd
 
-# --- Configuration ------------------------------------------------------------
-# Parent directory that contains the four subfolders below.
-# In Spyder, Path.cwd() is fine if you set the working directory to the parent folder.
-BASE_DIR = Path.cwd().parent
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
 
-OUTPUT_DIR = BASE_DIR / "9_results_analysis"
+# --- Configuration ------------------------------------------------------------
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+
+# Parent directory that contains the pipeline folders below.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+OUTPUT_DIR = BASE_DIR / "8_results_analysis"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
 # The folders of interest (exact names as you provided)
 FOLDERS = [
-    "ab_8_summer",
-    "ab_8_winter",
-    "bc_8_summer",
-    "bc_8_winter",
-    "on_8_summer",
-    "on_8_winter",
-    "qc_8_summer",
-    "qc_8_winter"
+    "7_circuit_instantiation"
 ]
 
 # The input -> output filenames you want to combine
@@ -46,16 +48,7 @@ def parse_context(subdir_name: str):
     season = "summer" if "summer" in name else ("winter" if "winter" in name else "unknown")
 
     # Check specific designs; order matters because 'lhs' is a substring of 'lhs_100'
-    if "ab" in name:
-        design = "ab"
-    elif "bc" in name:
-        design = "bc"
-    elif "on" in name:
-        design = "on"
-    elif "qc" in name:
-        design = "qc"
-    else:
-        design = "unknown"
+    design = STATE
 
     return season, design
 

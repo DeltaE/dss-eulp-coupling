@@ -10,9 +10,16 @@ import os
 import sys
 import time
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_PROCESS = time.time()
 
-STR_STATE = 'NC'
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+STR_STATE = STATE
 
 # Load SUMMARY_COPY_PASTE sheet from parsed_loads_PIVOT.xlsx
 summary_file = "parsed_loads_PIVOT.xlsx"
@@ -85,8 +92,8 @@ for feeder in relevant_feeders:
     dropped_residential_rows = initial_residential_rows - len(residential_merged)
 
     # Assign folder paths using `.assign()`
-    commercial_merged = commercial_merged.assign(Parquet_Folder="parquet_commercial_20250330_comm_NC")
-    residential_merged = residential_merged.assign(Parquet_Folder="parquet_residential_short_20250330_NC")
+    commercial_merged = commercial_merged.assign(Parquet_Folder="parquet_commercial_" + DOWNLOAD_DATE + "_comm_" + STR_STATE)
+    residential_merged = residential_merged.assign(Parquet_Folder="parquet_residential_short_" + DOWNLOAD_DATE + "_" + STR_STATE)
 
     residential_merged_index = residential_merged.index.tolist()
     residential_merged_index_len = len(residential_merged_index)

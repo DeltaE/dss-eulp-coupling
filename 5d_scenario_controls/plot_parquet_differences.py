@@ -13,13 +13,23 @@ import numpy as np
 import sys
 from pathlib import Path
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_PROCESS = time.time()
 
-EXTERNAL_FOLDER_STR = 'ab_3c_downloads'
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+SCRIPT_DIR = Path(__file__).resolve().parent
+PARQUET_DATA_ROOT = Path(cfg.get('parquet_data_root', '../parquet_data'))
+if not PARQUET_DATA_ROOT.is_absolute():
+    PARQUET_DATA_ROOT = (SCRIPT_DIR / PARQUET_DATA_ROOT).resolve()
 
 # Create output folder if it doesn't exist
-output_folder = "plot_parquet_differences"
-os.makedirs(output_folder, exist_ok=True)
+output_folder = SCRIPT_DIR / "plot_parquet_differences"
+output_folder.mkdir(exist_ok=True)
 
 # Define which scenario IDs are baseline, uncontrolled, demand_mgmt for each building type
 residential_ids = {
@@ -51,8 +61,8 @@ commercial_names = {
 
 # Folders to process
 folders = [
-    Path('..') / EXTERNAL_FOLDER_STR / "parquet_commercial_202512_comm_MT",
-    Path('..') / EXTERNAL_FOLDER_STR / "parquet_residential_short_202512_res_MT"
+    PARQUET_DATA_ROOT / ("parquet_commercial_" + DOWNLOAD_DATE + "_comm_" + STATE),
+    PARQUET_DATA_ROOT / ("parquet_residential_short_" + DOWNLOAD_DATE + "_" + STATE)
 ]
 
 # We'll keep partial results in a dict: 
@@ -63,7 +73,7 @@ sum_demand_dict = {}
 # Step 1: Read all parquets and gather sums
 # -----------------------------
 for folder_path in folders:
-    folder = str(folder_path).split('\\')[-1]
+    folder = folder_path.name
     # print('stop')
     # sys.exit()
     print(folder)
@@ -121,7 +131,7 @@ print('\n Finish when this is done.\n')
 final_rows = []
 
 for folder_path in folders:
-    folder = str(folder_path).split('\\')[-1]
+    folder = folder_path.name
     print(folder)
     is_residential = "residential" in folder.lower()
     if is_residential:
@@ -213,7 +223,6 @@ print(f"⏱️  Total time: {END_PROCESS - START_PROCESS:.2f} seconds")
 END_PROCESS = time.time()
 TIME_ELAPSED = -START_PROCESS + END_PROCESS
 print(str(TIME_ELAPSED) + ' seconds /', str(TIME_ELAPSED/60) + ' minutes.')
-
 
 
 

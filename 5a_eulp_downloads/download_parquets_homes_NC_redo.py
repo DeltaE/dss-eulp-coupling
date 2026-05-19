@@ -14,13 +14,21 @@ import sys
 import requests
 import pandas as pd
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 # -------------------------
 # Configuration
 # -------------------------
 
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+
 # Match your use case (MN from your link); change as needed
-STATES_OF_INTEREST = ["NC"]         # e.g. ["NC", "TX", ...]
-CASE_ID = "20250330_NC"    # folder suffix for downloads
+STATES_OF_INTEREST = [STATE]         # e.g. ["NC", "TX", ...]
+CASE_ID = f"{DOWNLOAD_DATE}_{STATE}"    # folder suffix for downloads
 QUERY_YEAR = 2024
 DATASET = "resstock_tmy3_release_2" # or "comstock_amy2018_release_1"
 BUCKET = "oedi-data-lake"
@@ -31,7 +39,7 @@ UPGRADES = [0, 1, 2, 4]
 
 # Your original column filter (keep/edit as needed)
 column_selection_case = {
-    'State':['NC'],
+    'State': STATES_OF_INTEREST,
     'bldg_id':[
     280535, 529030, 344090, 457130, 51248, 97064, 279056, 438217, 156448, 164952, 35477, 420203, 167400, 218062,
     72447, 367703, 84697, 481382, 91378, 97925, 178981, 527921, 17111, 59917, 261886, 220549, 178093, 6026,
@@ -65,7 +73,7 @@ column_selection_case = {
 
 # Where to read your prefiltered metadata CSVs per state (same pattern you used)
 # e.g., ./residential_data_SELECT_STATES_FILTERED_MN.csv
-METADATA_CSV_TEMPLATE = "./residential_data_SELECT_STATES_FILTERED_NC.csv"
+METADATA_CSV_TEMPLATE = "./residential_data_SELECT_STATES_FILTERED_{STATE}.csv"
 
 # Download params
 DOWNLOAD_DIR_TEMPLATE = f"./parquet_residential_short_{CASE_ID}"

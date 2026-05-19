@@ -20,13 +20,23 @@ from copy import deepcopy
 import sys
 import time
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_PROCESS = time.time()
+
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
 
 # ---------------------------------------------------------------------
 # 1) Basic setup
 # ---------------------------------------------------------------------
 
-base_parquet_dir = "../daily_parquets"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+base_parquet_dir = os.path.join(SCRIPT_DIR, "..", "5b_profile_generation", "daily_parquets")
+if not os.path.exists(base_parquet_dir):
+    base_parquet_dir = os.path.join(SCRIPT_DIR, "..", "daily_parquets")
 
 folder_timestamps = {}
 folder_equiv = {}
@@ -166,10 +176,11 @@ REVERSE_CIRCUIT_MAP = {
 # 2) Load the three mapping CSVs
 # ---------------------------------------------------------------------
 
-df_NC = pd.read_csv("../NC_parquet_and_bldgs_dm.csv")
-df_NC["STATE"] = "NC"
+control_output_dir = os.path.join(SCRIPT_DIR, "..", "5d_scenario_controls", "get_scenario_csv_controls")
+df_state = pd.read_csv(os.path.join(control_output_dir, f"{STATE}_parquet_and_bldgs_dm.csv"))
+df_state["STATE"] = STATE
 
-df_mapping = pd.concat([df_NC], ignore_index=True)
+df_mapping = pd.concat([df_state], ignore_index=True)
 
 required_cols = ["Feeder", "Parquet_File", "Parquet_Name", "STATE"]
 missing_cols = [c for c in required_cols if c not in df_mapping.columns]
