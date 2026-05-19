@@ -25,6 +25,11 @@ cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
 DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+PARQUET_DATA_ROOT = cfg.get('parquet_data_root', '../parquet_data')
+if not os.path.isabs(PARQUET_DATA_ROOT):
+    PARQUET_DATA_ROOT = os.path.abspath(os.path.join(REPO_ROOT, PARQUET_DATA_ROOT))
 
 # Match your use case (MN from your link); change as needed
 STATES_OF_INTEREST = [STATE]         # e.g. ["NC", "TX", ...]
@@ -76,7 +81,7 @@ column_selection_case = {
 METADATA_CSV_TEMPLATE = "./residential_data_SELECT_STATES_FILTERED_{STATE}.csv"
 
 # Download params
-DOWNLOAD_DIR_TEMPLATE = f"./parquet_residential_short_{CASE_ID}"
+DOWNLOAD_DIR_TEMPLATE = os.path.join(PARQUET_DATA_ROOT, f"parquet_residential_short_{CASE_ID}")
 CHUNK_SIZE = 50              # split URL list into chunks to avoid burstiness
 REQUEST_TIMEOUT = 60
 SLEEP_BETWEEN_CHUNKS_SEC = 0.25

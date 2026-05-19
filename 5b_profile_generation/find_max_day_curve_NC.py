@@ -27,9 +27,10 @@ STR_STATE = STATE
 STR_TITLE = STR_STATE
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
 PARQUET_DATA_ROOT = Path(cfg.get('parquet_data_root', '../parquet_data'))
 if not PARQUET_DATA_ROOT.is_absolute():
-    PARQUET_DATA_ROOT = (SCRIPT_DIR / PARQUET_DATA_ROOT).resolve()
+    PARQUET_DATA_ROOT = (REPO_ROOT / PARQUET_DATA_ROOT).resolve()
 
 # 🔹 NEW: Store df_curve per feeder
 df_curve_per_feeder = {}  # 🔹 NEW

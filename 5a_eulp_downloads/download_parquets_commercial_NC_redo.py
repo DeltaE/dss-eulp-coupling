@@ -20,6 +20,11 @@ cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
 DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+PARQUET_DATA_ROOT = cfg.get('parquet_data_root', '../parquet_data')
+if not os.path.isabs(PARQUET_DATA_ROOT):
+    PARQUET_DATA_ROOT = os.path.abspath(os.path.join(REPO_ROOT, PARQUET_DATA_ROOT))
 
 # States & case label
 STATES_OF_INTEREST = [STATE]           # e.g. ["NC", "TX", ...]
@@ -39,7 +44,7 @@ UPGRADES = [0, 1, 2, 3, 8, 9, 19, 20]
 METADATA_CSV_TEMPLATE = "./commercial_data_SELECT_STATES_FILTERED_{STATE}.csv"
 
 # Output folder
-DOWNLOAD_DIR_TEMPLATE = f"./parquet_commercial_{CASE_ID}"
+DOWNLOAD_DIR_TEMPLATE = os.path.join(PARQUET_DATA_ROOT, f"parquet_commercial_{CASE_ID}")
 
 # Download throttling
 CHUNK_SIZE = 100

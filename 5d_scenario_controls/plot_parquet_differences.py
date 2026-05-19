@@ -23,9 +23,10 @@ STATE = cfg['state']
 SEASON = cfg['season']
 DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
 SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
 PARQUET_DATA_ROOT = Path(cfg.get('parquet_data_root', '../parquet_data'))
 if not PARQUET_DATA_ROOT.is_absolute():
-    PARQUET_DATA_ROOT = (SCRIPT_DIR / PARQUET_DATA_ROOT).resolve()
+    PARQUET_DATA_ROOT = (REPO_ROOT / PARQUET_DATA_ROOT).resolve()
 
 # Create output folder if it doesn't exist
 output_folder = SCRIPT_DIR / "plot_parquet_differences"
@@ -223,6 +224,5 @@ print(f"⏱️  Total time: {END_PROCESS - START_PROCESS:.2f} seconds")
 END_PROCESS = time.time()
 TIME_ELAPSED = -START_PROCESS + END_PROCESS
 print(str(TIME_ELAPSED) + ' seconds /', str(TIME_ELAPSED/60) + ' minutes.')
-
 
 

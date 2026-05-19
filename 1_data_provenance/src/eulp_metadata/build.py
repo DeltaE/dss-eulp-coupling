@@ -1,8 +1,7 @@
 """YAML-driven EULP / SMART-DS metadata reproduction CLI.
 
-The implementation is intentionally standard-library only. If PyYAML is
-installed it will be used; otherwise a small YAML subset parser handles the
-project's config/workflow.yaml structure.
+The implementation reads the root pipeline configuration so the
+``pipeline_state`` cluster follows the active state.
 """
 
 from __future__ import annotations
@@ -19,7 +18,10 @@ from typing import Any, Iterable
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = PROJECT_ROOT.parent
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "workflow.yaml"
+sys.path.insert(0, str(REPO_ROOT))
+from pipeline_utils import load_config as load_pipeline_config
 
 
 @dataclass
@@ -56,6 +58,21 @@ def load_workflow(path: Path) -> dict[str, Any]:
         return loaded
     except ImportError:
         return parse_yaml_subset(text)
+
+
+def inject_pipeline_state_cluster(config: dict[str, Any]) -> None:
+    pipeline_cfg = load_pipeline_config()
+    state = pipeline_cfg["state"]
+    config.setdefault("clusters", {})["pipeline_state"] = {
+        "states": [state],
+        "mode": "historical_slice",
+        "historical_residential": "residential_data.csv",
+        "historical_commercial": "commercial_data.csv",
+        "output_residential": "residential_data_SELECT_STATES.csv",
+        "output_commercial": "commercial_data_SELECT_STATES.csv",
+        "validation_historical_residential": "residential_data_SELECT_STATES.csv",
+        "validation_historical_commercial": "commercial_data_SELECT_STATES.csv",
+    }
 
 
 def parse_yaml_subset(text: str) -> dict[str, Any]:
@@ -613,6 +630,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     config = load_workflow(Path(args.config))
+    inject_pipeline_state_cluster(config)
 
     if args.list_clusters:
         for name in sorted(config.get("clusters", {})):

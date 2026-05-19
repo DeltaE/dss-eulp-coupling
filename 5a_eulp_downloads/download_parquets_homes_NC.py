@@ -82,6 +82,11 @@ cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
 DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+PARQUET_DATA_ROOT = cfg.get('parquet_data_root', '../parquet_data')
+if not os.path.isabs(PARQUET_DATA_ROOT):
+    PARQUET_DATA_ROOT = os.path.abspath(os.path.join(REPO_ROOT, PARQUET_DATA_ROOT))
 
 STATES_OF_INTEREST = [STATE]  # Florida  # THis constant defines the state
 CASE_ID = DOWNLOAD_DATE + '_' + STATE  # This constant defines the metadata file after filtering for desired characteristics
@@ -436,7 +441,7 @@ The script will download the parquet files.
 # Iterate over each chunk, process, and then sleep
 for i, chunk in enumerate(url_chunks):
     print(f"Processing chunk {i+1}")
-    download_any_files(chunk, './parquet_residential_short_' + CASE_ID)
+    download_any_files(chunk, os.path.join(PARQUET_DATA_ROOT, 'parquet_residential_short_' + CASE_ID))
     
     # Introduce a delay to avoid triggering rate limits
     time.sleep(0.25)  # Adjust this value if necessary

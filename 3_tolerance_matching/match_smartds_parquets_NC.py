@@ -20,6 +20,21 @@ cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
 STATE_STR = STATE
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+PHASE1_OUTPUT_DIR = os.path.join(REPO_ROOT, '1_data_provenance', 'outputs', 'pipeline_state')
+
+
+def metadata_csv(filename):
+    candidates = [
+        os.path.join(SCRIPT_DIR, filename),
+        os.path.join(PHASE1_OUTPUT_DIR, filename),
+        os.path.join(REPO_ROOT, filename),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return candidates[1]
 
 '''
 GOAL: to find a suitable match, per state, to each row in review_parquet_matches.csv
@@ -27,8 +42,8 @@ GOAL: to find a suitable match, per state, to each row in review_parquet_matches
 
 # 1. READ THE CSV FILES
 df_matches = pd.read_csv("review_parquet_matches.csv")
-df_com_ALL = pd.read_csv("commercial_data_SELECT_STATES.csv")
-df_res_ALL = pd.read_csv("residential_data_SELECT_STATES.csv")
+df_com_ALL = pd.read_csv(metadata_csv("commercial_data_SELECT_STATES.csv"))
+df_res_ALL = pd.read_csv(metadata_csv("residential_data_SELECT_STATES.csv"))
 
 df_com = df_com_ALL.loc[df_com_ALL['State'] == STATE_STR]
 df_res = df_res_ALL.loc[df_res_ALL['State'] == STATE_STR]
