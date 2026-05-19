@@ -30,6 +30,7 @@ remain for provenance/compatibility, but they now read `pipeline_config.yaml`.
 
 | Phase | Folder | Purpose |
 | --- | --- | --- |
+| pre | `0_download_smartds/` | Download SMART-DS feeders from OEDI and stage plain OpenDSS circuits |
 | 0 | `0_experimental_design/` | Generate `mixes_lhs.json` for circuit instantiation |
 | 1 | `1_data_provenance/` | Build state-specific EULP metadata CSVs |
 | 2 | `2_circuit_matching/` | Flatten SMART-DS feeders and review parquet matches |
@@ -56,6 +57,17 @@ remain for provenance/compatibility, but they now read `pipeline_config.yaml`.
 Run these from the repository root unless the command uses `Push-Location`.
 
 ```powershell
+# Optional pre-stage. Download SMART-DS and stage flat feeder folders.
+python .\0_download_smartds\download_smartds.py `
+  --regions GSO `
+  --subregions rural `
+  --scenarios base_timeseries `
+  --only-opendss
+python .\0_download_smartds\stage_circuits_plain.py `
+  --smartds-root .\0_download_smartds\data_raw\smartds `
+  --target .\ab_3b\circuits_plain_format `
+  --registry .\ab_3b\feeder_registry.json
+
 # 0. Experimental design
 python .\0_experimental_design\run_mix_generator.py
 

@@ -198,3 +198,5 @@ cython_debug/
 1_data_provenance/data_raw/
 1_data_provenance/data_derived/
 1_data_provenance/outputs/
+0_download_smartds/data_raw/
+ab_3b/circuits_plain_format/
