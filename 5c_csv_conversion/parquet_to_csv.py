@@ -21,13 +21,14 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, load_feeder_registry
 
 START_PROCESS = time.time()
 
 cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
+registry = load_feeder_registry()
 
 # ---------------------------------------------------------------------
 # 1) Basic setup
@@ -43,135 +44,13 @@ folder_equiv = {}
 folder_list_loadshapes = {}
 
 # Map from underscored folder name → dashed circuit name
-CIRCUIT_NAME_MAP = {
-    "uhs0_1247_udt12274": "uhs0_1247--udt12274",
-    "uhs0_1247_udt14717": "uhs0_1247--udt14717",
-    "uhs0_1247_udt16115": "uhs0_1247--udt16115",
-    "uhs1_1247_udt15926": "uhs1_1247--udt15926",
-    "uhs1_1247_udt20176": "uhs1_1247--udt20176",
-    "uhs2_1247_udt10746": "uhs2_1247--udt10746",
-    "uhs2_1247_udt12473": "uhs2_1247--udt12473",
-    "uhs2_1247_udt9312": "uhs2_1247--udt9312",
-    "uhs3_1247_udt1567": "uhs3_1247--udt1567",
-    "uhs3_1247_udt1571": "uhs3_1247--udt1571",
-    "uhs3_1247_udt1582": "uhs3_1247--udt1582",
-    "uhs4_1247_p1umv7": "uhs4_1247--p1umv7",
-    "uhs4_1247_p1umv8": "uhs4_1247--p1umv8",
-    "uhs4_1247_udt11389": "uhs4_1247--udt11389",
-    "uhs4_1247_udt12982": "uhs4_1247--udt12982",
-    "uhs5_1247_udt159": "uhs5_1247--udt159",
-    "uhs5_1247_udt18558": "uhs5_1247--udt18558",
-    "uhs5_1247_udt19869": "uhs5_1247--udt19869",
-    "uhs5_1247_udt20368": "uhs5_1247--udt20368",
-    "uhs6_1247_udt10788": "uhs6_1247--udt10788",
-    "uhs6_1247_udt6570": "uhs6_1247--udt6570",
-    "uhs6_1247_udt9964": "uhs6_1247--udt9964",
-    "uhs7_1247_udt15849": "uhs7_1247--udt15849",
-    "uhs7_1247_udt9662": "uhs7_1247--udt9662",
-    "uhs7_1247_udt9675": "uhs7_1247--udt9675",
-    "uhs8_1247_udt12494": "uhs8_1247--udt12494",
-    "uhs8_1247_udt7252": "uhs8_1247--udt7252",
-    "uhs9_1247_udt11456": "uhs9_1247--udt11456",
-    "uhs9_1247_udt13714": "uhs9_1247--udt13714",
-    "uhs9_1247_udt14110": "uhs9_1247--udt14110",
-    "uhs9_1247_udt16813": "uhs9_1247--udt16813",
-    "uhs9_1247_udt2508": "uhs9_1247--udt2508",
-    "uhs10_1247_udt11713": "uhs10_1247--udt11713",
-    "uhs10_1247_udt12084": "uhs10_1247--udt12084",
-    "uhs10_1247_udt13528": "uhs10_1247--udt13528",
-    "uhs11_1247_p1umv22": "uhs11_1247--p1umv22",
-    "uhs11_1247_udt7105": "uhs11_1247--udt7105",
-    "uhs11_1247_udt8110": "uhs11_1247--udt8110",
-    "uhs12_1247_udt1278": "uhs12_1247--udt1278",
-    "uhs12_1247_udt15482": "uhs12_1247--udt15482",
-    "uhs12_1247_udt15805": "uhs12_1247--udt15805",
-    "uhs12_1247_udt17650": "uhs12_1247--udt17650",
-    "uhs13_1247_udt4015": "uhs13_1247--udt4015",
-    "uhs13_1247_udt4819": "uhs13_1247--udt4819",
-    "uhs14_1247_udt11665": "uhs14_1247--udt11665",
-    "uhs14_1247_udt12226": "uhs14_1247--udt12226",
-    "uhs14_1247_udt5493": "uhs14_1247--udt5493",
-    "uhs15_1247_udt19670": "uhs15_1247--udt19670",
-    "uhs15_1247_udt20824": "uhs15_1247--udt20824",
-    "uhs16_1247_udt15512": "uhs16_1247--udt15512",
-    "uhs16_1247_udt310": "uhs16_1247--udt310",
-    "uhs17_1247_udt6592": "uhs17_1247--udt6592",
-    "uhs17_1247_udt9551": "uhs17_1247--udt9551",
-    "uhs18_1247_udt11616": "uhs18_1247--udt11616",
-    "uhs18_1247_udt13374": "uhs18_1247--udt13374",
-    "uhs18_1247_udt17294": "uhs18_1247--udt17294",
-    "uhs19_1247_udt15839": "uhs19_1247--udt15839",
-    "uhs19_1247_udt19872": "uhs19_1247--udt19872",
-    "uhs20_1247_udt5173": "uhs20_1247--udt5173",
-    "uhs20_1247_udt8894": "uhs20_1247--udt8894",
-    "uhs20_1247_udt9897": "uhs20_1247--udt9897",
+feeder_to_circuit = registry["circuit_name_map"]
+feeder_by_folder_key = {
+    entry["feeder_name"].replace("--", "_"): entry["feeder_name"]
+    for entry in registry["feeders"]
 }
 
 # Map from dashed circuit name → circuit_n
-REVERSE_CIRCUIT_MAP = {
-    "uhs0_1247--udt12274": "circuit_1",
-    "uhs0_1247--udt14717": "circuit_2",
-    "uhs0_1247--udt16115": "circuit_3",
-    "uhs1_1247--udt15926": "circuit_4",
-    "uhs1_1247--udt20176": "circuit_5",
-    "uhs2_1247--udt10746": "circuit_6",
-    "uhs2_1247--udt12473": "circuit_7",
-    "uhs2_1247--udt9312": "circuit_8",
-    "uhs3_1247--udt1567": "circuit_9",
-    "uhs3_1247--udt1571": "circuit_10",
-    "uhs3_1247--udt1582": "circuit_11",
-    "uhs4_1247--p1umv7": "circuit_12",
-    "uhs4_1247--p1umv8": "circuit_13",
-    "uhs4_1247--udt11389": "circuit_14",
-    "uhs4_1247--udt12982": "circuit_15",
-    "uhs5_1247--udt159": "circuit_16",
-    "uhs5_1247--udt18558": "circuit_17",
-    "uhs5_1247--udt19869": "circuit_18",
-    "uhs5_1247--udt20368": "circuit_19",
-    "uhs6_1247--udt10788": "circuit_20",
-    "uhs6_1247--udt6570": "circuit_21",
-    "uhs6_1247--udt9964": "circuit_22",
-    "uhs7_1247--udt15849": "circuit_23",
-    "uhs7_1247--udt9662": "circuit_24",
-    "uhs7_1247--udt9675": "circuit_25",
-    "uhs8_1247--udt12494": "circuit_26",
-    "uhs8_1247--udt7252": "circuit_27",
-    "uhs9_1247--udt11456": "circuit_28",
-    "uhs9_1247--udt13714": "circuit_29",
-    "uhs9_1247--udt14110": "circuit_30",
-    "uhs9_1247--udt16813": "circuit_31",
-    "uhs9_1247--udt2508": "circuit_32",
-    "uhs10_1247--udt11713": "circuit_33",
-    "uhs10_1247--udt12084": "circuit_34",
-    "uhs10_1247--udt13528": "circuit_35",
-    "uhs11_1247--p1umv22": "circuit_36",
-    "uhs11_1247--udt7105": "circuit_37",
-    "uhs11_1247--udt8110": "circuit_38",
-    "uhs12_1247--udt1278": "circuit_39",
-    "uhs12_1247--udt15482": "circuit_40",
-    "uhs12_1247--udt15805": "circuit_41",
-    "uhs12_1247--udt17650": "circuit_42",
-    "uhs13_1247--udt4015": "circuit_43",
-    "uhs13_1247--udt4819": "circuit_44",
-    "uhs14_1247--udt11665": "circuit_45",
-    "uhs14_1247--udt12226": "circuit_46",
-    "uhs14_1247--udt5493": "circuit_47",
-    "uhs15_1247--udt19670": "circuit_48",
-    "uhs15_1247--udt20824": "circuit_49",
-    "uhs16_1247--udt15512": "circuit_50",
-    "uhs16_1247--udt310": "circuit_51",
-    "uhs17_1247--udt6592": "circuit_52",
-    "uhs17_1247--udt9551": "circuit_53",
-    "uhs18_1247--udt11616": "circuit_54",
-    "uhs18_1247--udt13374": "circuit_55",
-    "uhs18_1247--udt17294": "circuit_56",
-    "uhs19_1247--udt15839": "circuit_57",
-    "uhs19_1247--udt19872": "circuit_58",
-    "uhs20_1247--udt5173": "circuit_59",
-    "uhs20_1247--udt8894": "circuit_60",
-    "uhs20_1247--udt9897": "circuit_61",
-}
-
 # ---------------------------------------------------------------------
 # 2) Load the three mapping CSVs
 # ---------------------------------------------------------------------
@@ -217,8 +96,8 @@ for folder_name in folder_list:
     else:
         circuit_underscore_orig = ''
 
-    circuit_dashed = CIRCUIT_NAME_MAP.get(circuit_underscore, circuit_underscore)
-    circuit_id = REVERSE_CIRCUIT_MAP.get(circuit_dashed, "unknown_circuit")
+    circuit_dashed = feeder_by_folder_key.get(circuit_underscore, circuit_underscore)
+    circuit_id = feeder_to_circuit.get(circuit_dashed, "unknown_circuit")
 
     if 'RES_' in circuit_underscore_orig:
         # print('stop here')

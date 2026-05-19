@@ -11,7 +11,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, load_feeder_registry
 
 START_PROCESS = time.time()
 
@@ -20,6 +20,7 @@ STATE = cfg['state']
 SEASON = cfg['season']
 DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
 STR_STATE = STATE
+registry = load_feeder_registry()
 
 # Load SUMMARY_COPY_PASTE sheet from parsed_loads_PIVOT.xlsx
 summary_file = "parsed_loads_PIVOT.xlsx"
@@ -31,34 +32,7 @@ residential_file = STR_STATE + "_final_residential.csv"
 df_commercial = pd.read_csv(commercial_file)
 df_residential = pd.read_csv(residential_file)
 
-# Extract relevant feeders from the provided image
-relevant_feeders = [
-    "uhs0_1247--udt12274", "uhs0_1247--udt14717", "uhs0_1247--udt16115",
-    "uhs1_1247--udt15926", "uhs1_1247--udt20176",
-    "uhs2_1247--udt10746", "uhs2_1247--udt12473", "uhs2_1247--udt9312",
-    "uhs3_1247--udt1567", "uhs3_1247--udt1571", "uhs3_1247--udt1582",
-    "uhs4_1247--p1umv7", "uhs4_1247--p1umv8", "uhs4_1247--udt11389", "uhs4_1247--udt12982",
-    "uhs5_1247--udt159", "uhs5_1247--udt18558", "uhs5_1247--udt19869", "uhs5_1247--udt20368",
-    "uhs6_1247--udt10788", "uhs6_1247--udt6570", "uhs6_1247--udt9964",
-    "uhs7_1247--udt15849", "uhs7_1247--udt9662", "uhs7_1247--udt9675",
-    "uhs8_1247--udt12494", "uhs8_1247--udt7252",
-    "uhs9_1247--udt11456", "uhs9_1247--udt13714", "uhs9_1247--udt14110", "uhs9_1247--udt16813", "uhs9_1247--udt2508",
-    "uhs10_1247--udt11713", "uhs10_1247--udt12084", "uhs10_1247--udt13528",
-    "uhs11_1247--p1umv22", "uhs11_1247--udt7105", "uhs11_1247--udt8110",
-    "uhs12_1247--udt1278", "uhs12_1247--udt15482", "uhs12_1247--udt15805", "uhs12_1247--udt17650",
-    "uhs13_1247--udt4015", "uhs13_1247--udt4819",
-    "uhs14_1247--udt11665", "uhs14_1247--udt12226", "uhs14_1247--udt5493",
-    "uhs15_1247--udt19670", "uhs15_1247--udt20824",
-    "uhs16_1247--udt15512", "uhs16_1247--udt310",
-    "uhs17_1247--udt6592", "uhs17_1247--udt9551",
-    "uhs18_1247--udt11616", "uhs18_1247--udt13374", "uhs18_1247--udt17294",
-    "uhs19_1247--udt15839", "uhs19_1247--udt19872",
-    "uhs20_1247--udt5173", "uhs20_1247--udt8894", "uhs20_1247--udt9897"
-]
-
-'''
-relevant_feeders = ["uhs0_1247--udt12274"]
-'''
+relevant_feeders = [entry["feeder_name"] for entry in registry["feeders"]]
 
 df_filtered = df_summary[df_summary["Feeder"].isin(relevant_feeders)].copy()
 
