@@ -66,7 +66,7 @@ python .\0_download_smartds\download_smartds.py `
 python .\0_download_smartds\stage_circuits_plain.py `
   --smartds-root .\0_download_smartds\data_raw\smartds `
   --target .\ab_3b\circuits_plain_format `
-  --registry .\ab_3b\feeder_registry.json
+  --registry .\feeder_registry.json
 
 # 0. Experimental design
 python .\0_experimental_design\run_mix_generator.py

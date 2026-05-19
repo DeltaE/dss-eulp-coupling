@@ -23,6 +23,13 @@ def load_config(config_path=None):
 
     cfg["state"] = os.environ.get("PIPELINE_STATE", cfg["state"])
     cfg["season"] = os.environ.get("PIPELINE_SEASON", cfg.get("season", "summer"))
+    if os.environ.get("PIPELINE_SMART_DS_ROOT"):
+        cfg["smart_ds_root"] = os.environ["PIPELINE_SMART_DS_ROOT"]
+    if os.environ.get("PIPELINE_FEEDER_REGISTRY_PATH"):
+        cfg["feeder_registry_path"] = os.environ["PIPELINE_FEEDER_REGISTRY_PATH"]
+    if os.environ.get("PIPELINE_MAX_FEEDERS"):
+        max_feeders = os.environ["PIPELINE_MAX_FEEDERS"]
+        cfg["max_feeders"] = None if max_feeders.lower() in {"none", "null"} else int(max_feeders)
     return cfg
 
 

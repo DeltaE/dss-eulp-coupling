@@ -56,12 +56,27 @@ folder:
 python .\0_download_smartds\stage_circuits_plain.py `
   --smartds-root .\0_download_smartds\data_raw\smartds `
   --target .\ab_3b\circuits_plain_format `
-  --registry .\ab_3b\feeder_registry.json
+  --registry .\feeder_registry.json
 ```
 
 The staging script discovers feeder folders by looking for both `Loads.dss` and
 `LoadShapes.dss`, then copies each feeder into a flat folder. Name collisions are
 resolved with suffixes like `__2`.
+
+For a narrow fire test using the existing `D:\lvg` download without copying
+feeders into the repo, use the same source root for the registry and runtime:
+
+```powershell
+$env:PIPELINE_SMART_DS_ROOT = "D:\lvg\GSO\rural\base_timeseries\opendss"
+$env:PIPELINE_FEEDER_REGISTRY_PATH = "feeder_registry.json"
+$env:PIPELINE_MAX_FEEDERS = "2"
+
+python .\0_download_smartds\stage_circuits_plain.py `
+  --smartds-root $env:PIPELINE_SMART_DS_ROOT `
+  --registry .\feeder_registry.json `
+  --registry-only `
+  --max-feeders 2
+```
 
 ## Data Hygiene
 

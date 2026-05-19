@@ -15,7 +15,7 @@ from typing import Optional
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_SMARTDS_ROOT = REPO_ROOT / "0_download_smartds" / "data_raw" / "smartds"
 DEFAULT_TARGET = REPO_ROOT / "ab_3b" / "circuits_plain_format"
-DEFAULT_REGISTRY = REPO_ROOT / "ab_3b" / "feeder_registry.json"
+DEFAULT_REGISTRY = REPO_ROOT / "feeder_registry.json"
 
 
 @dataclass(frozen=True)
@@ -87,7 +87,9 @@ def build_copy_plan(
     return plan
 
 
-def copy_feeder(item: FeederCopy, *, dry_run: bool, overwrite: bool) -> None:
+def copy_feeder(item: FeederCopy, *, dry_run: bool, overwrite: bool, registry_only: bool) -> None:
+    if registry_only:
+        return
     if dry_run:
         return
     if item.destination.exists() and overwrite:
@@ -145,6 +147,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--max-feeders", type=int, help="Limit staged feeders for smoke tests.")
     parser.add_argument("--overwrite", action="store_true", help="Remove and replace existing destination feeder folders.")
+    parser.add_argument("--registry-only", action="store_true", help="Write the registry without copying feeder folders.")
     parser.add_argument("--dry-run", action="store_true")
     return parser.parse_args()
 
@@ -173,7 +176,12 @@ def main() -> int:
     print(f"Target: {target}")
 
     for index, item in enumerate(plan, start=1):
-        copy_feeder(item, dry_run=args.dry_run, overwrite=args.overwrite)
+        copy_feeder(
+            item,
+            dry_run=args.dry_run,
+            overwrite=args.overwrite,
+            registry_only=args.registry_only,
+        )
         if index == 1 or index % 100 == 0 or index == len(plan):
             print(f"{index:,}/{len(plan):,}: {item.source} -> {item.destination}")
 
