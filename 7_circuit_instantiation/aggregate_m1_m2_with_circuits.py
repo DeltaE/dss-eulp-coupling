@@ -23,8 +23,8 @@ def _dephase(bus_name: str) -> str:
     b = re.split(r"[.\(]", b, maxsplit=1)[0]
     return b.lower()
 
-# Folder pattern: e.g. uhs18_1247_circuit_54_1  -> (uhs18) (circuit_54) (1)
-FOLDER_RE = re.compile(r"^(uhs\d+)_\d+_(circuit_\d+)_(\d+)$", re.IGNORECASE)
+# Folder pattern: <substation>_circuit_<id>_<scenario>
+FOLDER_RE = re.compile(r"^(.+)_(circuit_\d+)_(.+)$", re.IGNORECASE)
 
 # Name hints to classify EV elements in DSS (adjust if your naming differs)
 EV_HINTS = ("ev", "evse", "pev")
@@ -56,9 +56,9 @@ if __name__ == "__main__":
             continue  # not a circuit folder
         matched += 1
 
-        substation = m.group(1)     # e.g., 'uhs18'
-        feeder = m.group(2)         # e.g., 'circuit_54'
-        scenario = m.group(3)       # e.g., '1'
+        substation = m.group(1)
+        feeder = m.group(2)
+        scenario = m.group(3)
 
         mcd = circuit_dir / "ModifiedCircuitData"
         if not mcd.is_dir():

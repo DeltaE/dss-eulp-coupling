@@ -2,7 +2,7 @@
 """
 instantiate_circuits_and_runs.py  (procedural; mixes with EV split)
 -------------------------------------------------------------------
-- Discovers feeders under ../3_smartds/uhsX_1247/uhsX_1247--udtYYYY
+- Discovers feeders from feeder_registry.json
 - For each feeder × mix:
     * Copies feeder into <substation>_circuit_<idx>_<mix_name>/
     * Rewrites LoadShapes.dss to consolidated ../profiles_use_bench/<circuit>/
@@ -26,7 +26,7 @@ from collections import defaultdict
 import math, random
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, load_feeder_registry
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -35,16 +35,13 @@ COLLECT_ASSIGN_FULL = True
 ASSIGN_SUMMARY_ROWS = []   # one row per (circuit folder × mix)
 ASSIGN_FULL_ROWS    = []   # one row per (circuit folder × mix × daily_name)
 
-'''
-THIS SCRIPT WITH A FILTER IS USED AFTER DISCOVERY OF CIRCUITS WITH RUN ERRORS (THAT CAN BE FIXED) BUT RIGHT NOW BREAK THE AUTOMATION OF THE WORKFLOW.
-'''
-# Circuits to skip everywhere (by circuit number from REVERSE_CIRCUIT_MAP)
-SKIP_CIRCUITS = {36, 12, 13}
-
 START_PROCESS = time.time()
 cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
+registry = load_feeder_registry()
+feeder_to_circuit = registry["circuit_name_map"]
+SKIP_CIRCUITS = {int(n) for n in cfg.get('skip_circuits', [])}
 
 FORCE_NPTS = 96
 FORCE_INTERVAL = 0.25
@@ -64,71 +61,6 @@ def resolve_config_path(path_value):
 
 BOOL_PASS_ON_EXISTING_FOLDER = False  # True → skip if exists; False → delete/replace
 
-# Map dashed feeder -> circuit_n
-REVERSE_CIRCUIT_MAP = {
-    "uhs0_1247--udt12274": "circuit_1",
-    "uhs0_1247--udt14717": "circuit_2",
-    "uhs0_1247--udt16115": "circuit_3",
-    "uhs1_1247--udt15926": "circuit_4",
-    "uhs1_1247--udt20176": "circuit_5",
-    "uhs2_1247--udt10746": "circuit_6",
-    "uhs2_1247--udt12473": "circuit_7",
-    "uhs2_1247--udt9312": "circuit_8",
-    "uhs3_1247--udt1567": "circuit_9",
-    "uhs3_1247--udt1571": "circuit_10",
-    "uhs3_1247--udt1582": "circuit_11",
-    "uhs4_1247--p1umv7": "circuit_12",
-    "uhs4_1247--p1umv8": "circuit_13",
-    "uhs4_1247--udt11389": "circuit_14",
-    "uhs4_1247--udt12982": "circuit_15",
-    "uhs5_1247--udt159": "circuit_16",
-    "uhs5_1247--udt18558": "circuit_17",
-    "uhs5_1247--udt19869": "circuit_18",
-    "uhs5_1247--udt20368": "circuit_19",
-    "uhs6_1247--udt10788": "circuit_20",
-    "uhs6_1247--udt6570": "circuit_21",
-    "uhs6_1247--udt9964": "circuit_22",
-    "uhs7_1247--udt15849": "circuit_23",
-    "uhs7_1247--udt9662": "circuit_24",
-    "uhs7_1247--udt9675": "circuit_25",
-    "uhs8_1247--udt12494": "circuit_26",
-    "uhs8_1247--udt7252": "circuit_27",
-    "uhs9_1247--udt11456": "circuit_28",
-    "uhs9_1247--udt13714": "circuit_29",
-    "uhs9_1247--udt14110": "circuit_30",
-    "uhs9_1247--udt16813": "circuit_31",
-    "uhs9_1247--udt2508": "circuit_32",
-    "uhs10_1247--udt11713": "circuit_33",
-    "uhs10_1247--udt12084": "circuit_34",
-    "uhs10_1247--udt13528": "circuit_35",
-    "uhs11_1247--p1umv22": "circuit_36",
-    "uhs11_1247--udt7105": "circuit_37",
-    "uhs11_1247--udt8110": "circuit_38",
-    "uhs12_1247--udt1278": "circuit_39",
-    "uhs12_1247--udt15482": "circuit_40",
-    "uhs12_1247--udt15805": "circuit_41",
-    "uhs12_1247--udt17650": "circuit_42",
-    "uhs13_1247--udt4015": "circuit_43",
-    "uhs13_1247--udt4819": "circuit_44",
-    "uhs14_1247--udt11665": "circuit_45",
-    "uhs14_1247--udt12226": "circuit_46",
-    "uhs14_1247--udt5493": "circuit_47",
-    "uhs15_1247--udt19670": "circuit_48",
-    "uhs15_1247--udt20824": "circuit_49",
-    "uhs16_1247--udt15512": "circuit_50",
-    "uhs16_1247--udt310": "circuit_51",
-    "uhs17_1247--udt6592": "circuit_52",
-    "uhs17_1247--udt9551": "circuit_53",
-    "uhs18_1247--udt11616": "circuit_54",
-    "uhs18_1247--udt13374": "circuit_55",
-    "uhs18_1247--udt17294": "circuit_56",
-    "uhs19_1247--udt15839": "circuit_57",
-    "uhs19_1247--udt19872": "circuit_58",
-    "uhs20_1247--udt5173": "circuit_59",
-    "uhs20_1247--udt8894": "circuit_60",
-    "uhs20_1247--udt9897": "circuit_61",
-}
-
 SMARTDS_ROOT = resolve_config_path(cfg.get('smart_ds_root', '../3_smartds'))
 HP_BASELINE_ROOT = (REPO_ROOT / (STATE + '_4_profhp')).resolve()
 HP_DM_ROOT       = (REPO_ROOT / (STATE + '_6_profhp_dm')).resolve()
@@ -140,7 +72,9 @@ PROFILES_USE_BENCH_DIR.mkdir(exist_ok=True)
 RUNNER_BASENAME = 'power_flow_sim_daily_EV_STO_DG_deploy.py'  # we will patch+run this one
 
 # Limit feeders for testing (None = all)
-MAX_FEEDERS = None
+MAX_FEEDERS = cfg.get('max_feeders')
+if MAX_FEEDERS is not None:
+    MAX_FEEDERS = int(MAX_FEEDERS)
 
 # Defaults (used when a mix omits them)
 DEFAULT_LVL2_PERC = 0.80
@@ -193,10 +127,10 @@ def force_loadshape_daily_96(line: str, npts: int = FORCE_NPTS, interval: float 
     return line
 
 def bucket_from_map(feeder_name: str, state: str, season: str) -> Optional[str]:
-    circ = REVERSE_CIRCUIT_MAP.get(feeder_name)
+    circ = feeder_to_circuit.get(feeder_name)
     if not circ:
         return None
-    return f"{state}_{circ}_{season}"  # e.g. "NC_circuit_1_summer"
+    return f"{state}_{circ}_{season}"
 
 def parse_means_for_daily(loads_original_path: Path):
     """Return (per_daily_mean: dict[name]=(mean_kw, mean_kvar), global_means=(kw,kvar))."""
@@ -244,6 +178,23 @@ def index_csvs(root: Path, include_only: Optional[Iterable[str]] = None) -> dict
                     mapping.setdefault(fn, Path(dirpath) / fn)
     return mapping
 
+def has_required_dss_files(path: Path) -> bool:
+    if not path.is_dir():
+        return False
+    try:
+        names = {nm.lower() for nm in os.listdir(path)}
+    except PermissionError:
+        return False
+    return "loads.dss" in names and "loadshapes.dss" in names
+
+def circuit_num_from_tag(circ_tag: Optional[str], fallback: Optional[int] = None) -> Optional[int]:
+    if not circ_tag:
+        return fallback
+    try:
+        return int(circ_tag.split('_')[-1])
+    except Exception:
+        return fallback
+
 # =========================================
 # === Discover nested SMART-DS feeders  ===
 # =========================================
@@ -252,39 +203,24 @@ This part changes significantly in this version because it must skip some folder
 '''
 feeders = []
 skipped = []
+missing_registry_paths = []
 if not SMARTDS_ROOT.exists():
     print(f"⚠️ SMART-DS root not found: {SMARTDS_ROOT}")
     sys.exit(1)
 
-for sub in sorted(SMARTDS_ROOT.iterdir()):
-    if not sub.is_dir() or not sub.name.startswith('uhs'):
+for entry in registry["feeders"]:
+    child = SMARTDS_ROOT / Path(entry["original_path"])
+    if not has_required_dss_files(child):
+        missing_registry_paths.append(str(child))
         continue
-    for child in sorted(sub.iterdir()):
-        if not child.is_dir():
-            continue
-        has_loads  = any(nm.lower() == 'loads.dss'      for nm in os.listdir(child))
-        has_shapes = any(nm.lower() == 'loadshapes.dss' for nm in os.listdir(child))
-        #if has_loads and has_shapes:
-        #    feeders.append(child)
-        if not (has_loads and has_shapes):
-            continue
 
-        # --- NEW: map feeder -> circuit_n and apply SKIP_CIRCUITS
-        feeder_name = child.name  # e.g., 'uhs0_1247--udt12274'
-        circ_tag = REVERSE_CIRCUIT_MAP.get(feeder_name)  # 'circuit_1', etc.
-        if circ_tag:
-            try:
-                circ_num = int(circ_tag.split('_')[-1])
-            except Exception:
-                circ_num = None
-        else:
-            circ_num = None
+    feeder_name = entry["feeder_name"]
+    circ_num = int(entry["circuit_id"])
+    if circ_num in SKIP_CIRCUITS:
+        skipped.append((feeder_name, circ_num))
+        continue
 
-        if circ_num is not None and circ_num in SKIP_CIRCUITS:
-            skipped.append((feeder_name, circ_num))
-            continue
-
-        feeders.append(child)
+    feeders.append(child)
 
 print(f'🔎 Found {len(feeders)} feeders under {SMARTDS_ROOT}')
 if skipped:
@@ -292,7 +228,12 @@ if skipped:
     for nm, n in skipped:
         print(f'   - {nm}  → circuit_{n}')
 
-if MAX_FEEDERS:
+if missing_registry_paths:
+    print(f"Registry entries missing valid DSS files: {len(missing_registry_paths)}")
+    for p in missing_registry_paths:
+        print(f"   - {p}")
+
+if MAX_FEEDERS is not None:
     feeders = feeders[:MAX_FEEDERS]
 print(f'🔎 Found {len(feeders)} feeders under {SMARTDS_ROOT}')
 
@@ -383,16 +324,8 @@ for feeder in feeders:
 
         # dst_folder_name = f"{substation_name}_circuit_{circuit_counter}_{mix_name}"
 
-        # Determine the canonical circuit number from the map
-        circ_tag = REVERSE_CIRCUIT_MAP.get(feeder_name)   # e.g. 'circuit_60'
-        if circ_tag:
-            try:
-                circ_num = int(circ_tag.split('_')[-1])
-            except Exception:
-                circ_num = circuit_counter   # safe fallback
-        else:
-            # If feeder not in map, fallback to the counter (or you can sys.exit here)
-            circ_num = circuit_counter
+        circ_tag = feeder_to_circuit.get(feeder_name)
+        circ_num = circuit_num_from_tag(circ_tag, circuit_counter)
 
         # Use the mapped circuit number in the folder name
         dst_folder_name = f"{substation_name}_circuit_{circ_num}_{mix_name}"

@@ -52,6 +52,14 @@ def try_float(x, default=None):
     try: return float(x)
     except Exception: return default
 def clamp01(x): return max(0.0, min(1.0, float(x)))
+def is_feeder_dir(path):
+    if not os.path.isdir(path):
+        return False
+    try:
+        names = {nm.lower() for nm in os.listdir(path)}
+    except PermissionError:
+        return False
+    return {"loads.dss", "loadshapes.dss", "master.dss"}.issubset(names)
 
 # Fixed irradiance (96 points)
 irradiance_winter_padded = [0.0]*30 + [0.0889,0.13254,0.17853,0.12173,0.05258,0.04381,0.03429,0.04749,0.06053,0.07725,0.09377,0.09119,0.08877,0.09676,0.10466,0.11636,0.12792,0.1476,0.16692,0.18,0.19282,0.20862,0.2245,0.2171,0.2098,0.25007,0.28447,0.31986,0.34005,0.31685,0.28823,0.24886,0.20951,0.16926,0.1312,0.09432,0.06385,0.04184,0.03615,0.03066,0.02312,0.00845]+[0.0]*25
@@ -77,10 +85,10 @@ START_TIME     = time.time()
 CIRCUIT_FOLDER = os.path.basename(CURRENT_DIR)
 PROFILES_PATH  = os.path.join('..', 'profiles_use_bench', CIRCUIT_FOLDER)
 
-# feeder subfolder (starts with 'uhs')
-subs = [d for d in os.listdir(CURRENT_DIR) if os.path.isdir(os.path.join(CURRENT_DIR,d)) and d.startswith('uhs')]
+# feeder subfolder
+subs = [d for d in os.listdir(CURRENT_DIR) if is_feeder_dir(os.path.join(CURRENT_DIR, d))]
 if not subs:
-    print("❌ No feeder subfolder (uhs*) found under this circuit folder.")
+    print("❌ No feeder subfolder with Loads, LoadShapes, and Master DSS files found.")
     sys.exit(1)
 CIRCUIT_NAME = subs[0]
 CIRCUIT_DIR  = os.path.join(CURRENT_DIR, CIRCUIT_NAME)
@@ -224,8 +232,8 @@ def ensure_redirects_before_solve(master_path):
 
 def find_controller_anchor(master_path):
     """
-    Return the element string to monitor (e.g., 'Line.l(r:udt14717-uhs0_1247)') by
-    reading Master.dss. Prefer monitor m1/m2; if missing, fall back to Energymeter.
+    Return the element string to monitor by reading Master.dss.
+    Prefer monitor m1/m2; if missing, fall back to Energymeter.
     """
     elem = None
     try:
@@ -524,7 +532,12 @@ if storage_targets:
 
         # --- Controller (only if we created storages) ---
         if n_storage > 0:
-            anchor_elem = find_controller_anchor(master_dss_path) or "Line.l(r:udt12274-uhs0_1247)"
+            anchor_elem = find_controller_anchor(master_dss_path)
+            if not anchor_elem:
+                raise RuntimeError(
+                    "Could not infer StorageController anchor from Master.dss. "
+                    "Expected a Monitor.m1/m2 element or an Energymeter element."
+                )
             kw_target   = max(50.0, total_storage_kW * SC_KW_TARGET_FACTOR)
 
             f_st.write("\n! ==========================\n! STORAGE CONTROLLER\n! ==========================\n\n")

@@ -15,8 +15,8 @@ import csv
 from pathlib import Path
 
 # --- Config (change if you need different behavior) ---
-# Regex for folders like: uhs0_1247_circuit_1_0
-FOLDER_REGEX = r"^uhs\d+_\d+_circuit_\d+_\d+$"
+# Regex for instantiated folders: <substation>_circuit_<id>_<scenario>
+FOLDER_REGEX = r"^.+_circuit_\d+_.+$"
 # Minimum required size for m1/m2 CSVs
 MIN_SIZE_BYTES = 1024  # 1 KiB = 1024 bytes
 # Robust token match for "m1"/"m2" that won't hit "m12", "m20", etc.
