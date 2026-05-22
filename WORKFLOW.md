@@ -76,6 +76,7 @@ current Anaconda Prompt session:
 | `PIPELINE_STATE` | `state` |
 | `PIPELINE_SEASON` | `season` |
 | `PIPELINE_SMART_DS_ROOT` | `smart_ds_root` |
+| `PIPELINE_SMART_DS_PARQUET_ROOT` | `smart_ds_parquet_root` |
 | `PIPELINE_FEEDER_REGISTRY_PATH` | `feeder_registry_path` |
 | `PIPELINE_MAX_FEEDERS` | `max_feeders`; use `none` or `null` to clear the limit |
 
@@ -103,10 +104,10 @@ Start with the focused download/staging instructions in
   `D:\lvg\GSO\rural\base_timeseries\opendss`
 
 The current matching scripts also expect SMART-DS source load parquets in a
-local `parquet_data` folder for Phase 2, and Phase 6 still expects original
-reactive-power parquets through the legacy relative path
-`..\3b_smartds_eulp_match\parquet_data`. Those two paths are handoff points
-listed below.
+local `parquet_data` folder for Phase 2, and Phase 6 reads original
+reactive-power parquets from `smart_ds_parquet_root`
+(`PIPELINE_SMART_DS_PARQUET_ROOT`). Those two paths are handoff points listed
+below.
 
 ## 2. Phase-by-phase execution
 
@@ -132,7 +133,7 @@ commands. For full runs, omit that option.
 | 5d | `5d_scenario_controls` | `plot_parquet_differences.py`, `get_scenario_csv_controls.py` | Phase 5a EULP parquets, Phase 5b baseline mapping CSVs | `plot_parquet_differences\combined_scenarios.csv`, `get_scenario_csv_controls\*_dm.csv`, `*_uncontrolled.csv` | `pushd 5d_scenario_controls`<br>`python plot_parquet_differences.py`<br>`python get_scenario_csv_controls.py`<br>`popd` |
 | 5b variants | `5b_profile_generation` | `find_max_day_curve_dm.py`, `find_max_day_curve_uncontrolled.py` | Phase 5d DM/uncontrolled control CSVs and Phase 5a EULP parquets | DM and uncontrolled daily parquets under `5b_profile_generation\daily_parquets` | `pushd 5b_profile_generation`<br>`python find_max_day_curve_dm.py`<br>`python find_max_day_curve_uncontrolled.py`<br>`popd` |
 | 5c | `5c_csv_conversion` | `parquet_to_csv.py` | `5b_profile_generation\daily_parquets`, root `feeder_registry.json`, Phase 5d DM mapping CSV | circuit loadshape CSV folders, `folder_timestamps.pkl`, `folder_equiv.pkl`, `folder_list_loadshapes.pkl` | `pushd 5c_csv_conversion`<br>`python parquet_to_csv.py`<br>`popd` |
-| 6 | `6_kvar_preparation` | `save_needed_sd_parquets.py`, `rev_spec_kvar_kw_ratio.py`, `generate_kvar_csvs.py` | Phase 5b mapping CSV, Phase 5c CSV folders and `folder_timestamps.pkl`, original source parquets at `..\3b_smartds_eulp_match\parquet_data` | `needed_parquets.pkl`, `kvar_ratios.pkl`, matching `_kvar_` CSVs beside `_kw_` CSVs | copy/symlink Phase 5c CSV folders and `folder_timestamps.pkl` into `6_kvar_preparation`, then:<br>`pushd 6_kvar_preparation`<br>`python save_needed_sd_parquets.py`<br>`python rev_spec_kvar_kw_ratio.py`<br>`python generate_kvar_csvs.py`<br>`popd` |
+| 6 | `6_kvar_preparation` | `save_needed_sd_parquets.py`, `rev_spec_kvar_kw_ratio.py`, `generate_kvar_csvs.py` | Phase 5b mapping CSV, Phase 5c CSV folders and `folder_timestamps.pkl`, original source parquets at `smart_ds_parquet_root` | `needed_parquets.pkl`, `kvar_ratios.pkl`, matching `_kvar_` CSVs beside `_kw_` CSVs | copy/symlink Phase 5c CSV folders and `folder_timestamps.pkl` into `6_kvar_preparation`, then:<br>`pushd 6_kvar_preparation`<br>`python save_needed_sd_parquets.py`<br>`python rev_spec_kvar_kw_ratio.py`<br>`python generate_kvar_csvs.py`<br>`popd` |
 | 7 | `7_circuit_instantiation` | `instantiate_circuits_and_runs_APPLYFILTER.py`, `run_all_deploys_v2.py`, `check_monitor_outputs.py`, `aggregate_m1_m2_with_circuits.py` | root `feeder_registry.json`, `smart_ds_root`, `0_experimental_design\mixes_lhs.json`, profile roots `%PIPELINE_STATE%_4_profhp`, `%PIPELINE_STATE%_6_profhp_dm`, `%PIPELINE_STATE%_7_profhp_un` | prepared circuit folders, `profiles_use_bench`, OpenDSS monitor CSVs, `aggregate_m1.csv`, `aggregate_m2.csv`, `circuit_summary.csv`, heating assignment audit files | `pushd 7_circuit_instantiation`<br>`python instantiate_circuits_and_runs_APPLYFILTER.py`<br>`python run_all_deploys_v2.py`<br>`python check_monitor_outputs.py`<br>`python aggregate_m1_m2_with_circuits.py`<br>`popd` |
 | 8 | `8_results_analysis` | `append_experiment_results.py`, `append_xlrm_long_format.py`, `figure_generation_methodsx_v3.py` | Phase 7 aggregate CSVs, Phase 0 scenario long CSV, Phase 3 commercial match CSV | combined CSVs and figure PNGs in `8_results_analysis` | `pushd 8_results_analysis`<br>`python append_experiment_results.py`<br>`python append_xlrm_long_format.py`<br>`python figure_generation_methodsx_v3.py`<br>`popd` |
 
@@ -153,7 +154,7 @@ symlinks, or a shared generated location.
 | `5d_scenario_controls\get_scenario_csv_controls\*_dm.csv` and `*_uncontrolled.csv` | `5b_profile_generation` and `5c_csv_conversion` | No copy required for the current wrappers; they read from the Phase 5d output folder. | Already partially automated. |
 | `5b_profile_generation\daily_parquets` | `5c_csv_conversion` | No copy required; Phase 5c searches `..\5b_profile_generation\daily_parquets`. | Already automated. |
 | Phase 5c circuit CSV folders plus `folder_timestamps.pkl` | `6_kvar_preparation\` | Manual copy or symlink required before Phase 6 because the Phase 6 scripts operate in their current folder. | Yes. Add an output root such as `daily_csvs` to config. |
-| Original SMART-DS reactive-power parquets | `..\3b_smartds_eulp_match\parquet_data` relative to `6_kvar_preparation` | Manual symlink/copy required because `rev_spec_kvar_kw_ratio.py` still has a hardcoded legacy path. | Yes. Replace the hardcoded path with `pipeline_config.yaml`. |
+| Original SMART-DS reactive-power parquets | `smart_ds_parquet_root` / `PIPELINE_SMART_DS_PARQUET_ROOT` | Point this config value or env var at the source parquets before Phase 6. | Automated. |
 | Kvar-enriched profile folders from Phase 6 | `%PIPELINE_STATE%_4_profhp\daily_csvs`, `%PIPELINE_STATE%_6_profhp_dm\daily_csvs`, `%PIPELINE_STATE%_7_profhp_un\daily_csvs` | Manual staging required. Phase 7 expects these root folders and indexes CSVs under their `daily_csvs` subfolders. | Yes. Phase 5c/6 should write directly into the profile roots by variant. |
 | `0_experimental_design\mixes_lhs.json` | Phase 7 fixed path | No copy required; Phase 7 reads the file directly. | Already automated, but the design file choice could be configurable. |
 | `7_circuit_instantiation\aggregate_m2.csv`, `circuit_summary.csv`, `heating_assignment__FULL.csv` | `8_results_analysis` combined outputs | No copy required; Phase 8 reads from `7_circuit_instantiation`. | Already automated. |
@@ -239,7 +240,7 @@ python parquet_to_csv.py
 popd
 
 :: Phase 6: add kvar CSVs.
-:: Create or symlink ..\3b_smartds_eulp_match\parquet_data to the original SMART-DS reactive-power parquets first.
+:: Set PIPELINE_SMART_DS_PARQUET_ROOT or smart_ds_parquet_root to the original SMART-DS reactive-power parquets first.
 copy /Y 5c_csv_conversion\folder_timestamps.pkl 6_kvar_preparation\
 for /d %D in (5c_csv_conversion\%PIPELINE_STATE%_circuit_*_%PIPELINE_SEASON%) do xcopy /E /I /Y "%D" "6_kvar_preparation\%~nxD\"
 pushd 6_kvar_preparation

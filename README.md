@@ -11,16 +11,19 @@ Edit `pipeline_config.yaml` at the repository root before running the pipeline:
 state: "NC"
 season: "summer"
 smart_ds_root: "../3_smartds"
+smart_ds_parquet_root: "3b_smartds_eulp_match/parquet_data"
 parquet_data_root: "../parquet_data"
 eulp_download_date: "20250330"
 random_seed: 555
 ```
 
-`PIPELINE_STATE` and `PIPELINE_SEASON` override the YAML values when set:
+`PIPELINE_STATE`, `PIPELINE_SEASON`, and path overrides replace the YAML values
+when set:
 
 ```powershell
 $env:PIPELINE_STATE = "TX"
 $env:PIPELINE_SEASON = "summer"
+$env:PIPELINE_SMART_DS_PARQUET_ROOT = "D:\path\to\smartds\parquet_data"
 ```
 
 The primary runnable scripts are state-agnostic. Some original `*_NC.py` files

@@ -2,6 +2,7 @@
 state: "NC"                    # Two-letter US state code
 season: "summer"               # "summer" or "winter"
 smart_ds_root: "../3_smartds"  # Path to SMART-DS feeder data
+smart_ds_parquet_root: "3b_smartds_eulp_match/parquet_data"  # Original SMART-DS load parquets for Phase 6 kvar ratios
 parquet_data_root: "../parquet_data"  # Path to EULP parquet data
 eulp_download_date: "20250330" # Date stamp for download folders
 random_seed: 555
