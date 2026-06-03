@@ -1,97 +1,43 @@
 # -*- coding: utf-8 -*-
 """
-Created on Sun Mar  9 20:27:09 2025
+Optimized tolerance matching for the SMART-DS x EULP coupling pipeline.
 
-@author: luisfernando
+Drop-in replacement for match_smartds_parquets_NC.py. Produces matches identical
+to the original triple-nested-loop version, but vectorized.
+
+Two methods are provided:
+  - "exact": keeps the original comparison  abs(B - ref) <= (T/100)*ref  bit-for-bit,
+             vectorized over all buildings; the tolerance loop is preserved.
+  - "fast" : single pass. For each building it computes the minimum tolerance it would
+             need to match every constraint, then picks the smallest tolerance bucket
+             at which anything matches. No tolerance loop at all.
+
+Set MATCH_METHOD to choose which result is WRITTEN. CROSS_CHECK runs both and asserts
+they agree (sorted matched ids + tolerance, per source file) before writing.
+
+The two methods are algebraically identical for non-negative reference peaks; the only
+possible divergence is floating-point rounding at an exact tolerance-bucket boundary,
+which CROSS_CHECK will catch. The "exact" method is the safe default.
 """
 
 import os
-import pandas as pd
 import sys
-from copy import deepcopy
 import time
+import numpy as np
+import pandas as pd
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+# --------------------------------------------------------------------------- knobs
+MATCH_METHOD = "exact"   # "exact" (bit-identical, safe) or "fast" (single-pass)
+CROSS_CHECK = True       # run both methods and assert agreement before writing
+# ---------------------------------------------------------------------------------
 
-START_TIME = time.time()
+COM_TOLERANCES = list(range(5, 55, 5))    # 5..50  (original commercial range)
+RES_TOLERANCES = list(range(5, 100, 5))   # 5..95  (original residential range)
 
-cfg = load_config()
-STATE = cfg['state']
-SEASON = cfg['season']
-STATE_STR = STATE
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
-PHASE1_OUTPUT_DIR = os.path.join(REPO_ROOT, '1_data_provenance', 'outputs', 'pipeline_state')
+WINTER_MONTHS = [12, 1, 2]
+SUMMER_MONTHS = [6, 7, 8]
 
-
-def metadata_csv(filename):
-    candidates = [
-        os.path.join(SCRIPT_DIR, filename),
-        os.path.join(PHASE1_OUTPUT_DIR, filename),
-        os.path.join(REPO_ROOT, filename),
-    ]
-    for candidate in candidates:
-        if os.path.exists(candidate):
-            return candidate
-    return candidates[1]
-
-'''
-GOAL: to find a suitable match, per state, to each row in review_parquet_matches.csv
-'''
-
-# 1. READ THE CSV FILES
-df_matches = pd.read_csv("review_parquet_matches.csv")
-df_com_ALL = pd.read_csv(metadata_csv("commercial_data_SELECT_STATES.csv"))
-df_res_ALL = pd.read_csv(metadata_csv("residential_data_SELECT_STATES.csv"))
-
-df_com = df_com_ALL.loc[df_com_ALL['State'] == STATE_STR]
-df_res = df_res_ALL.loc[df_res_ALL['State'] == STATE_STR]
-
-df_com_states = list(set(df_com['State'].tolist()))
-df_com_states.sort()
-df_res_states = list(set(df_res['State'].tolist()))
-df_res_states.sort()
-
-# Define variables holding the column names
-cols_review = df_matches.columns.tolist()
-cols_commercial = df_com.columns.tolist()
-cols_residential = df_res.columns.tolist()
-
-# 2. PREPARE A PIVOT OF THE REVIEW_PARQUET_MATCHES FOR COMMERCIAL
-#    We want a row per Source_File with columns for each month’s peak.
-df_matches_com = df_matches[df_matches["Type"] == "com"].copy()
-
-# Pivot so that each Source_File has up to 12 columns: Peak_1, Peak_2, ...
-df_matches_com_pivot = df_matches_com.pivot(
-    index="Source_File", 
-    columns="Month", 
-    values="Monthly_Peak"
-).reset_index()
-
-# The pivot columns will be months 1..12, named as integers. Let’s rename them for clarity.
-# e.g. 1 -> Peak_1, 2 -> Peak_2, etc.
-df_matches_com_pivot.columns = [
-    "Source_File" if col == "Source_File" else f"Peak_{col}"
-    for col in df_matches_com_pivot.columns
-]
-
-# print('Stop here')
-# sys.exit()
-
-df_matches_com_pivot_states = []
-for st in df_com_states:
-    # Create a copy for each state and add a "State" column
-    df_temp = df_matches_com_pivot.copy()
-    df_temp["State"] = st  # Assign the state
-    df_matches_com_pivot_states.append(df_temp)
-
-# Combine all the state-based instances into one DataFrame
-df_matches_com_pivot_expanded = pd.concat(df_matches_com_pivot_states, ignore_index=True)
-
-# 3. CREATE A MAP FROM MONTH INTEGER TO COMMERCIAL COLUMN NAME
-#    so we know which column to compare to for each month
-month_to_peak_col_com = {
+MONTH_TO_PEAK_COL_COM = {
     1: "out.qoi.maximum_daily_peak_jan..kw",
     2: "out.qoi.maximum_daily_peak_feb..kw",
     3: "out.qoi.maximum_daily_peak_mar..kw",
@@ -106,209 +52,199 @@ month_to_peak_col_com = {
     12: "out.qoi.maximum_daily_peak_dec..kw",
 }
 
-# print('get until here')
-# sys.exit()
 
-SORT_COM_BOOL = True
-# SORT_COM_BOOL = False
-if SORT_COM_BOOL:
-    # 4. MATCH COMMERCIAL ROWS
-    commercial_matches_list = []
+# =============================================================================
+# Core matcher
+# =============================================================================
+def match_one(ref_vals, bldg_cols, bldg_ids, tolerances, method):
+    """Match one source file against a population of buildings.
 
-    # Iterate each unique Source_File row from the pivot
-    for _, row in df_matches_com_pivot_expanded.iterrows():
-        source_file = row["Source_File"]
-        this_state = row["State"]
-        print('Finding matches for: ', source_file, this_state)
+    A building matches at tolerance T iff for every constraint i:
+        abs(bldg_cols[:, i] - ref_vals[i]) <= (T/100) * ref_vals[i]
 
-        # We’ll collect all building_ids that match
-        matched_bldgs = []
-        best_tolerance = None  # Store the first tolerance that worked
+    Returns (matched_ids_as_python_int_list, best_tolerance_or_None).
+    Matched ids preserve the row order of bldg_ids (== original iterrows order).
 
-        # We will store matched buildings once we find them at a given tolerance
-        final_matched_bldgs = []
+    ref_vals : (k,)   already NaN-filtered reference peaks (only active constraints)
+    bldg_cols: (n, k)  building values aligned to each constraint
+    bldg_ids : (n,)
+    """
+    k = ref_vals.shape[0]
 
-        # Filter df_com to only buildings in that state
-        df_com_filtered = df_com[df_com["State"] == this_state]
+    if k == 0:
+        # No active constraints -> original code leaves all_months_match=True for every
+        # building, so everything matches at the smallest tolerance.
+        return bldg_ids.tolist(), int(tolerances[0])
 
-        # Try different tolerance levels (5%, 10%, 15%, ..., 50%)
-        for tolerance in range(5, 55, 5):
-            matched_bldgs = []  # Reset matches for each tolerance level
+    if method == "exact":
+        diff = np.abs(bldg_cols - ref_vals[np.newaxis, :])      # (n, k); NaN where bldg NaN
+        for T in tolerances:
+            band = (T / 100.0) * ref_vals                       # (k,)
+            ok = (diff <= band[np.newaxis, :]).all(axis=1)      # (n,)
+            if ok.any():
+                return bldg_ids[ok].tolist(), int(T)
+        return [], None
 
-            for _, bldg_row in df_com_filtered.iterrows():
-                all_months_match = True
+    if method == "fast":
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rel = np.abs(bldg_cols - ref_vals[np.newaxis, :]) / ref_vals[np.newaxis, :] * 100.0
+        # ref == 0 -> band is 0 -> requires bldg == 0 exactly (else never matches)
+        for c in np.where(ref_vals == 0)[0]:
+            rel[:, c] = np.where(bldg_cols[:, c] == 0, 0.0, np.inf)
+        # building NaN on a finite ref -> rel is NaN -> never matches
+        rel = np.where(np.isnan(rel), np.inf, rel)
+        req_tol = rel.max(axis=1)                               # min tolerance each bldg needs
+        tarr = np.asarray(tolerances, dtype=float)
+        ge = tarr[tarr >= req_tol.min()]
+        if ge.size == 0:
+            return [], None
+        best_T = int(ge[0])
+        ok = req_tol <= best_T
+        return bldg_ids[ok].tolist(), best_T
 
-                for m in range(1, 13):
-                    col_name = f"Peak_{m}"
-                    if pd.isna(row[col_name]):
-                        continue  # Skip missing months
+    raise ValueError(f"unknown method: {method!r}")
 
-                    ref_peak = row[col_name]
-                    building_peak = bldg_row[month_to_peak_col_com[m]]
 
-                    # Check if the building peak is within the tolerance range
-                    if not (abs(building_peak - ref_peak) <= (tolerance / 100) * ref_peak):
-                        all_months_match = False
-                        break  # Stop checking this building if any month fails
+# =============================================================================
+# Build the per-source-file constraints and run the matcher across all rows
+# =============================================================================
+def _pivot_refs(df_matches, kind):
+    """Pivot review_parquet_matches into (source_files, ref_matrix[n_src, 12])."""
+    sub = df_matches[df_matches["Type"] == kind]
+    pivot = sub.pivot(index="Source_File", columns="Month", values="Monthly_Peak")
+    pivot = pivot.reindex(columns=range(1, 13))  # ensure all 12 months exist (NaN if absent)
+    return pivot.index.to_numpy(), pivot.to_numpy(dtype=float)
 
-                if all_months_match:
-                    matched_bldgs.append(bldg_row["bldg_id"])
 
-            if matched_bldgs:
-                final_matched_bldgs = matched_bldgs
-                best_tolerance = tolerance
-                break
+def match_commercial(df_matches, df_com, method):
+    src_files, ref_all = _pivot_refs(df_matches, "com")
+    com_cols = [MONTH_TO_PEAK_COL_COM[m] for m in range(1, 13)]
+    states = sorted(df_com["State"].unique().tolist())
 
-        # After trying all tolerances, store the final result for this row
-        commercial_matches_list.append({
-            "Source_File": source_file,
-            "State": this_state,
-            "Matched_Buildings": final_matched_bldgs,
-            "Tolerance": best_tolerance
-        })
+    out = []
+    for st in states:
+        sub = df_com[df_com["State"] == st]
+        B = sub[com_cols].to_numpy(dtype=float)        # (n, 12)
+        ids = sub["bldg_id"].to_numpy()
+        for i, sf in enumerate(src_files):
+            r = ref_all[i]
+            valid = ~np.isnan(r)
+            matched, best_T = match_one(r[valid], B[:, valid], ids, COM_TOLERANCES, method)
+            out.append({"Source_File": sf, "State": st,
+                        "Matched_Buildings": matched, "Tolerance": best_T})
+    return out
 
-    df_com_matches_out = pd.DataFrame(commercial_matches_list)
-    df_com_matches_out.to_csv("df_com_matches_out_" + STATE_STR + ".csv", index=False)
 
-    # 1) Get all unique building IDs from df_com
-    all_com_bldg_ids = set(df_com["bldg_id"].unique())
-    total_com_buildings = len(all_com_bldg_ids)
+def match_residential(df_matches, df_res, method):
+    src_files, ref_all = _pivot_refs(df_matches, "res")
+    states = sorted(df_res["State"].unique().tolist())
 
-    # 2) Flatten the "Matched_Buildings" lists from df_com_matches_out
-    #    Each row has a list of building IDs, so we union them all into one set:
-    matched_bldg_ids = set().union(*df_com_matches_out["Matched_Buildings"])
-    total_matched = len(matched_bldg_ids)
+    out = []
+    for st in states:
+        sub = df_res[df_res["State"] == st]
+        Bw = sub["out.electricity.winter.peak.kw"].to_numpy(dtype=float)
+        Bs = sub["out.electricity.summer.peak.kw"].to_numpy(dtype=float)
+        ids = sub["bldg_id"].to_numpy()
+        for i, sf in enumerate(src_files):
+            r = ref_all[i]
+            winter_refs = [r[m - 1] for m in WINTER_MONTHS if not np.isnan(r[m - 1])]
+            summer_refs = [r[m - 1] for m in SUMMER_MONTHS if not np.isnan(r[m - 1])]
+            ref_vals = np.asarray(winter_refs + summer_refs, dtype=float)
+            cols = [Bw] * len(winter_refs) + [Bs] * len(summer_refs)
+            bldg_cols = np.column_stack(cols) if cols else np.empty((ids.shape[0], 0))
+            matched, best_T = match_one(ref_vals, bldg_cols, ids, RES_TOLERANCES, method)
+            out.append({"Source_File": sf, "State": st,
+                        "Matched_Buildings": matched, "Tolerance": best_T})
+    return out
 
-    '''
-    Below we just double "check total_matched" and "total_matched_set" are the same.
-    '''
-    matched_bldg_ids_retest = []
-    for alists in df_com_matches_out["Matched_Buildings"].tolist():
-        matched_bldg_ids_retest += alists
-        # print('check what is going on')
-        # sys.exit()
-    matched_bldg_ids_set = list(set(matched_bldg_ids_retest))
-    total_matched_set = len(matched_bldg_ids_set)
 
-    # 3) Print a summary
-    print(f"Number of unique building IDs in df_com: {total_com_buildings}")
-    print(f"Number of unique matched building IDs: {total_matched}")
-    print(f"That's {100.0 * total_matched / total_com_buildings:.2f}% of the commercial dataset.")
+# =============================================================================
+# Cross-check
+# =============================================================================
+def _assert_agree(rows_a, rows_b, label):
+    assert len(rows_a) == len(rows_b), f"{label}: row count differs"
+    for ra, rb in zip(rows_a, rows_b):
+        assert ra["Source_File"] == rb["Source_File"] and ra["State"] == rb["State"], \
+            f"{label}: row alignment differs at {ra['Source_File']}/{ra['State']}"
+        assert ra["Tolerance"] == rb["Tolerance"], \
+            f"{label}: tolerance differs at {ra['Source_File']}/{ra['State']}"
+        assert sorted(ra["Matched_Buildings"]) == sorted(rb["Matched_Buildings"]), \
+            f"{label}: matched set differs at {ra['Source_File']}/{ra['State']}"
+    return len(rows_a)
 
-# 5. PREPARE THE REVIEW_PARQUET_MATCHES FOR RESIDENTIAL
-df_matches_res = df_matches[df_matches["Type"] == "res"].copy()
 
-# Pivot so each Source_File has up to 12 columns: Peak_1..Peak_12
-df_matches_res_pivot = df_matches_res.pivot(
-    index="Source_File",
-    columns="Month",
-    values="Monthly_Peak"
-).reset_index()
+# =============================================================================
+# Main
+# =============================================================================
+def main():
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    from pipeline_utils import load_config
 
-df_matches_res_pivot.columns = [
-    "Source_File" if col == "Source_File" else f"Peak_{col}"
-    for col in df_matches_res_pivot.columns
-]
+    start = time.time()
+    cfg = load_config()
+    state = cfg["state"]
 
-# Expand by state (similar to commercial)
-df_matches_res_pivot_states = []
-for st in df_res_states:
-    df_temp = df_matches_res_pivot.copy()
-    df_temp["State"] = st
-    df_matches_res_pivot_states.append(df_temp)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(script_dir, ".."))
+    phase1_out = os.path.join(repo_root, "1_data_provenance", "outputs", "pipeline_state")
 
-df_matches_res_pivot_expanded = pd.concat(df_matches_res_pivot_states, ignore_index=True)
+    def metadata_csv(filename):
+        for c in (os.path.join(script_dir, filename),
+                  os.path.join(phase1_out, filename),
+                  os.path.join(repo_root, filename)):
+            if os.path.exists(c):
+                return c
+        return os.path.join(phase1_out, filename)
 
-# ---- RESIDENTIAL MATCHING ----
-SORT_RES_BOOL = True
-# SORT_RES_BOOL = False
-if SORT_RES_BOOL:
-    residential_matches_list = []
+    df_matches = pd.read_csv("review_parquet_matches.csv")
+    df_com = pd.read_csv(metadata_csv("commercial_data_SELECT_STATES.csv"))
+    df_res = pd.read_csv(metadata_csv("residential_data_SELECT_STATES.csv"))
+    df_com = df_com.loc[df_com["State"] == state]
+    df_res = df_res.loc[df_res["State"] == state]
 
-    for _, row in df_matches_res_pivot_expanded.iterrows():
-        source_file = row["Source_File"]
-        this_state = row["State"]
-        print("Finding residential matches for:", source_file, this_state)
+    if CROSS_CHECK:
+        t = time.time()
+        com_exact = match_commercial(df_matches, df_com, "exact")
+        res_exact = match_residential(df_matches, df_res, "exact")
+        print(f"[exact] matching: {time.time() - t:.3f}s")
 
-        df_res_filtered = df_res[df_res["State"] == this_state]
+        t = time.time()
+        com_fast = match_commercial(df_matches, df_com, "fast")
+        res_fast = match_residential(df_matches, df_res, "fast")
+        print(f"[fast ] matching: {time.time() - t:.3f}s")
 
-        best_tolerance = None
-        final_matched_bldgs = []
+        n = _assert_agree(com_exact, com_fast, "commercial")
+        n += _assert_agree(res_exact, res_fast, "residential")
+        print(f"cross-check: PASS ({n} source-file rows identical between exact and fast)")
+        com_rows = com_exact if MATCH_METHOD == "exact" else com_fast
+        res_rows = res_exact if MATCH_METHOD == "exact" else res_fast
+    else:
+        com_rows = match_commercial(df_matches, df_com, MATCH_METHOD)
+        res_rows = match_residential(df_matches, df_res, MATCH_METHOD)
 
-        # Tolerances from 5% to 50%
-        for tolerance in range(5, 100, 5):
-            matched_bldgs = []
+    df_com_matches_out = pd.DataFrame(com_rows)
+    df_com_matches_out.to_csv(f"df_com_matches_out_{state}.csv", index=False)
+    df_res_matches_out = pd.DataFrame(res_rows)
+    df_res_matches_out.to_csv(f"df_res_matches_out_{state}.csv", index=False)
 
-            for _, bldg_row in df_res_filtered.iterrows():
-                # 1) Check winter (12,1,2)
-                match_winter = True
-                for m in [12, 1, 2]:
-                    col_name = f"Peak_{m}"
-                    if pd.isna(row[col_name]):
-                        continue
+    # ---- summaries (same as original) ----
+    total_com = df_com["bldg_id"].nunique()
+    matched_com = len(set().union(*df_com_matches_out["Matched_Buildings"])) if len(df_com_matches_out) else 0
+    print(f"Number of unique building IDs in df_com: {total_com}")
+    print(f"Number of unique matched building IDs: {matched_com}")
+    if total_com:
+        print(f"That's {100.0 * matched_com / total_com:.2f}% of the commercial dataset.")
 
-                    ref_peak = row[col_name]
-                    building_winter_peak = bldg_row["out.electricity.winter.peak.kw"]
-
-                    if not (abs(building_winter_peak - ref_peak) <= (tolerance/100)*ref_peak):
-                        match_winter = False
-                        break
-
-                # 2) Check summer (6,7,8)
-                match_summer = True
-                for m in [6, 7, 8]:
-                    col_name = f"Peak_{m}"
-                    if pd.isna(row[col_name]):
-                        continue
-
-                    ref_peak = row[col_name]
-                    building_summer_peak = bldg_row["out.electricity.summer.peak.kw"]
-
-                    if not (abs(building_summer_peak - ref_peak) <= (tolerance/100)*ref_peak):
-                        match_summer = False
-                        break
-
-                # Only match if both winter & summer pass
-                if match_winter and match_summer:
-                    matched_bldgs.append(bldg_row["bldg_id"])
-
-            if matched_bldgs:
-                final_matched_bldgs = matched_bldgs
-                best_tolerance = tolerance
-                break
-
-        residential_matches_list.append({
-            "Source_File": source_file,
-            "State": this_state,
-            "Matched_Buildings": final_matched_bldgs,
-            "Tolerance": best_tolerance
-        })
-
-    df_res_matches_out = pd.DataFrame(residential_matches_list)
-    df_res_matches_out.to_csv("df_res_matches_out_" + STATE_STR + ".csv", index=False)
-
-    # Summaries
-    all_res_bldg_ids = set(df_res["bldg_id"].unique())
-    total_res_buildings = len(all_res_bldg_ids)
-
-    matched_bldg_ids_res = set().union(*df_res_matches_out["Matched_Buildings"])
-    total_matched_res = len(matched_bldg_ids_res)
-
-    matched_bldg_ids_res_retest = []
-    for alists in df_res_matches_out["Matched_Buildings"].tolist():
-        matched_bldg_ids_res_retest += alists
-    matched_bldg_ids_res_set = list(set(matched_bldg_ids_res_retest))
-    total_matched_res_set = len(matched_bldg_ids_res_set)
-
+    total_res = df_res["bldg_id"].nunique()
+    matched_res = len(set().union(*df_res_matches_out["Matched_Buildings"])) if len(df_res_matches_out) else 0
     print("=== Residential Matching Summary ===")
-    print(f"Number of unique building IDs in df_res: {total_res_buildings}")
-    print(f"Number of unique matched building IDs: {total_matched_res}")
-    print(f"That's {100.0 * total_matched_res / total_res_buildings:.2f}% of the residential dataset.")
+    print(f"Number of unique building IDs in df_res: {total_res}")
+    print(f"Number of unique matched building IDs: {matched_res}")
+    if total_res:
+        print(f"That's {100.0 * matched_res / total_res:.2f}% of the residential dataset.")
     print("====================================")
+    print(f"Time taken: {time.time() - start} seconds")
 
-END_TIME = time.time()
 
-# Calculate and print elapsed time
-ELAPSED_TIME = END_TIME - START_TIME
-print(f"Time taken: {ELAPSED_TIME} seconds")
-
+if __name__ == "__main__":
+    main()

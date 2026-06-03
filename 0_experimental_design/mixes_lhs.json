@@ -1,0 +1,62 @@
+{
+  "fire_baseline": {
+    "shares": {
+      "baseline": 1.0,
+      "dm": 0.0,
+      "un": 0.0
+    },
+    "heating_seed": 555,
+    "ev_perc": 0.1,
+    "ev_lvl2_perc": 0.8,
+    "ev_seed": 555,
+    "storage_perc_3ph": 0.05,
+    "storage_seed": 555,
+    "pv_perc_3ph": 0.05,
+    "pv_seed": 555,
+    "disjoint_sets": true,
+    "ev_split": {
+      "controlled": 0.5,
+      "uncontrolled": 0.5
+    }
+  },
+  "fire_mixed": {
+    "shares": {
+      "baseline": 0.5,
+      "dm": 0.3,
+      "un": 0.2
+    },
+    "heating_seed": 556,
+    "ev_perc": 0.2,
+    "ev_lvl2_perc": 0.8,
+    "ev_seed": 556,
+    "storage_perc_3ph": 0.1,
+    "storage_seed": 556,
+    "pv_perc_3ph": 0.1,
+    "pv_seed": 556,
+    "disjoint_sets": true,
+    "ev_split": {
+      "controlled": 0.6,
+      "uncontrolled": 0.4
+    }
+  },
+  "fire_stress": {
+    "shares": {
+      "baseline": 0.2,
+      "dm": 0.2,
+      "un": 0.6
+    },
+    "heating_seed": 557,
+    "ev_perc": 0.3,
+    "ev_lvl2_perc": 0.9,
+    "ev_seed": 557,
+    "storage_perc_3ph": 0.15,
+    "storage_seed": 557,
+    "pv_perc_3ph": 0.15,
+    "pv_seed": 557,
+    "disjoint_sets": false,
+    "ev_split": {
+      "controlled": 0.4,
+      "uncontrolled": 0.6
+    }
+  }
+}

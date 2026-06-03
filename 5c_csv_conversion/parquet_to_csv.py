@@ -55,8 +55,23 @@ feeder_by_folder_key = {
 # 2) Load the three mapping CSVs
 # ---------------------------------------------------------------------
 
-control_output_dir = os.path.join(SCRIPT_DIR, "..", "5d_scenario_controls", "get_scenario_csv_controls")
-df_state = pd.read_csv(os.path.join(control_output_dir, f"{STATE}_parquet_and_bldgs_dm.csv"))
+# Scenario selection: "" = baseline, "dm", "uncontrolled"
+SCENARIO = cfg.get("scenario", "")
+# CLI override: python parquet_to_csv.py --scenario dm
+for _i, _arg in enumerate(sys.argv):
+    if _arg == "--scenario" and _i + 1 < len(sys.argv):
+        SCENARIO = sys.argv[_i + 1]
+        break
+_scen_suffix = f"_{SCENARIO}" if SCENARIO else ""
+print(f"\n  Scenario: '{SCENARIO or 'baseline'}'  (suffix: '{_scen_suffix}')")
+
+if SCENARIO in ("dm", "uncontrolled"):
+    control_output_dir = os.path.join(SCRIPT_DIR, "..", "5d_scenario_controls", "get_scenario_csv_controls")
+    df_state = pd.read_csv(os.path.join(control_output_dir, f"{STATE}_parquet_and_bldgs_{SCENARIO}.csv"))
+else:
+    # Baseline: read directly from 5b profile generation
+    baseline_csv = os.path.join(SCRIPT_DIR, "..", "5b_profile_generation", f"{STATE}_parquet_and_bldgs.csv")
+    df_state = pd.read_csv(baseline_csv)
 df_state["STATE"] = STATE
 
 df_mapping = pd.concat([df_state], ignore_index=True)
@@ -77,10 +92,19 @@ folder_list_raw = deepcopy(folder_list)
 
 folder_list = [i for i in folder_list_raw if 'RES_' not in i]
 
+# Scenario-aware folder filtering
+if SCENARIO:
+    folder_list = [f for f in folder_list if f.endswith(_scen_suffix)]
+else:
+    folder_list = [f for f in folder_list
+                   if not f.endswith("_dm") and not f.endswith("_uncontrolled")]
+
 #folder_list = [folder_list_raw[0]]
 
 for folder_name in folder_list:
-    parts = folder_name.split("_")
+    # Strip scenario suffix before parsing state/feeder/season
+    _parse_name = folder_name[:-len(_scen_suffix)] if _scen_suffix else folder_name
+    parts = _parse_name.split("_")
     if len(parts) < 3:
         print(f"Skipping {folder_name} (unexpected format)")
         # continue
@@ -105,7 +129,7 @@ for folder_name in folder_list:
         circuit_id_orig = deepcopy(circuit_id)
         circuit_id = 'RES_' + circuit_id_orig
 
-    output_folder_name = f"{state}_{circuit_id}_{season}"
+    output_folder_name = f"{state}_{circuit_id}_{season}{_scen_suffix}"
     out_folder = os.path.join(output_folder_name)
     os.makedirs(out_folder, exist_ok=True)
 
@@ -119,8 +143,7 @@ for folder_name in folder_list:
 
     if df_filtered.empty:
         print(f"   ⚠️ No rows in mapping for {folder_name}. Skipping.")
-        # continue
-        sys.exit()
+        continue
 
     subfolder_path = os.path.join(base_parquet_dir, folder_name)
     parquet_files  = [p for p in os.listdir(subfolder_path) if p.endswith(".parquet")]
@@ -174,8 +197,7 @@ for folder_name in folder_list:
             df_parq = table.to_pandas()
         except Exception as e:
             print(f"   ⚠️ Error reading {parquet_fullpath}: {e}")
-            # continue
-            sys.exit()
+            continue
 
         if "out.electricity.total.energy_consumption" not in df_parq.columns:
             print(f"   ❌ Missing 'out.electricity.total.energy_consumption' in {parquet_file}, skipping.")
@@ -206,19 +228,22 @@ for folder_name in folder_list:
 # ---------------------------------------------------------------------
 
 if folder_timestamps:
-    with open("folder_timestamps.pkl", "wb") as f:
+    _ts_pkl = f"folder_timestamps{_scen_suffix}.pkl"
+    with open(_ts_pkl, "wb") as f:
         pickle.dump(folder_timestamps, f)
-    print("\n✅ Stored timestamps in folder_timestamps.pkl")
+    print(f"\n✅ Stored timestamps in {_ts_pkl}")
 
 if folder_equiv:
-    with open("folder_equiv.pkl", "wb") as f:
+    _eq_pkl = f"folder_equiv{_scen_suffix}.pkl"
+    with open(_eq_pkl, "wb") as f:
         pickle.dump(folder_equiv, f)
-    print("\n✅ Stored EQUIVALENCE in folder_equiv.pkl")
+    print(f"\n✅ Stored EQUIVALENCE in {_eq_pkl}")
 
 if folder_list_loadshapes:
-    with open("folder_list_loadshapes.pkl", "wb") as f:
+    _ls_pkl = f"folder_list_loadshapes{_scen_suffix}.pkl"
+    with open(_ls_pkl, "wb") as f:
         pickle.dump(folder_list_loadshapes, f)
-    print("\n✅ Stored LOADSHAPES in folder_list_loadshapes.pkl")
+    print(f"\n✅ Stored LOADSHAPES in {_ls_pkl}")
 
 END_PROCESS = time.time()
 TIME_ELAPSED = -START_PROCESS + END_PROCESS

@@ -247,3 +247,6 @@ parquet_data/
 7_circuit_instantiation/heating_assignment__*.json
 8_results_analysis/*_combined.csv
 8_results_analysis/figure_*.png
+
+# Generated TX circuit profile CSV outputs
+5c_csv_conversion/TX_circuit_*/

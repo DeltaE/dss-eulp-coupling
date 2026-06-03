@@ -65,9 +65,11 @@ def inject_pipeline_state_cluster(config: dict[str, Any]) -> None:
     state = pipeline_cfg["state"]
     config.setdefault("clusters", {})["pipeline_state"] = {
         "states": [state],
-        "mode": "historical_slice",
-        "historical_residential": "residential_data.csv",
-        "historical_commercial": "commercial_data.csv",
+        "mode": "baseline_from_folders",
+        "residential_folder_groups": ["residential_tmy3"],
+        "commercial_folder_groups": ["commercial_amy2018"],
+        "residential_upgrades": ["baseline"],
+        "commercial_upgrades": ["baseline"],
         "output_residential": "residential_data_SELECT_STATES.csv",
         "output_commercial": "commercial_data_SELECT_STATES.csv",
         "validation_historical_residential": "residential_data_SELECT_STATES.csv",

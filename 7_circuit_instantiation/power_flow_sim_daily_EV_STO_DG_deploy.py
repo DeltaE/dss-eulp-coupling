@@ -388,9 +388,12 @@ arr_c = ensure_rows(arr_ev_all_ctl,   N_c)
 OUT_DIR = os.path.join(CURRENT_DIR, "ModifiedCircuitData")
 os.makedirs(OUT_DIR, exist_ok=True)
 
-# Copy DSS base files and fix LoadShapes path relative to scenario dir
-dss_files = ['Buscoords.dss','Capacitors.dss','Lines.dss','Loads.dss',
-             'Master.dss','Transformers.dss','LoadShapes.dss','LineCodes.dss']
+# Copy ALL .dss files from the feeder directory (dynamic discovery).
+# Handles Regulators.dss, Capacitors.dss, or any other optional files
+# that vary across SMART-DS feeders.  Excludes _original.dss backups
+# created by the instantiation script.
+dss_files = [f for f in os.listdir(CIRCUIT_DIR)
+             if f.lower().endswith('.dss') and '_original' not in f.lower()]
 master_dss_path = None
 for fn in dss_files:
     src = os.path.join(CIRCUIT_DIR, fn)

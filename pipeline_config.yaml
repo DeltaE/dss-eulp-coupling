@@ -14,3 +14,9 @@ skip_circuits: []
 # Optional: limit feeder count for fire testing
 # Set to null or omit for all feeders
 max_feeders: null
+
+quota:
+  min_per_type: 1
+  redistribution: proportional
+  residential_order: auto
+  commercial_order: auto
