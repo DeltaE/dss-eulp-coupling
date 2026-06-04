@@ -1,0 +1,22 @@
+# Pipeline configuration - edit this for your target state
+state: "NC"                    # Two-letter US state code
+season: "summer"               # "summer" or "winter"
+smart_ds_root: "../3_smartds"  # Path to SMART-DS feeder data
+smart_ds_parquet_root: "3b_smartds_eulp_match/parquet_data"  # Original SMART-DS load parquets for Phase 6 kvar ratios
+parquet_data_root: "../parquet_data"  # Path to EULP parquet data
+eulp_download_date: "20250330" # Date stamp for download folders
+random_seed: 555
+
+# Optional: circuits to skip during instantiation (phase 7)
+# Use circuit_id integers from feeder_registry.json
+skip_circuits: []
+
+# Optional: limit feeder count for fire testing
+# Set to null or omit for all feeders
+max_feeders: null
+
+quota:
+  min_per_type: 1
+  redistribution: proportional
+  residential_order: auto
+  commercial_order: auto

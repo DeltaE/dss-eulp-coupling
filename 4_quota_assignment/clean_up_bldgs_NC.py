@@ -8,10 +8,46 @@ Created on Mon Mar 17 09:42:15 2025
 import pandas as pd
 from ast import literal_eval
 import time
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
 
 START_TIME = time.time()
 
-STATE_STR = 'NC'
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+STATE_STR = STATE
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+PHASE1_OUTPUT_DIR = os.path.join(REPO_ROOT, '1_data_provenance', 'outputs', 'pipeline_state')
+PHASE3_OUTPUT_DIR = os.path.join(REPO_ROOT, '3_tolerance_matching')
+
+
+def metadata_csv(filename):
+    candidates = [
+        os.path.join(SCRIPT_DIR, filename),
+        os.path.join(PHASE1_OUTPUT_DIR, filename),
+        os.path.join(REPO_ROOT, filename),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return candidates[1]
+
+
+def phase3_csv(filename):
+    candidates = [
+        os.path.join(SCRIPT_DIR, filename),
+        os.path.join(PHASE3_OUTPUT_DIR, filename),
+        os.path.join(REPO_ROOT, filename),
+    ]
+    for candidate in candidates:
+        if os.path.exists(candidate):
+            return candidate
+    return candidates[1]
 
 # ===================================================
 # =========== RESIDENTIAL FILTERING SECTION =========
@@ -21,7 +57,7 @@ if FILTER_RESIDENTIAL:
     print("\n=== RESIDENTIAL FILTERING ===\n")
 
     # 1) Read the matches file
-    df_res_matches_out = pd.read_csv("df_res_matches_out_" + STATE_STR + ".csv")
+    df_res_matches_out = pd.read_csv(phase3_csv("df_res_matches_out_" + STATE_STR + ".csv"))
 
     # 2) Ensure 'Matched_Buildings' is a list rather than a string
     #    (If your column is already a list, you can skip this step)
@@ -43,7 +79,7 @@ if FILTER_RESIDENTIAL:
     print(f"Found {len(unique_bldg_ids_res)} unique residential building IDs in df_res_matches_out_" + STATE_STR + ".csv")
 
     # 4) Filter the residential_data_SELECT_STATES_" + STATE_STR + ".csv by these bldg_ids
-    df_res = pd.read_csv("residential_data_SELECT_STATES.csv")
+    df_res = pd.read_csv(metadata_csv("residential_data_SELECT_STATES.csv"))
     df_res_filtered = df_res[df_res["bldg_id"].isin(unique_bldg_ids_res)]
     df_res_filtered.to_csv("residential_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv", index=False)
     print("Wrote residential_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv")
@@ -116,7 +152,7 @@ if FILTER_COMMERCIAL:
     print("\n=== COMMERCIAL FILTERING ===\n")
 
     # 1) Read the commercial matches file
-    df_com_matches_out = pd.read_csv("df_com_matches_out_" + STATE_STR + ".csv")
+    df_com_matches_out = pd.read_csv(phase3_csv("df_com_matches_out_" + STATE_STR + ".csv"))
 
     # 2) Ensure 'Matched_Buildings' is a list
     df_com_matches_out["Matched_Buildings"] = df_com_matches_out["Matched_Buildings"].apply(
@@ -137,7 +173,7 @@ if FILTER_COMMERCIAL:
     print(f"Found {len(unique_bldg_ids_com)} unique commercial building IDs in df_com_matches_out_" + STATE_STR + ".csv")
 
     # 4) Filter the commercial_data_SELECT_STATES_" + STATE_STR + ".csv by these bldg_ids
-    df_com = pd.read_csv("commercial_data_SELECT_STATES.csv")
+    df_com = pd.read_csv(metadata_csv("commercial_data_SELECT_STATES.csv"))
     df_com_filtered = df_com[df_com["bldg_id"].isin(unique_bldg_ids_com)]
     df_com_filtered.to_csv("commercial_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv", index=False)
     print("Wrote commercial_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv")

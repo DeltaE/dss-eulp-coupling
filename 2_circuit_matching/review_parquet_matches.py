@@ -14,8 +14,8 @@ import time
 
 START_TIME = time.time()
 
-# Define the folder path
-folder_path = './parquet_data'
+# Define the folder path — reads PIPELINE_PARQUET_ROOT env var, falls back to local
+folder_path = os.environ.get('PIPELINE_PARQUET_ROOT', './parquet_data')
 all_monthly_stats = []
 
 # List all parquet files in the folder

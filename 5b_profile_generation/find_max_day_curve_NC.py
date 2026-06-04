@@ -15,18 +15,33 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_PROCESS = time.time()
 
-STR_STATE = 'NC'
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+STR_STATE = STATE
 STR_TITLE = STR_STATE
 
-EXTERNAL_FOLDER_STR = '3c_eulp_downloads'
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+PARQUET_DATA_ROOT = Path(cfg.get('parquet_data_root', '../parquet_data'))
+if not PARQUET_DATA_ROOT.is_absolute():
+    PARQUET_DATA_ROOT = (REPO_ROOT / PARQUET_DATA_ROOT).resolve()
+
+# --- run controls (added) ---
+SHOW_PLOTS = False              # True = show spaghetti plots; False = skip (won't block on a server)
+SCENARIO = ""                  # daily_parquets suffix so baseline/dm/uncontrolled don't overwrite each other
+_SCEN_SUFFIX = f"_{SCENARIO}" if SCENARIO else ""
 
 # 🔹 NEW: Store df_curve per feeder
 df_curve_per_feeder = {}  # 🔹 NEW
 
 # Load required parquet summary
-df_summary_result = pd.read_csv(STR_STATE + "_required_parquets_per_feeder.csv")
+df_summary_result = pd.read_csv(SCRIPT_DIR / (STR_STATE + "_required_parquets_per_feeder.csv"))
 
 # Dictionary to store peak daily curves per month per feeder
 peak_load_curves = {}
@@ -47,7 +62,7 @@ for feeder in df_summary_result["Feeder"].unique():
     # Iterate through each load profile in the feeder
     for _, row in df_feeder.iterrows():
         # parquet_path = './' + row["Parquet_Folder"] + '/' + row["Parquet_File"]
-        parquet_path = Path('..') / EXTERNAL_FOLDER_STR / row['Parquet_Folder'] / row['Parquet_File']
+        parquet_path = PARQUET_DATA_ROOT / row['Parquet_Folder'] / row['Parquet_File']
 
         # print('Check path')
         # sys.exit()
@@ -192,7 +207,10 @@ for feeder, df_curve in df_curve_per_feeder.items():  #
     # Overall figure adjustments
     fig.suptitle(f"Peak Daily Curves per Month (Spaghetti Plots) – Feeder: {feeder}", fontsize=16)
     fig.tight_layout()
-    plt.show()
+    if SHOW_PLOTS:
+        plt.show()
+    else:
+        plt.close(fig)
 
 # Display results
 # import ace_tools as tools
@@ -206,14 +224,14 @@ for feeder in df_peak_daily["Feeder"].unique():  # 🔹 NEW
     # Winter months
     df_winter = df_feeder[df_feeder["Month"].isin([1, 2, 12])]
     if not df_winter.empty:
-        winter_peak = df_winter.loc[df_winter["Peak Day"].idxmax()]  # Highest single point in winter
+        winter_peak = df_winter.loc[df_winter.iloc[:, 3:].max(axis=1).idxmax()]  # Highest single point in winter
         winter_peak_value = max(winter_peak[3:])  # 🔹 NEW: Get max kW in curve
         print(f"Feeder {feeder} - ❄️ Winter Peak Day: {winter_peak['Peak Day']} (Month {winter_peak['Month']}) – Peak Value: {winter_peak_value:.2f} kW")  # 🔹 NEW
 
     # Summer months
     df_summer = df_feeder[df_feeder["Month"].isin([6, 7, 8])]
     if not df_summer.empty:
-        summer_peak = df_summer.loc[df_summer["Peak Day"].idxmax()]
+        summer_peak = df_summer.loc[df_summer.iloc[:, 3:].max(axis=1).idxmax()]
         summer_peak_value = max(summer_peak[3:])  # 🔹 NEW: Get max kW in curve
         print(f"Feeder {feeder} - ☀️ Summer Peak Day: {summer_peak['Peak Day']} (Month {summer_peak['Month']}) – Peak Value: {summer_peak_value:.2f} kW")  # 🔹 NEW
 
@@ -226,17 +244,17 @@ if BOOL_SAVE_SLICES:
         # Get WINTER peak day
         df_winter = df_feeder_peaks[df_feeder_peaks["Month"].isin([1, 2, 12])]
         if not df_winter.empty:
-            winter_peak = df_winter.loc[df_winter["Peak Day"].idxmax()]
+            winter_peak = df_winter.loc[df_winter.iloc[:, 3:].max(axis=1).idxmax()]
             winter_peak_date = winter_peak["Peak Day"]
 
             season = "winter"
-            output_dir = f"./daily_parquets/{STR_STATE}_{feeder.replace('--', '_')}_{season}"
+            output_dir = f"./daily_parquets/{STR_STATE}_{feeder.replace('--', '_')}_{season}{_SCEN_SUFFIX}"
             os.makedirs(output_dir, exist_ok=True)
 
             df_feeder_rows = df_summary_result[df_summary_result["Feeder"] == feeder]
             for _, row in df_feeder_rows.iterrows():
                 # parquet_path = './' + row["Parquet_Folder"] + '/' + row["Parquet_File"]
-                parquet_path = Path('..') / EXTERNAL_FOLDER_STR / row['Parquet_Folder'] / row['Parquet_File']
+                parquet_path = PARQUET_DATA_ROOT / row['Parquet_Folder'] / row['Parquet_File']
                 try:
                     table = pq.read_table(parquet_path)
                     df_full = table.to_pandas()
@@ -265,17 +283,17 @@ if BOOL_SAVE_SLICES:
         # Get SUMMER peak day
         df_summer = df_feeder_peaks[df_feeder_peaks["Month"].isin([6, 7, 8])]
         if not df_summer.empty:
-            summer_peak = df_summer.loc[df_summer["Peak Day"].idxmax()]
+            summer_peak = df_summer.loc[df_summer.iloc[:, 3:].max(axis=1).idxmax()]
             summer_peak_date = summer_peak["Peak Day"]
 
             season = "summer"
-            output_dir = f"./daily_parquets/{STR_STATE}_{feeder.replace('--', '_')}_{season}"
+            output_dir = f"./daily_parquets/{STR_STATE}_{feeder.replace('--', '_')}_{season}{_SCEN_SUFFIX}"
             os.makedirs(output_dir, exist_ok=True)
 
             df_feeder_rows = df_summary_result[df_summary_result["Feeder"] == feeder]
             for _, row in df_feeder_rows.iterrows():
                 # parquet_path = './' + row["Parquet_Folder"] + '/' + row["Parquet_File"]
-                parquet_path = Path('..') / EXTERNAL_FOLDER_STR / row['Parquet_Folder'] / row['Parquet_File']
+                parquet_path = PARQUET_DATA_ROOT / row['Parquet_Folder'] / row['Parquet_File']
                 try:
                     table = pq.read_table(parquet_path)
                     df_full = table.to_pandas()

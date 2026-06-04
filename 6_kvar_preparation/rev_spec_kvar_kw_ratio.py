@@ -24,13 +24,38 @@ from pathlib import Path
 
 START_PROCESS = time.time()
 
-EXTERNAL_FOLDER_STR = '3b_smartds_eulp_match'
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
+sys.path.insert(0, str(REPO_ROOT))
+from pipeline_utils import load_config, resolve_config_path
+
+cfg = load_config()
+DEFAULT_SMART_DS_PARQUET_ROOT = REPO_ROOT / "3b_smartds_eulp_match" / "parquet_data"
+
+# --- PATCHED: --scenario CLI flag ---
+SCENARIO = cfg.get("scenario", "")
+for _i, _arg in enumerate(sys.argv):
+    if _arg == "--scenario" and _i + 1 < len(sys.argv):
+        SCENARIO = sys.argv[_i + 1]
+        break
+_scen_suffix = f"_{SCENARIO}" if SCENARIO else ""
+print(f"\n  Scenario: '{SCENARIO or 'baseline'}'  (suffix: '{_scen_suffix}')")
+# --- END PATCH ---
 
 # Adjust these paths:
 needed_parquets_path = "needed_parquets.pkl"
-timestamp_pickle      = "folder_timestamps.pkl"
-original_parquet_dir  = Path('..') / EXTERNAL_FOLDER_STR / "parquet_data"  # e.g. your "infamous" folder
-kvar_ratios_output    = "kvar_ratios.pkl"          # we'll store a dict here
+timestamp_pickle      = f"folder_timestamps{_scen_suffix}.pkl"
+configured_parquet_root = cfg.get("smart_ds_parquet_root")
+original_parquet_dir = (
+    resolve_config_path(configured_parquet_root)
+    if configured_parquet_root
+    else DEFAULT_SMART_DS_PARQUET_ROOT.resolve()
+)
+kvar_ratios_output    = f"kvar_ratios{_scen_suffix}.pkl"
+
+print(f"Using SMART-DS source parquet root: {original_parquet_dir}")
+print(f"Reading timestamps from: {timestamp_pickle}")
+print(f"Will write ratios to:    {kvar_ratios_output}")
 
 # Columns in original Parquet representing real & reactive energy (kWh / kvarh)
 REAL_COL    = "total_site_electricity_kw"

@@ -14,14 +14,39 @@ import time
 
 START_PROCESS = time.time()
 
+# --- PATCHED: --scenario CLI flag ---
+SCENARIO = ""
+for _i, _arg in enumerate(sys.argv):
+    if _arg == "--scenario" and _i + 1 < len(sys.argv):
+        SCENARIO = sys.argv[_i + 1]
+        break
+_scen_suffix = f"_{SCENARIO}" if SCENARIO else ""
+print(f"\n  Scenario: '{SCENARIO or 'baseline'}'  (suffix: '{_scen_suffix}')")
+# --- END PATCH ---
+
 # Folder where the kW CSVs are
 base_csv_folder = "./"
 
 # Load the pickle of ratios (from Script 2b)
-with open("kvar_ratios.pkl", "rb") as f:
+_ratios_pkl = f"kvar_ratios{_scen_suffix}.pkl"
+print(f"Reading ratios from: {_ratios_pkl}")
+with open(_ratios_pkl, "rb") as f:
     kvar_ratios = pickle.load(f)
 
-folder_list = [i for i in os.listdir(base_csv_folder) if '.' not in i]
+# --- PATCHED: filter to only folders known to kvar_ratios pkl ---
+# Baseline pkl only has baseline folder keys (e.g. TX_circuit_1_summer);
+# dm/uncontrolled pkls only have their own suffixed keys.
+# This prevents KeyError when multiple scenario folders coexist in CWD.
+known_folders = set()
+for pq_ratios in kvar_ratios.values():
+    known_folders.update(pq_ratios.keys())
+
+folder_list = [i for i in os.listdir(base_csv_folder)
+               if '.' not in i and i in known_folders]
+
+print(f"🗂️  {len(folder_list)} folders matched kvar_ratios keys "
+      f"(out of {len([i for i in os.listdir(base_csv_folder) if '.' not in i])} total dirs)")
+# --- END PATCH ---
 
 # Loop through folders inside daily_csv
 for folder_name in folder_list:
@@ -31,9 +56,6 @@ for folder_name in folder_list:
         continue
 
     print(f"📂 Processing folder: {folder_name}")
-
-    # print("debug here - folder_name")
-    # sys.exit()
 
     # Loop through all *_kw_*.csv files
     for fname in os.listdir(folder_path):
@@ -74,9 +96,6 @@ for folder_name in folder_list:
         # Save as *_kvar_*.csv
         kvar_fname = fname.replace("_kw_", "_kvar_")
         kvar_path = os.path.join(folder_path, kvar_fname)
-
-        # print("debug here - folder_name - fname")
-        # sys.exit()
 
         pd.DataFrame(kvar_values).to_csv(kvar_path, index=False, header=False)
 

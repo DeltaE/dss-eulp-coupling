@@ -14,61 +14,52 @@ import sys
 import requests
 import pandas as pd
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 # -------------------------
 # Configuration
 # -------------------------
 
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+PARQUET_DATA_ROOT = cfg.get('parquet_data_root', '../parquet_data')
+if not os.path.isabs(PARQUET_DATA_ROOT):
+    PARQUET_DATA_ROOT = os.path.abspath(os.path.join(REPO_ROOT, PARQUET_DATA_ROOT))
+
 # Match your use case (MN from your link); change as needed
-STATES_OF_INTEREST = ["NC"]         # e.g. ["NC", "TX", ...]
-CASE_ID = "20250330_NC"    # folder suffix for downloads
+STATES_OF_INTEREST = [STATE]         # e.g. ["NC", "TX", ...]
+CASE_ID = f"{DOWNLOAD_DATE}_{STATE}"    # folder suffix for downloads
 QUERY_YEAR = 2024
 DATASET = "resstock_tmy3_release_2" # or "comstock_amy2018_release_1"
 BUCKET = "oedi-data-lake"
 ROOT_PREFIX = "nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock"
 
 # Which upgrades to include (file names are <bldg_id>-<upgrade>.parquet)
+# SECOND LEVER: this multiplies downloads by len(UPGRADES). If downstream
+# (Phase 5b/5c) only consumes baseline profiles, set this to [0] for a further 4x cut.
+# Left as-is pending confirmation that nothing downstream reads upgrades 1/2/4.
 UPGRADES = [0, 1, 2, 4]
 
-# Your original column filter (keep/edit as needed)
+# Column filter applied to the metadata CSV.
+# NOTE: we now read the Phase 4 *final selection* ({STATE}_final_residential.csv),
+# which already contains ONLY the chosen representative buildings. The previous
+# _FILTERED_ file held ALL matched buildings (~17k) and caused a massive over-download.
 column_selection_case = {
-    'State':['NC'],
-    'bldg_id':[
-    280535, 529030, 344090, 457130, 51248, 97064, 279056, 438217, 156448, 164952, 35477, 420203, 167400, 218062,
-    72447, 367703, 84697, 481382, 91378, 97925, 178981, 527921, 17111, 59917, 261886, 220549, 178093, 6026,
-    527501, 432723, 319515, 359965, 235585, 546364, 485394, 262127, 529033, 493987, 407787, 344018, 535227, 139348,
-    263649, 239844, 379231, 313792, 534332, 222362, 435560, 72777, 35373, 264802, 67210, 193963, 68118, 462831,
-    287287, 8782, 9317, 267097, 265199, 352076, 136435, 38417, 259129, 419312, 286489, 92439, 517977, 118125,
-    247367, 457116, 546233, 460644, 404686, 130527, 478918, 354365, 404797, 337045, 250118, 98294, 98674, 15396,
-    129565, 244868, 534901, 3287, 15650, 107647, 428637, 222728, 200756, 517627, 240691, 454538, 202962, 451679,
-    328107, 282264, 154971, 126100, 73055, 334241, 88537, 36597, 464775, 467570, 247612, 116266, 194672, 363975,
-    529756, 203533, 329979, 283333, 413132, 53909, 212677, 45392, 532168, 507754, 199135, 507902, 348156, 473225,
-    521039, 174039, 387763, 518840, 381400, 544432, 60154, 246233, 64957, 70635, 447079, 502536, 97124, 434770,
-    287291, 188940, 203311, 189739, 168854, 138890, 212492, 545651, 479216, 199058, 108419, 401346, 111958, 417893,
-    136108, 23436, 472351, 478693, 130213, 190125, 478171, 446954, 143236, 204029, 216945, 388824, 62209, 266419,
-    394308, 119047, 80170, 390007, 347276, 231804, 204241, 118222, 455247, 272261, 296854, 396519, 154882, 119211,
-    487394, 486640, 65464, 257869, 232311, 272431, 69383, 121670, 94364, 162506, 17134, 258869, 660, 173600,
-    217789, 501337, 234287, 58966, 224061, 83078, 43483, 213633, 86151, 511168, 34965, 26565, 492347, 448472,
-    114512, 509702, 354097, 330728, 101087, 528778, 247582, 457829, 414074, 30486, 178112, 224275, 10560, 179307,
-    432679, 402350, 324000, 458193, 491844, 341075, 200878, 390095, 373084, 260245, 98055, 288150, 83997, 3268,
-    123790, 289532, 321144, 206334, 400900, 502706, 19803, 476516, 66479, 524421, 306028, 522637, 282044, 15373,
-    328007, 307599, 156896, 248378, 323108, 245135, 183001, 6456, 173686, 283447, 31765, 430363, 44529, 11668,
-    30407, 217842, 375123, 24785, 399644, 45508, 491298, 326186, 444657, 128919, 196063, 397370, 4326, 232001,
-    197032, 98514, 440300, 158466, 284740, 43831, 73164, 68408, 350461, 430198, 151208, 277033, 9326, 227698,
-    173139, 523510, 117315, 189705, 132061, 165855, 464019, 167987, 441994, 123009, 419799, 457181, 19256, 441337,
-    136069, 464736, 371618, 81558, 83034, 265788, 150612, 75554, 409622, 269518, 80629, 302888, 77448, 340504,
-    367862, 326128, 466863, 287519, 359000, 422987, 480467, 75643, 165446, 455102, 489128, 524791, 38621, 197962,
-    199237, 481022, 196782, 120437, 33321, 37802, 454355, 279058, 179415, 391643, 467343, 417792, 253062, 55743,
-    365297, 130368, 345074, 327027, 321381, 265915, 401881, 367039, 499540, 497563, 299351, 323952, 79083, 537198,
-    19424, 444115, 549881, 342312, 401468, 6626, 204366, 224885, 323480, 293010, 302499, 243792, 336459, 21154,
-    388024, 62198, 376022, 104347, 395696, 19595, 384776, 126000
-]}
+    'State': STATES_OF_INTEREST,
+}
 
-# Where to read your prefiltered metadata CSVs per state (same pattern you used)
-# e.g., ./residential_data_SELECT_STATES_FILTERED_MN.csv
-METADATA_CSV_TEMPLATE = "./residential_data_SELECT_STATES_FILTERED_NC.csv"
+# Read the Phase 4 FINAL SELECTION (the chosen representatives), NOT the _FILTERED_ set.
+#   {STATE}_final_residential.csv  -> ~hundreds of buildings (one per chosen parquet)
+# The old _FILTERED_ file held every matched building and over-downloaded ~80x.
+METADATA_CSV_TEMPLATE = "./{STATE}_final_residential.csv"
 
 # Download params
-DOWNLOAD_DIR_TEMPLATE = f"./parquet_residential_short_{CASE_ID}"
+DOWNLOAD_DIR_TEMPLATE = os.path.join(PARQUET_DATA_ROOT, f"parquet_residential_short_{CASE_ID}")
 CHUNK_SIZE = 50              # split URL list into chunks to avoid burstiness
 REQUEST_TIMEOUT = 60
 SLEEP_BETWEEN_CHUNKS_SEC = 0.25
@@ -170,7 +161,7 @@ def download_file(session, url, dest_path):
 
 def load_target_bldg_ids_for_state(state, filter_dict):
     """
-    Loads ./residential_data_SELECT_STATES_FILTERED_{STATE}.csv
+    Loads ./{STATE}_final_residential.csv (the Phase 4 final selection)
     Applies the column filters in filter_dict and returns a set of bldg_id.
     """
     path = METADATA_CSV_TEMPLATE.format(STATE=state)

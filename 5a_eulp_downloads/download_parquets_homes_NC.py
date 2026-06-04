@@ -11,6 +11,9 @@ from selenium.webdriver.support import expected_conditions as EC
 
 import pandas as pd
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 # Function to chunk a list into smaller pieces
 def chunk_list(lst, chunk_size):
     """Yield successive n-sized chunks from lst."""
@@ -75,14 +78,24 @@ we want to donwload.
 The configuration starts here.
 '''
 
-STATES_OF_INTEREST = ["NC"]  # Florida  # THis constant defines the state
-CASE_ID = '20250330_NC'  # This constant defines the metadata file after filtering for desired characteristics
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
+PARQUET_DATA_ROOT = cfg.get('parquet_data_root', '../parquet_data')
+if not os.path.isabs(PARQUET_DATA_ROOT):
+    PARQUET_DATA_ROOT = os.path.abspath(os.path.join(REPO_ROOT, PARQUET_DATA_ROOT))
+
+STATES_OF_INTEREST = [STATE]  # Florida  # THis constant defines the state
+CASE_ID = DOWNLOAD_DATE + '_' + STATE  # This constant defines the metadata file after filtering for desired characteristics
 
 # The dictionary below will help select specific parquet files to focus analysis
 
 '''
 column_selection_case = {
-    'State':['NC'],
+    'State': STATES_OF_INTEREST,
     'bldg_id':[
     25663, 150291, 205503, 429073, 477810, 343821, 535157, 178248, 55155, 308312,
     535157, 116051, 348818, 126708, 493765, 348818, 78392, 384137, 420236, 89325,
@@ -113,7 +126,7 @@ column_selection_case = {
 '''
 
 column_selection_case = {
-    'State':['NC'],
+    'State': STATES_OF_INTEREST,
     'bldg_id':[
     280535, 529030, 344090, 457130, 51248, 97064, 279056, 438217, 156448, 164952, 35477, 420203, 167400, 218062,
     72447, 367703, 84697, 481382, 91378, 97925, 178981, 527921, 17111, 59917, 261886, 220549, 178093, 6026,
@@ -428,7 +441,7 @@ The script will download the parquet files.
 # Iterate over each chunk, process, and then sleep
 for i, chunk in enumerate(url_chunks):
     print(f"Processing chunk {i+1}")
-    download_any_files(chunk, './parquet_residential_short_' + CASE_ID)
+    download_any_files(chunk, os.path.join(PARQUET_DATA_ROOT, 'parquet_residential_short_' + CASE_ID))
     
     # Introduce a delay to avoid triggering rate limits
     time.sleep(0.25)  # Adjust this value if necessary

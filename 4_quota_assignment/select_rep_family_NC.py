@@ -17,14 +17,22 @@ import ast
 import os
 import shutil
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_PROCESS = time.time()
 
-FAMILY_STR = 'NC'
-STATE_STR = 'NC'
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
+DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+FAMILY_STR = STATE
+STATE_STR = STATE
 
 # Set seed for reproducibility
-random.seed(42)
-np.random.seed(42)  # If you also use NumPy's random functions
+RANDOM_SEED = int(cfg.get('random_seed', 42))
+random.seed(RANDOM_SEED)
+np.random.seed(RANDOM_SEED)  # If you also use NumPy's random functions
 
 # ------------------------------------------------------------
 # 0) SETUP: Adjust scenario, data paths, etc.
@@ -861,11 +869,11 @@ def copy_selected_parquets(source_folder, target_folder, selected_bldg_ids):
 COPY_FILE_BOOL = False
 # COPY_FILE_BOOL = True
 if COPY_FILE_BOOL:
-    commercial_source_folder = "parquet_commercial_20250330_comm_" + STATE_STR
-    residential_source_folder = "parquet_residential_short_20250330_" + STATE_STR
+    commercial_source_folder = "parquet_commercial_" + DOWNLOAD_DATE + "_comm_" + STATE_STR
+    residential_source_folder = "parquet_residential_short_" + DOWNLOAD_DATE + "_" + STATE_STR
 
-    commercial_target_folder = "NC_parquet_commercial_20250330_comm_" + STATE_STR
-    residential_target_folder = "NC_parquet_residential_20250330_" + STATE_STR
+    commercial_target_folder = STATE_STR + "_parquet_commercial_" + DOWNLOAD_DATE + "_comm_" + STATE_STR
+    residential_target_folder = STATE_STR + "_parquet_residential_" + DOWNLOAD_DATE + "_" + STATE_STR
 
     # Ensure target folders exist
     os.makedirs(commercial_target_folder, exist_ok=True)
@@ -880,7 +888,7 @@ if COPY_FILE_BOOL:
     copy_selected_parquets(commercial_source_folder, commercial_target_folder, selected_commercial_bldg_ids)
 
     # List all available Parquet files in the residential source folder
-    available_residential_files = os.listdir("parquet_residential_short_20250330_" + STATE_STR)
+    available_residential_files = os.listdir("parquet_residential_short_" + DOWNLOAD_DATE + "_" + STATE_STR)
 
     # Extract the bldg_id part from filenames that follow the "-0.parquet" pattern
     available_residential_bldg_ids = set(

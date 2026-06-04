@@ -14,12 +14,24 @@ Store them in a 'needed_parquets.pkl' for next steps.
 import os
 import pickle
 import pandas as pd
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
 
 # 1) Load the CSVs that indicate which Parquets we actually need
-df_NC = pd.read_csv("../NC_parquet_and_bldgs.csv")
-df_NC["STATE"] = "NC"
+script_dir = os.path.dirname(os.path.abspath(__file__))
+mapping_path = os.path.join(script_dir, "..", "5b_profile_generation", f"{STATE}_parquet_and_bldgs.csv")
+if not os.path.exists(mapping_path):
+    mapping_path = os.path.join(script_dir, "..", f"{STATE}_parquet_and_bldgs.csv")
+df_state = pd.read_csv(mapping_path)
+df_state["STATE"] = STATE
 
-df_all = pd.concat([df_NC], ignore_index=True)
+df_all = pd.concat([df_state], ignore_index=True)
 
 # Suppose the column "Parquet_Name" has something like "com_12774.parquet"
 # or "res_500.parquet"
