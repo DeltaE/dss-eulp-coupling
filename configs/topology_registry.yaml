@@ -1,0 +1,29 @@
+# Finite menu of available SMART-DS circuit topologies (the "circuit menu").
+# Absolute path is resolved at runtime:
+#     smart_ds_root = <local.smart_ds_base> / <smart_ds_relpath>
+# .dss feeder files are EXTERNAL inputs and are NOT versioned.
+# To add a topology: drop the circuit under smart_ds_base, add an entry here,
+# set status: ready. No core script changes needed.
+
+topologies:
+  NC_GSO_rural_uhs0_1247:
+    topology_state: NC
+    geography: GSO
+    urbanicity: rural
+    feeder_id: uhs0_1247
+    smart_ds_relpath: "GSO/rural/base_timeseries/opendss"   # appended to local.smart_ds_base
+    circuit_folder: "uhs0_1247"
+    status: ready
+    description: "NC GSO rural SMART-DS feeder used in the NC->TX fire test (proven)."
+
+  # PENDING — extract a real TX SMART-DS circuit from the downloaded universe,
+  # fill smart_ds_relpath / feeder_id / circuit_folder, then flip status to ready.
+  TX_pending:
+    topology_state: TX
+    geography: TBD
+    urbanicity: TBD
+    feeder_id: TBD
+    smart_ds_relpath: "TBD"
+    circuit_folder: "TBD"
+    status: pending
+    description: "TX SMART-DS feeder, to be selected from the downloaded SMART-DS universe."

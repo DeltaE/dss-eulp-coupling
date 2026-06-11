@@ -1,0 +1,5 @@
+case_id: TX__TX
+topology_id: TX_pending          # PENDING: needs a real TX topology (status: ready) before launch
+donor_id: TX
+execution:
+  max_feeders: 2
