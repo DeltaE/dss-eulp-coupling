@@ -250,3 +250,7 @@ parquet_data/
 
 # Generated TX circuit profile CSV outputs
 5c_csv_conversion/TX_circuit_*/
+
+# Other
+configs/local.yaml
+runs/
