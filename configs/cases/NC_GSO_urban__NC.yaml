@@ -1,0 +1,5 @@
+case_id: NC_GSO_urban__NC
+topology_id: NC_GSO_urban_uhs13_1247
+donor_id: NC
+execution:
+  max_feeders: 2
