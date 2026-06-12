@@ -72,8 +72,8 @@ def inject_pipeline_state_cluster(config: dict[str, Any]) -> None:
         "commercial_upgrades": ["baseline"],
         "output_residential": "residential_data_SELECT_STATES.csv",
         "output_commercial": "commercial_data_SELECT_STATES.csv",
-        "validation_historical_residential": "residential_data_SELECT_STATES.csv",
-        "validation_historical_commercial": "commercial_data_SELECT_STATES.csv",
+        "validation_historical_residential": f"residential_data_SELECT_STATES_{state}.csv",
+        "validation_historical_commercial": f"commercial_data_SELECT_STATES_{state}.csv",
     }
 
 
