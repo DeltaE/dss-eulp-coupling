@@ -15,12 +15,20 @@ def resolve_config_path(path_value):
     return (REPO_ROOT / path).resolve()
 
 
+def resolve_work_path(*parts):
+    """Join parts under the active work_root (PIPELINE_WORK_ROOT, default REPO_ROOT).
+    Returns an absolute path string. Creates nothing."""
+    work_root = os.environ.get("PIPELINE_WORK_ROOT", REPO_ROOT)
+    return os.path.join(work_root, *parts)
+
+
 def load_config(config_path=None):
     if config_path is None:
         config_path = REPO_ROOT / "pipeline_config.yaml"
     with open(config_path) as f:
         cfg = yaml.safe_load(f) or {}
 
+    cfg["work_root"] = os.environ.get("PIPELINE_WORK_ROOT", REPO_ROOT)
     cfg["state"] = os.environ.get("PIPELINE_STATE", cfg["state"])
     cfg["season"] = os.environ.get("PIPELINE_SEASON", cfg.get("season", "summer"))
     if os.environ.get("PIPELINE_SMART_DS_ROOT"):

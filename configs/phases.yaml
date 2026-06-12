@@ -1,13 +1,13 @@
 # Declarative encoding of the proven fire-test sequence (Pre -> 5c).
-# Placeholders substituted from the resolved case: {smart_ds_root}, {max_feeders}, {state}.
+# Placeholders substituted from the resolved case: {smart_ds_root}, {max_feeders}, {state}, {work_root}.
 # Each step is either {cmd: "..."} (optional cwd:) or {copy: [src, dst]} (dst ending "/" = into dir).
 # 'verify' runs `python verify_fire_test.py --phase <id>` from repo root after the steps.
 
 pre:
   steps:
-    - cmd: "python 0_download_smartds/stage_circuits_plain.py --smartds-root {smart_ds_root} --registry feeder_registry.json --registry-only --max-feeders {max_feeders}"
-    - cmd: "python 0_download_smartds/scan_feeders.py --smartds-root {smart_ds_root} --max-feeders {max_feeders} --output parsed_loads.csv"
-    - cmd: "python 0_download_smartds/generate_loads_pivot.py --input parsed_loads.csv --output parsed_loads_SUMMARY.csv"
+    - cmd: "python 0_download_smartds/stage_circuits_plain.py --smartds-root {smart_ds_root} --registry {work_root}/feeder_registry.json --target {work_root}/2_circuit_matching/circuits_plain_format --registry-only --max-feeders {max_feeders}"
+    - cmd: "python 0_download_smartds/scan_feeders.py --smartds-root {smart_ds_root} --max-feeders {max_feeders} --output {work_root}/parsed_loads.csv"
+    - cmd: "python 0_download_smartds/generate_loads_pivot.py --input {work_root}/parsed_loads.csv --output {work_root}/parsed_loads_SUMMARY.csv"
   verify: pre
 
 "1":
@@ -21,7 +21,7 @@ pre:
   steps:
     - cmd: "python copy_circuits.py"
       cwd: 2_circuit_matching
-    - cmd: "python circuit_make_daily_list_sets.py"
+    - cmd: "python circuit_make_daily_list_sets.py {work_root}/2_circuit_matching/circuits_plain_format"
       cwd: 2_circuit_matching
     - cmd: "python review_parquet_matches.py"
       cwd: 2_circuit_matching
@@ -29,7 +29,7 @@ pre:
 
 "3":
   steps:
-    - copy: ["2_circuit_matching/review_parquet_matches.csv", "3_tolerance_matching/review_parquet_matches.csv"]
+    - copy: ["{work_root}/2_circuit_matching/review_parquet_matches.csv", "{work_root}/3_tolerance_matching/review_parquet_matches.csv"]
     - cmd: "python match_smartds_parquets.py"
       cwd: 3_tolerance_matching
   verify: "3"
@@ -44,8 +44,8 @@ pre:
 
 "5a":
   steps:
-    - copy: ["4_quota_assignment/{state}_final_residential.csv", "5a_eulp_downloads/"]
-    - copy: ["4_quota_assignment/{state}_final_commercial.csv", "5a_eulp_downloads/"]
+    - copy: ["{work_root}/4_quota_assignment/{state}_final_residential.csv", "{work_root}/5a_eulp_downloads/"]
+    - copy: ["{work_root}/4_quota_assignment/{state}_final_commercial.csv", "{work_root}/5a_eulp_downloads/"]
     - cmd: "python download_parquets_homes_redo.py"
       cwd: 5a_eulp_downloads
     - cmd: "python download_parquets_commercial_redo.py"
@@ -54,8 +54,8 @@ pre:
 
 "5b":
   steps:
-    - copy: ["4_quota_assignment/{state}_final_commercial.csv", "5b_profile_generation/"]
-    - copy: ["4_quota_assignment/{state}_final_residential.csv", "5b_profile_generation/"]
+    - copy: ["{work_root}/4_quota_assignment/{state}_final_commercial.csv", "{work_root}/5b_profile_generation/"]
+    - copy: ["{work_root}/4_quota_assignment/{state}_final_residential.csv", "{work_root}/5b_profile_generation/"]
     - cmd: "python scale_feeder_curves.py"
       cwd: 5b_profile_generation
     - cmd: "python find_max_day_curve.py"

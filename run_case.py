@@ -128,10 +128,13 @@ def build_env(resolved: dict, season: str) -> dict:
     """Compose the PIPELINE_* contract the existing scripts read (pipeline_utils.py)."""
     env = dict(os.environ)
     env.update({k: str(v) for k, v in resolved["base_env"].items()})
+    work_root = resolved["work_root"]
     env["PIPELINE_STATE"] = resolved["donor_state"]            # donor side
     env["PIPELINE_SEASON"] = season
+    env["PIPELINE_WORK_ROOT"] = work_root
     env["PIPELINE_SMART_DS_ROOT"] = resolved["smart_ds_root"]  # topology side (opendss)
     env["PIPELINE_MAX_FEEDERS"] = str(resolved["max_feeders"])
+    env["PIPELINE_FEEDER_REGISTRY_PATH"] = os.path.join(work_root, "feeder_registry.json")
     # Per-topology donor pool (derived in resolve_case). Both roots coincide for
     # co-located datasets; threaded explicitly so the architectural split is preserved.
     env["PIPELINE_PARQUET_ROOT"] = resolved["parquet_root"]            # donor pool, Phase 2
@@ -142,6 +145,7 @@ def build_env(resolved: dict, season: str) -> dict:
 def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
     ctx = {"smart_ds_root": resolved["smart_ds_root"],
            "max_feeders": resolved["max_feeders"],
+           "work_root": resolved["work_root"],
            "state": resolved["donor_state"]}
     phase_env = dict(env)
     for k, v in (phase_def.get("env") or {}).items():
@@ -157,7 +161,11 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
         if "copy" in step:
             src = _subst(step["copy"][0], ctx)
             dst = _subst(step["copy"][1], ctx)
-            src_p, dst_p = REPO_ROOT / src, REPO_ROOT / dst
+            src_p, dst_p = Path(src), Path(dst)
+            if not src_p.is_absolute():
+                src_p = REPO_ROOT / src_p
+            if not dst_p.is_absolute():
+                dst_p = REPO_ROOT / dst_p
             if dst.endswith("/"):
                 dst_p = dst_p / src_p.name
             emit(f"  copy {src} -> {dst}")
@@ -203,6 +211,20 @@ def write_manifest(run_dir: Path, resolved: dict, season: str) -> None:
         yaml.safe_dump(manifest, fh, sort_keys=False)
 
 
+def prepare_work_root(work_root: str) -> None:
+    for rel_path in [
+        "1_data_provenance/outputs/pipeline_state",
+        "2_circuit_matching/circuits_plain_format",
+        "3_tolerance_matching",
+        "4_quota_assignment",
+        "5b_profile_generation/daily_parquets",
+        "5c_csv_conversion",
+        "5d_scenario_controls/plot_parquet_differences",
+        "5d_scenario_controls/get_scenario_csv_controls",
+    ]:
+        os.makedirs(os.path.join(work_root, rel_path), exist_ok=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Run a topology x donor instantiation case.")
     ap.add_argument("--case", required=True, type=Path)
@@ -221,16 +243,20 @@ def main() -> None:
     runs_root = Path(resolved["local"].get("runs_root", "runs"))
     if not runs_root.is_absolute():
         runs_root = REPO_ROOT / runs_root
+    work_root = (REPO_ROOT / "runs" / resolved["case_id"] / "workspace").resolve()
+    resolved["work_root"] = str(work_root)
 
     print(f"Case {resolved['case_id']}: topology={resolved['topology_id']} "
           f"donor={resolved['donor_state']} seasons={seasons}")
     print(f"  PIPELINE_SMART_DS_ROOT={resolved['smart_ds_root']}")
     print(f"  PIPELINE_PARQUET_ROOT={resolved['parquet_root']}")
+    print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
 
     overall_ok = True
     for season in seasons:
         run_dir = runs_root / resolved["case_id"] / season
         write_manifest(run_dir, resolved, season)
+        prepare_work_root(resolved["work_root"])
         status = {}
         with open(run_dir / "run_log.txt", "a", encoding="utf-8") as log:
             log.write(f"\n##### run {_dt.datetime.now().isoformat(timespec='seconds')} "
