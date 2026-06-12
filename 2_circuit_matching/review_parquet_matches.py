@@ -12,10 +12,17 @@ import pickle
 from copy import deepcopy
 import time
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import load_config
+
 START_TIME = time.time()
 
-# Define the folder path — reads PIPELINE_PARQUET_ROOT env var, falls back to local
-folder_path = os.environ.get('PIPELINE_PARQUET_ROOT', './parquet_data')
+# Resolve parquet root via load_config (reads pipeline_config.yaml + PIPELINE_PARQUET_ROOT env override)
+cfg = load_config()
+REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+folder_path = cfg.get('parquet_data_root', '../parquet_data')
+if not os.path.isabs(folder_path):
+    folder_path = os.path.abspath(os.path.join(REPO_ROOT, folder_path))
 all_monthly_stats = []
 
 # List all parquet files in the folder

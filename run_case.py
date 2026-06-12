@@ -91,13 +91,28 @@ def resolve_case(case_path: Path) -> dict:
     smart_ds_base = local.get("smart_ds_base")
     if not smart_ds_base:
         sys.exit("local.yaml must define smart_ds_base.")
-    smart_ds_root = (Path(smart_ds_base) / topo["smart_ds_relpath"]).as_posix()
+    topo_relpath = Path(topo["smart_ds_relpath"])
+    smart_ds_root = (Path(smart_ds_base) / topo_relpath).as_posix()
+
+    # Donor parquet pool is the deterministic sibling of the opendss tree:
+    #   <dataset>/<morphology>/base_timeseries/opendss  ->  <dataset>/<morphology>/parquet_data
+    # Co-located across GSO/AUS (confirmed: loose com_*/res_* at the parquet_data root).
+    # The same physical folder feeds BOTH PIPELINE_PARQUET_ROOT (donor pool, Phase 2)
+    # and PIPELINE_SMART_DS_PARQUET_ROOT (SMART-DS load parquets, Phase 6 kVAr).
+    # Optional escape hatch: a topology entry may set parquet_relpath to override the
+    # derived path for datasets that stage the pool elsewhere (e.g. a future SFO layout).
+    parquet_relpath = topo.get("parquet_relpath")
+    if parquet_relpath:
+        parquet_root = (Path(smart_ds_base) / parquet_relpath).as_posix()
+    else:
+        parquet_root = (Path(smart_ds_base) / topo_relpath.parent.parent / "parquet_data").as_posix()
 
     return {
         "case_id": case.get("case_id", case_path.stem),
         "topology_id": topo_id,
         "donor_id": donor_id,
         "smart_ds_root": smart_ds_root,
+        "parquet_root": parquet_root,
         "circuit_folder": topo.get("circuit_folder"),
         "donor_state": donor["donor_state"],
         "max_feeders": case.get("execution", {}).get("max_feeders", "null"),
@@ -115,13 +130,12 @@ def build_env(resolved: dict, season: str) -> dict:
     env.update({k: str(v) for k, v in resolved["base_env"].items()})
     env["PIPELINE_STATE"] = resolved["donor_state"]            # donor side
     env["PIPELINE_SEASON"] = season
-    env["PIPELINE_SMART_DS_ROOT"] = resolved["smart_ds_root"]  # topology side
+    env["PIPELINE_SMART_DS_ROOT"] = resolved["smart_ds_root"]  # topology side (opendss)
     env["PIPELINE_MAX_FEEDERS"] = str(resolved["max_feeders"])
-    local = resolved["local"]
-    if local.get("smart_ds_parquet_root"):                     # optional override
-        env["PIPELINE_SMART_DS_PARQUET_ROOT"] = str(local["smart_ds_parquet_root"])
-    if local.get("parquet_data_root"):                         # optional override
-        env["PIPELINE_PARQUET_ROOT"] = str(local["parquet_data_root"])
+    # Per-topology donor pool (derived in resolve_case). Both roots coincide for
+    # co-located datasets; threaded explicitly so the architectural split is preserved.
+    env["PIPELINE_PARQUET_ROOT"] = resolved["parquet_root"]            # donor pool, Phase 2
+    env["PIPELINE_SMART_DS_PARQUET_ROOT"] = resolved["parquet_root"]   # SMART-DS load parquets, Phase 6
     return env
 
 
@@ -211,6 +225,7 @@ def main() -> None:
     print(f"Case {resolved['case_id']}: topology={resolved['topology_id']} "
           f"donor={resolved['donor_state']} seasons={seasons}")
     print(f"  PIPELINE_SMART_DS_ROOT={resolved['smart_ds_root']}")
+    print(f"  PIPELINE_PARQUET_ROOT={resolved['parquet_root']}")
 
     overall_ok = True
     for season in seasons:

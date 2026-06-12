@@ -254,3 +254,13 @@ parquet_data/
 # Other
 configs/local.yaml
 runs/
+# --- session patch: close generated-output gaps ---
+# NC + any-state circuit profile CSV outputs (TX was already covered)
+5c_csv_conversion/*_circuit_*/
+
+# _final_ CSV copies staged into 5a/5b (4_quota_assignment was already covered)
+5a_eulp_downloads/*_final_*.csv
+5b_profile_generation/*_final_*.csv
+
+# tolerance-matching copy of review CSV (2_circuit_matching was already covered)
+3_tolerance_matching/review_parquet_matches.csv
