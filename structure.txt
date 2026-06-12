@@ -1,0 +1,25 @@
+dss-eulp-coupling/                     ← CODE ONLY now (git status stays clean)
+├── run_case.py  pipeline_utils.py  pipeline_config.yaml  configs/
+├── 1_data_provenance/{src, data_raw, data_derived}/   (code + reference inputs stay)
+├── 2_circuit_matching/*.py
+├── 3_tolerance_matching/*.py
+├── 4_quota_assignment/*.py
+├── 5b_profile_generation/*.py
+├── 5c_csv_conversion/*.py
+├── 5d_scenario_controls/*.py
+├── *_SELECT_STATES.csv                (reference metadata — inputs, stay)
+└── runs/
+    └── <case_id>/
+        ├── summer/  winter/           ← provenance (as today)
+        └── workspace/                 ← ALL generated artifacts, mirrors the phase layout
+            ├── feeder_registry.json
+            ├── parsed_loads.csv  parsed_loads_SUMMARY.csv
+            ├── 1_data_provenance/outputs/pipeline_state/…
+            ├── 2_circuit_matching/{circuits_plain_format/…, review_parquet_matches.csv}
+            ├── 3_tolerance_matching/df_*_matches_out_NC.csv
+            ├── 4_quota_assignment/NC_final_*.csv
+            ├── 5b_profile_generation/{NC_parquet_and_bldgs.csv, daily_parquets/…}
+            ├── 5c_csv_conversion/{NC_circuit_1_summer/…, *.pkl}
+            └── 5d_scenario_controls/{plot_parquet_differences/…, get_scenario_csv_controls/…}
+
+D:\lvg\…\parquet_data\                 ← EXTERNAL, UNCHANGED (same as today)
