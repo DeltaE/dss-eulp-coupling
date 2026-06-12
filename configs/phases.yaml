@@ -44,8 +44,8 @@ pre:
 
 "5a":
   steps:
-    - copy: ["4_quota_assignment/residential_data_SELECT_STATES_FILTERED_{state}.csv", "5a_eulp_downloads/"]
-    - copy: ["4_quota_assignment/commercial_data_SELECT_STATES_FILTERED_{state}.csv", "5a_eulp_downloads/"]
+    - copy: ["4_quota_assignment/{state}_final_residential.csv", "5a_eulp_downloads/"]
+    - copy: ["4_quota_assignment/{state}_final_commercial.csv", "5a_eulp_downloads/"]
     - cmd: "python download_parquets_homes_redo.py"
       cwd: 5a_eulp_downloads
     - cmd: "python download_parquets_commercial_redo.py"

@@ -27,6 +27,8 @@ def load_config(config_path=None):
         cfg["smart_ds_root"] = os.environ["PIPELINE_SMART_DS_ROOT"]
     if os.environ.get("PIPELINE_SMART_DS_PARQUET_ROOT"):
         cfg["smart_ds_parquet_root"] = os.environ["PIPELINE_SMART_DS_PARQUET_ROOT"]
+    if os.environ.get("PIPELINE_PARQUET_ROOT"):
+        cfg["parquet_data_root"] = os.environ["PIPELINE_PARQUET_ROOT"]
     if os.environ.get("PIPELINE_FEEDER_REGISTRY_PATH"):
         cfg["feeder_registry_path"] = os.environ["PIPELINE_FEEDER_REGISTRY_PATH"]
     if os.environ.get("PIPELINE_MAX_FEEDERS"):
