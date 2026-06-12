@@ -21,7 +21,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, load_feeder_registry
+from pipeline_utils import load_config, load_feeder_registry, resolve_work_path
 
 START_PROCESS = time.time()
 
@@ -35,9 +35,7 @@ registry = load_feeder_registry()
 # ---------------------------------------------------------------------
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-base_parquet_dir = os.path.join(SCRIPT_DIR, "..", "5b_profile_generation", "daily_parquets")
-if not os.path.exists(base_parquet_dir):
-    base_parquet_dir = os.path.join(SCRIPT_DIR, "..", "daily_parquets")
+base_parquet_dir = resolve_work_path("5b_profile_generation", "daily_parquets")
 
 folder_timestamps = {}
 folder_equiv = {}
@@ -66,11 +64,11 @@ _scen_suffix = f"_{SCENARIO}" if SCENARIO else ""
 print(f"\n  Scenario: '{SCENARIO or 'baseline'}'  (suffix: '{_scen_suffix}')")
 
 if SCENARIO in ("dm", "uncontrolled"):
-    control_output_dir = os.path.join(SCRIPT_DIR, "..", "5d_scenario_controls", "get_scenario_csv_controls")
+    control_output_dir = resolve_work_path("5d_scenario_controls", "get_scenario_csv_controls")
     df_state = pd.read_csv(os.path.join(control_output_dir, f"{STATE}_parquet_and_bldgs_{SCENARIO}.csv"))
 else:
     # Baseline: read directly from 5b profile generation
-    baseline_csv = os.path.join(SCRIPT_DIR, "..", "5b_profile_generation", f"{STATE}_parquet_and_bldgs.csv")
+    baseline_csv = resolve_work_path("5b_profile_generation", f"{STATE}_parquet_and_bldgs.csv")
     df_state = pd.read_csv(baseline_csv)
 df_state["STATE"] = STATE
 
@@ -130,7 +128,7 @@ for folder_name in folder_list:
         circuit_id = 'RES_' + circuit_id_orig
 
     output_folder_name = f"{state}_{circuit_id}_{season}{_scen_suffix}"
-    out_folder = os.path.join(output_folder_name)
+    out_folder = resolve_work_path("5c_csv_conversion", output_folder_name)
     os.makedirs(out_folder, exist_ok=True)
 
     print(f"\n=== Processing folder: {folder_name} ===")
@@ -229,19 +227,22 @@ for folder_name in folder_list:
 
 if folder_timestamps:
     _ts_pkl = f"folder_timestamps{_scen_suffix}.pkl"
-    with open(_ts_pkl, "wb") as f:
+    _ts_pkl_path = resolve_work_path("5c_csv_conversion", _ts_pkl)
+    with open(_ts_pkl_path, "wb") as f:
         pickle.dump(folder_timestamps, f)
     print(f"\n✅ Stored timestamps in {_ts_pkl}")
 
 if folder_equiv:
     _eq_pkl = f"folder_equiv{_scen_suffix}.pkl"
-    with open(_eq_pkl, "wb") as f:
+    _eq_pkl_path = resolve_work_path("5c_csv_conversion", _eq_pkl)
+    with open(_eq_pkl_path, "wb") as f:
         pickle.dump(folder_equiv, f)
     print(f"\n✅ Stored EQUIVALENCE in {_eq_pkl}")
 
 if folder_list_loadshapes:
     _ls_pkl = f"folder_list_loadshapes{_scen_suffix}.pkl"
-    with open(_ls_pkl, "wb") as f:
+    _ls_pkl_path = resolve_work_path("5c_csv_conversion", _ls_pkl)
+    with open(_ls_pkl_path, "wb") as f:
         pickle.dump(folder_list_loadshapes, f)
     print(f"\n✅ Stored LOADSHAPES in {_ls_pkl}")
 

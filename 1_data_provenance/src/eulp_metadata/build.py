@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
@@ -199,7 +200,18 @@ def project_path(config: dict[str, Any], key: str) -> Path:
 
 
 def cluster_output_dir(config: dict[str, Any], cluster_name: str) -> Path:
-    return project_path(config, "outputs") / cluster_name
+    outputs = Path(config["paths"]["outputs"])
+    if outputs.is_absolute():
+        return outputs / cluster_name
+    base = Path(os.environ.get("PIPELINE_WORK_ROOT", REPO_ROOT))
+    return base / PROJECT_ROOT.name / outputs / cluster_name
+
+
+def _display_path(p):
+    try:
+        return str(p.relative_to(PROJECT_ROOT))
+    except ValueError:
+        return str(p)
 
 
 def get_cluster(config: dict[str, Any], name: str) -> dict[str, Any]:
@@ -274,7 +286,7 @@ def plan_cluster(config: dict[str, Any], cluster_name: str) -> dict[str, Any]:
         "cluster": cluster_name,
         "mode": mode,
         "states": cluster["states"],
-        "output_dir": str(cluster_output_dir(config, cluster_name).relative_to(PROJECT_ROOT)),
+        "output_dir": _display_path(cluster_output_dir(config, cluster_name)),
         "outputs": {
             "residential": cluster.get("output_residential"),
             "commercial": cluster.get("output_commercial"),
@@ -399,7 +411,7 @@ def write_folder_append_dataset(
     if not planned:
         raise SystemExit(f"No input CSVs found for {dataset}")
 
-    summary = CsvSummary(path=str(output_path.relative_to(PROJECT_ROOT)))
+    summary = CsvSummary(path=_display_path(output_path))
     writer: csv.DictWriter[str] | None = None
     selected_columns: list[str] | None = None
 
@@ -460,7 +472,7 @@ def build_historical_slice(
 def write_historical_slice(
     input_path: Path, output_path: Path, states: set[str]
 ) -> CsvSummary:
-    summary = CsvSummary(path=str(output_path.relative_to(PROJECT_ROOT)))
+    summary = CsvSummary(path=_display_path(output_path))
     with input_path.open("r", newline="", encoding="utf-8-sig") as in_handle:
         reader = csv.DictReader(in_handle)
         if reader.fieldnames is None:
@@ -499,7 +511,7 @@ def update_summary(summary: CsvSummary, row: dict[str, str]) -> None:
 
 
 def count_csv(path: Path) -> CsvSummary:
-    summary = CsvSummary(path=str(path.relative_to(PROJECT_ROOT)))
+    summary = CsvSummary(path=_display_path(path))
     with path.open("r", newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
         if reader.fieldnames is None:

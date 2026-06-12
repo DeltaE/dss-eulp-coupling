@@ -35,7 +35,7 @@ import pandas as pd
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, resolve_work_path
 
 START_PROCESS = time.time()
 
@@ -53,6 +53,12 @@ random.seed(RANDOM_SEED)
 np.random.seed(RANDOM_SEED)
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
+PHASE4_OUTPUT_DIR = resolve_work_path("4_quota_assignment")
+os.makedirs(PHASE4_OUTPUT_DIR, exist_ok=True)
+
+
+def phase4_csv(filename):
+    return resolve_work_path("4_quota_assignment", filename)
 
 # ------------------------------------------------------------------
 # Quota settings (with defaults; overridable via cfg['quota'])
@@ -256,8 +262,8 @@ def report(final_df, type_col, quota, target, label):
 # ==================================================================
 # LOAD SOURCE MAPS
 # ==================================================================
-res_source_map = pd.read_csv(os.path.join(current_dir, f"residential_building_source_map_{FAMILY_STR}.csv"))
-com_source_map = pd.read_csv(os.path.join(current_dir, f"commercial_building_source_map_{FAMILY_STR}.csv"))
+res_source_map = pd.read_csv(phase4_csv(f"residential_building_source_map_{FAMILY_STR}.csv"))
+com_source_map = pd.read_csv(phase4_csv(f"commercial_building_source_map_{FAMILY_STR}.csv"))
 res_source_map["Unique_Source_Files"] = res_source_map["Unique_Source_Files"].apply(ast.literal_eval)
 com_source_map["Unique_Source_Files"] = com_source_map["Unique_Source_Files"].apply(ast.literal_eval)
 
@@ -285,7 +291,7 @@ print(f"Quota settings: min_per_type={MIN_PER_TYPE}, redistribution={REDISTRIBUT
 print("\n" + "=" * 60 + "\nCOMMERCIAL\n" + "=" * 60)
 COM_TYPE = "in.comstock_building_type"
 
-com_raw = pd.read_csv(os.path.join(current_dir, commercial_descriptor_file))
+com_raw = pd.read_csv(phase4_csv(commercial_descriptor_file))
 com_df = com_raw[com_raw["bldg_id"].isin(com_bldg_ids_set)]
 com_df = com_df[com_df["State"] == STATE_STR]
 
@@ -323,7 +329,7 @@ RES_TYPE = "in.geometry_building_type_acs"
 # Read all priority tiers; split occupied vs vacant; keep only mapped bldg_ids.
 occ_frames, vac_frames = [], []
 for csv_name in residential_priority:
-    path = os.path.join(current_dir, csv_name)
+    path = phase4_csv(csv_name)
     if not os.path.exists(path):
         print(f"Warning: {csv_name} not found. Skipping.")
         continue
@@ -357,7 +363,7 @@ res_used = set()
 for csv_name in residential_priority:
     if len(res_assigned_parquets) >= res_target:
         break
-    path = os.path.join(current_dir, csv_name)
+    path = phase4_csv(csv_name)
     if not os.path.exists(path):
         continue
     tdf = pd.read_csv(path)
@@ -387,8 +393,8 @@ COPY_FILE_BOOL = False  # parquet copying handled downstream; kept off as in ori
 
 final_commercial_csv = f"{FAMILY_STR}_final_commercial.csv"
 final_residential_csv = f"{FAMILY_STR}_final_residential.csv"
-final_commercial.to_csv(os.path.join(current_dir, final_commercial_csv), index=False)
-final_residential.to_csv(os.path.join(current_dir, final_residential_csv), index=False)
+final_commercial.to_csv(phase4_csv(final_commercial_csv), index=False)
+final_residential.to_csv(phase4_csv(final_residential_csv), index=False)
 print(f"\nSaved {final_commercial_csv}  ({len(final_commercial)} rows)")
 print(f"Saved {final_residential_csv}  ({len(final_residential)} rows)")
 

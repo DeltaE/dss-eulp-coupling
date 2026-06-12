@@ -12,7 +12,7 @@ import numpy as np
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, resolve_work_path
 
 START_PROCESS = time.time()
 
@@ -22,11 +22,13 @@ SEASON = cfg['season']
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Create output folder
-output_folder = os.path.join(SCRIPT_DIR, "get_scenario_csv_controls")
+output_folder = resolve_work_path("5d_scenario_controls", "get_scenario_csv_controls")
 os.makedirs(output_folder, exist_ok=True)
 
 # Load scenario summary
-scenario_file = os.path.join(SCRIPT_DIR, "plot_parquet_differences", "combined_scenarios.csv")
+scenario_file = resolve_work_path(
+    "5d_scenario_controls", "plot_parquet_differences", "combined_scenarios.csv"
+)
 if not os.path.exists(scenario_file):
     print(f"❌ Scenario file not found: {scenario_file}")
     sys.exit()
@@ -50,9 +52,7 @@ base_files = [
 
 # Process each file
 for base in base_files:
-    input_path = os.path.join(SCRIPT_DIR, "..", "5b_profile_generation", f"{base}.csv")
-    if not os.path.exists(input_path):
-        input_path = os.path.join(SCRIPT_DIR, f"{base}.csv")
+    input_path = resolve_work_path("5b_profile_generation", f"{base}.csv")
     if not os.path.exists(input_path):
         print(f"❌ File not found: {input_path}")
         sys.exit()

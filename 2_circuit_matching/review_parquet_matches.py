@@ -13,7 +13,7 @@ from copy import deepcopy
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, resolve_work_path
 
 START_TIME = time.time()
 
@@ -32,17 +32,16 @@ all_files = [f for f in os.listdir(folder_path) if f.endswith('.parquet')]
 # filter_list = ["com_12774.parquet"]  # Modify this list as needed
 filter_list_long = []
 
-flex_path = \
-    './circuits_plain_format'
+flex_path = resolve_work_path("2_circuit_matching", "circuits_plain_format")
 go_back_checker = [i for i in os.listdir(flex_path) if '.' not in i]
 #print(go_back_checker)
 #print('Check now')
 #sys.exit()
 test_folders = [i for i in go_back_checker]
 for tf in test_folders:
-    tf_path = flex_path + '/' + tf
+    tf_path = os.path.join(flex_path, tf)
     pkl_files = [i for i in os.listdir(tf_path) if '.pkl' in i]
-    pkl_path = tf_path + '/' + pkl_files[0]
+    pkl_path = os.path.join(tf_path, pkl_files[0])
     with open(pkl_path, "rb") as f:
         daily_list_set_list = pickle.load(f)
     filter_list_long += deepcopy(daily_list_set_list)
@@ -117,7 +116,10 @@ for n in range(len(filtered_files)):
 consolidated_df = pd.concat(all_monthly_stats, ignore_index=True)
 
 # Save the consolidated DataFrame to CSV
-consolidated_df.to_csv('review_parquet_matches.csv', index=False)
+consolidated_df.to_csv(
+    resolve_work_path("2_circuit_matching", "review_parquet_matches.csv"),
+    index=False,
+)
 
 print("Saved consolidated monthly statistics to review_parquet_matches.csv")
 

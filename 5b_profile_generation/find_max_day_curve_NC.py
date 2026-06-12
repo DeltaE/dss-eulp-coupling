@@ -16,7 +16,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, resolve_work_path
 
 START_PROCESS = time.time()
 
@@ -41,7 +41,9 @@ _SCEN_SUFFIX = f"_{SCENARIO}" if SCENARIO else ""
 df_curve_per_feeder = {}  # 🔹 NEW
 
 # Load required parquet summary
-df_summary_result = pd.read_csv(SCRIPT_DIR / (STR_STATE + "_required_parquets_per_feeder.csv"))
+df_summary_result = pd.read_csv(
+    resolve_work_path("5b_profile_generation", STR_STATE + "_required_parquets_per_feeder.csv")
+)
 
 # Dictionary to store peak daily curves per month per feeder
 peak_load_curves = {}
@@ -248,7 +250,8 @@ if BOOL_SAVE_SLICES:
             winter_peak_date = winter_peak["Peak Day"]
 
             season = "winter"
-            output_dir = f"./daily_parquets/{STR_STATE}_{feeder.replace('--', '_')}_{season}{_SCEN_SUFFIX}"
+            output_leaf = f"{STR_STATE}_{feeder.replace('--', '_')}_{season}{_SCEN_SUFFIX}"
+            output_dir = resolve_work_path("5b_profile_generation", "daily_parquets", output_leaf)
             os.makedirs(output_dir, exist_ok=True)
 
             df_feeder_rows = df_summary_result[df_summary_result["Feeder"] == feeder]
@@ -270,7 +273,7 @@ if BOOL_SAVE_SLICES:
                                     (df_full["timestamp"].dt.day == target_day)]
 
                     if not df_day.empty:
-                        out_path = f"{output_dir}/{row['Parquet_File']}"
+                        out_path = os.path.join(output_dir, row['Parquet_File'])
                         df_day.to_parquet(out_path, index=False)
                         # print(f"✅ Saved WINTER day for {feeder} to {out_path}")
                     else:
@@ -287,7 +290,8 @@ if BOOL_SAVE_SLICES:
             summer_peak_date = summer_peak["Peak Day"]
 
             season = "summer"
-            output_dir = f"./daily_parquets/{STR_STATE}_{feeder.replace('--', '_')}_{season}{_SCEN_SUFFIX}"
+            output_leaf = f"{STR_STATE}_{feeder.replace('--', '_')}_{season}{_SCEN_SUFFIX}"
+            output_dir = resolve_work_path("5b_profile_generation", "daily_parquets", output_leaf)
             os.makedirs(output_dir, exist_ok=True)
 
             df_feeder_rows = df_summary_result[df_summary_result["Feeder"] == feeder]
@@ -309,7 +313,7 @@ if BOOL_SAVE_SLICES:
                                     (df_full["timestamp"].dt.day == target_day)]
 
                     if not df_day.empty:
-                        out_path = f"{output_dir}/{row['Parquet_File']}"
+                        out_path = os.path.join(output_dir, row['Parquet_File'])
                         df_day.to_parquet(out_path, index=False)
                         # print(f"✅ Saved SUMMER day for {feeder} to {out_path}")
                     else:

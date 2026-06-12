@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, resolve_work_path
 
 START_PROCESS = time.time()
 
@@ -29,8 +29,8 @@ if not PARQUET_DATA_ROOT.is_absolute():
     PARQUET_DATA_ROOT = (REPO_ROOT / PARQUET_DATA_ROOT).resolve()
 
 # Create output folder if it doesn't exist
-output_folder = SCRIPT_DIR / "plot_parquet_differences"
-output_folder.mkdir(exist_ok=True)
+output_folder = resolve_work_path("5d_scenario_controls", "plot_parquet_differences")
+os.makedirs(output_folder, exist_ok=True)
 
 # Define which scenario IDs are baseline, uncontrolled, demand_mgmt for each building type
 residential_ids = {

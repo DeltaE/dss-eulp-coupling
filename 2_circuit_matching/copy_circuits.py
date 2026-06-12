@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, resolve_config_path
+from pipeline_utils import load_config, resolve_config_path, resolve_work_path
 
 # --- Paths & knobs ---
 try:
@@ -24,8 +24,8 @@ except NameError:
 cfg = load_config()
 STATE = cfg["state"]
 SMARTDS_ROOT = resolve_config_path(cfg.get("smart_ds_root", "../3_smartds"))
-CIRCUITS_PLAIN_DIR = (BASE_DIR / 'circuits_plain_format').resolve()
-CIRCUITS_PLAIN_DIR.mkdir(exist_ok=True)
+CIRCUITS_PLAIN_DIR = Path(resolve_work_path("2_circuit_matching", "circuits_plain_format"))
+CIRCUITS_PLAIN_DIR.mkdir(parents=True, exist_ok=True)
 REGISTRY_PATH = resolve_config_path(cfg.get("feeder_registry_path", "feeder_registry.json"))
 
 MAX_FEEDERS = cfg.get("max_feeders")

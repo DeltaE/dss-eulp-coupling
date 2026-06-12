@@ -11,7 +11,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, load_feeder_registry
+from pipeline_utils import load_config, load_feeder_registry, resolve_work_path
 
 START_PROCESS = time.time()
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -23,8 +23,8 @@ DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
 STR_STATE = STATE
 registry = load_feeder_registry()
 
-SUMMARY_CSV = os.path.join(BASE_DIR, "parsed_loads_SUMMARY.csv")
-SUMMARY_XLSX = os.path.join(BASE_DIR, "parsed_loads_PIVOT.xlsx")
+SUMMARY_CSV = resolve_work_path("parsed_loads_SUMMARY.csv")
+SUMMARY_XLSX = resolve_work_path("parsed_loads_PIVOT.xlsx")
 
 if os.path.exists(SUMMARY_CSV):
     df_summary = pd.read_csv(SUMMARY_CSV)
@@ -43,8 +43,8 @@ if "Parquet_Name" not in df_summary.columns:
 # Load commercial and residential mapping files
 commercial_file = STR_STATE + "_final_commercial.csv"
 residential_file = STR_STATE + "_final_residential.csv"
-df_commercial = pd.read_csv(commercial_file)
-df_residential = pd.read_csv(residential_file)
+df_commercial = pd.read_csv(resolve_work_path("4_quota_assignment", commercial_file))
+df_residential = pd.read_csv(resolve_work_path("4_quota_assignment", residential_file))
 
 relevant_feeders = list(
     entry["feeder_name"]
@@ -115,7 +115,10 @@ def extract_parquet_filename(bldg_id):
 df_result["Parquet_File"] = df_result["bldg_id"].apply(extract_parquet_filename)
 
 # Save results of detailed merged
-df_result.to_csv(STR_STATE + "_parquet_and_bldgs.csv", index=False)
+df_result.to_csv(
+    resolve_work_path("5b_profile_generation", STR_STATE + "_parquet_and_bldgs.csv"),
+    index=False,
+)
 
 # print('what happened up until here')
 # sys.exit()
@@ -124,7 +127,10 @@ df_result.to_csv(STR_STATE + "_parquet_and_bldgs.csv", index=False)
 df_summary_result = df_result.groupby(["Feeder", "Parquet_Folder", "Parquet_File"])['REAL_LOAD_COUNT'].sum().reset_index()
 
 # Save results
-df_summary_result.to_csv(STR_STATE + "_required_parquets_per_feeder.csv", index=False)
+df_summary_result.to_csv(
+    resolve_work_path("5b_profile_generation", STR_STATE + "_required_parquets_per_feeder.csv"),
+    index=False,
+)
 
 END_PROCESS = time.time()
 TIME_ELAPSED = -START_PROCESS + END_PROCESS
