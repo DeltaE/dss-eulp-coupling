@@ -27,7 +27,7 @@ START_PROCESS = time.time()
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
-from pipeline_utils import load_config, resolve_config_path
+from pipeline_utils import load_config, resolve_config_path, resolve_work_path
 
 cfg = load_config()
 DEFAULT_SMART_DS_PARQUET_ROOT = REPO_ROOT / "3b_smartds_eulp_match" / "parquet_data"
@@ -43,15 +43,15 @@ print(f"\n  Scenario: '{SCENARIO or 'baseline'}'  (suffix: '{_scen_suffix}')")
 # --- END PATCH ---
 
 # Adjust these paths:
-needed_parquets_path = "needed_parquets.pkl"
-timestamp_pickle      = f"folder_timestamps{_scen_suffix}.pkl"
+needed_parquets_path = resolve_work_path("6_kvar_preparation", "needed_parquets.pkl")
+timestamp_pickle      = resolve_work_path("5c_csv_conversion", f"folder_timestamps{_scen_suffix}.pkl")
 configured_parquet_root = cfg.get("smart_ds_parquet_root")
 original_parquet_dir = (
     resolve_config_path(configured_parquet_root)
     if configured_parquet_root
     else DEFAULT_SMART_DS_PARQUET_ROOT.resolve()
 )
-kvar_ratios_output    = f"kvar_ratios{_scen_suffix}.pkl"
+kvar_ratios_output    = resolve_work_path("6_kvar_preparation", f"kvar_ratios{_scen_suffix}.pkl")
 
 print(f"Using SMART-DS source parquet root: {original_parquet_dir}")
 print(f"Reading timestamps from: {timestamp_pickle}")

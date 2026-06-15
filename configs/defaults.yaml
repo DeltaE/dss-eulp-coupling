@@ -9,8 +9,11 @@ seasons:
 
 # Deterministic instantiation phase order (the proven fire-test sequence).
 # Skips 0_experimental_design (LHS, downstream) and stops before Phase 7 (DER, downstream).
-# Phase 6 (kvar) is pending wiring — see docs/instantiation_management.md.
-phase_order: [pre, "1", "2", "3", "4", "5a", "5b", "5d", "5b_variants", "5c"]
+# Full deterministic chain including scenario variants (dm, uncontrolled).
+# Phases marked run_once in phases.yaml execute on the first season only.
+# Phase 6 kvar loadshapes land alongside the kW CSVs in 5c_csv_conversion;
+# intermediate pkls land in 6_kvar_preparation. See docs/instantiation_management.md.
+phase_order: [pre, "1", "2", "3", "4", "5a", "5b", "5d", "5b_variants", "5c", "5c_variants", "6", "6_variants"]
 
 # Environment applied to every phase.
 base_env:

@@ -221,6 +221,7 @@ def prepare_work_root(work_root: str) -> None:
         "5c_csv_conversion",
         "5d_scenario_controls/plot_parquet_differences",
         "5d_scenario_controls/get_scenario_csv_controls",
+        "6_kvar_preparation",
     ]:
         os.makedirs(os.path.join(work_root, rel_path), exist_ok=True)
 
@@ -253,6 +254,7 @@ def main() -> None:
     print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
 
     overall_ok = True
+    done_once = set()
     for season in seasons:
         run_dir = runs_root / resolved["case_id"] / season
         write_manifest(run_dir, resolved, season)
@@ -267,8 +269,13 @@ def main() -> None:
                     log.write(f"  (no definition for phase {pid}, skipping)\n")
                     status[pid] = "undefined"
                     continue
+                if phases[pid].get("run_once") and pid in done_once:
+                    status[pid] = "skipped (run_once)"
+                    continue
                 ok = run_phase(pid, phases[pid], resolved, season, env, log, args.dry_run)
                 status[pid] = "ok" if ok else "failed"
+                if ok and phases[pid].get("run_once"):
+                    done_once.add(pid)
                 if not ok:
                     overall_ok = False
                     break

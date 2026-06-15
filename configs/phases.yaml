@@ -78,7 +78,38 @@ pre:
       cwd: 5b_profile_generation
 
 "5c":
+  run_once: true
   steps:
     - cmd: "python parquet_to_csv.py"
       cwd: 5c_csv_conversion
   verify: "5c"
+
+"6":
+  run_once: true
+  steps:
+    - cmd: "python save_needed_sd_parquets.py"
+      cwd: 6_kvar_preparation
+    - cmd: "python rev_spec_kvar_kw_ratio.py"
+      cwd: 6_kvar_preparation
+    - cmd: "python generate_kvar_csvs.py"
+      cwd: 6_kvar_preparation
+
+"5c_variants":
+  run_once: true
+  steps:
+    - cmd: "python parquet_to_csv.py --scenario dm"
+      cwd: 5c_csv_conversion
+    - cmd: "python parquet_to_csv.py --scenario uncontrolled"
+      cwd: 5c_csv_conversion
+
+"6_variants":
+  run_once: true
+  steps:
+    - cmd: "python rev_spec_kvar_kw_ratio.py --scenario dm"
+      cwd: 6_kvar_preparation
+    - cmd: "python generate_kvar_csvs.py --scenario dm"
+      cwd: 6_kvar_preparation
+    - cmd: "python rev_spec_kvar_kw_ratio.py --scenario uncontrolled"
+      cwd: 6_kvar_preparation
+    - cmd: "python generate_kvar_csvs.py --scenario uncontrolled"
+      cwd: 6_kvar_preparation
