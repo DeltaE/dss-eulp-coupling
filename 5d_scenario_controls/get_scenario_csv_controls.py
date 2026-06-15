@@ -40,8 +40,8 @@ scenario_dict = {}
 for _, row in df_scenarios.iterrows():
     folder = row["folder"]
     building_id = str(row["building_id"])
-    un_id = str(row.get("uncontrolled_scenario_id", ""))
-    dm_id = str(row.get("demand_management_scenario_id", ""))
+    un_id = str(int(row["uncontrolled_scenario_id"])) if pd.notna(row.get("uncontrolled_scenario_id")) else ""
+    dm_id = str(int(row["demand_management_scenario_id"])) if pd.notna(row.get("demand_management_scenario_id")) else ""
     scenario_dict[(folder, building_id)] = (un_id, dm_id)
 
 # Define base filenames (without suffix)
