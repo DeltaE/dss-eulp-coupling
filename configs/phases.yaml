@@ -71,6 +71,7 @@ pre:
   verify: "5d"
 
 "5b_variants":
+  run_once: true
   steps:
     - cmd: "python find_max_day_curve_dm.py"
       cwd: 5b_profile_generation
