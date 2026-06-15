@@ -13,22 +13,19 @@ import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, resolve_work_path
 
 # --- Configuration ------------------------------------------------------------
 cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
 
-# Parent directory that contains the pipeline folders below.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
-OUTPUT_DIR = BASE_DIR / "8_results_analysis"
+OUTPUT_DIR = Path(resolve_work_path("8_results_analysis"))
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 # The folders of interest (exact names as you provided)
 FOLDERS = [
-    "7_circuit_instantiation"
+    resolve_work_path("7_circuit_instantiation")
 ]
 
 # The input -> output filenames you want to combine
@@ -98,6 +95,6 @@ if __name__ == "__main__":
     # BASE_DIR = Path(r"C:\path\to\parent\folder")
 
     for in_name, out_name in TARGET_FILES:
-        combine_and_save(BASE_DIR, OUTPUT_DIR, FOLDERS, in_name, out_name)
+        combine_and_save(Path("."), OUTPUT_DIR, FOLDERS, in_name, out_name)
 
     print("\nAll done.")

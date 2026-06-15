@@ -127,7 +127,7 @@ pre:
 
 "7c":
   steps:
-    - cmd: "python run_all_deploys_v2.py"
+    - cmd: "python run_all_deploys_v2.py --root {work_root}/7_circuit_instantiation"
       cwd: 7_circuit_instantiation
 
 "8":
