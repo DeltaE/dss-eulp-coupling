@@ -635,6 +635,7 @@ if master_dss_path:
 
 # ---------------- Compile & Solve ----------------
 DSSobj   = cc.CreateObject("OpenDSSEngine.DSS")
+DSSobj.AllowForms = False
 DSSstart = DSSobj.Start(0)
 DSStext  = DSSobj.Text
 DSScircuit = DSSobj.ActiveCircuit

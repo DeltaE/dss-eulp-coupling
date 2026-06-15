@@ -755,7 +755,7 @@ for feeder in feeders:
         deployer_root = str((REPO_ROOT / "7_circuit_instantiation").resolve())
         txt = re.sub(
             r"ROOT\s*=\s*os\.path\.abspath\(os\.path\.join\(CURRENT_DIR,\s*['\"]\.\.['\"]\)\)",
-            f'ROOT = r"{deployer_root}"',
+            lambda m: f'ROOT = r"{deployer_root}"',
             txt
         )
 
