@@ -114,3 +114,25 @@ pre:
       cwd: 6_kvar_preparation
     - cmd: "python generate_kvar_csvs.py --scenario uncontrolled"
       cwd: 6_kvar_preparation
+
+"7a":
+  run_once: true
+  steps:
+    - cmd: "python prepare_phase7_fire_test.py"
+
+"7b":
+  steps:
+    - cmd: "python instantiate_circuits_and_runs_APPLYFILTER.py"
+      cwd: 7_circuit_instantiation
+
+"7c":
+  steps:
+    - cmd: "python run_all_deploys_v2.py"
+      cwd: 7_circuit_instantiation
+
+"8":
+  steps:
+    - cmd: "python aggregate_m1_m2_with_circuits.py"
+      cwd: 7_circuit_instantiation
+    - cmd: "python append_experiment_results.py"
+      cwd: 8_results_analysis

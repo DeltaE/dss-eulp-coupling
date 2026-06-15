@@ -222,6 +222,9 @@ def prepare_work_root(work_root: str) -> None:
         "5d_scenario_controls/plot_parquet_differences",
         "5d_scenario_controls/get_scenario_csv_controls",
         "6_kvar_preparation",
+        "7_circuit_instantiation",
+        "7_circuit_instantiation/profiles_use_bench",
+        "8_results_analysis",
     ]:
         os.makedirs(os.path.join(work_root, rel_path), exist_ok=True)
 
