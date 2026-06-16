@@ -71,7 +71,6 @@ pre:
   verify: "5d"
 
 "5b_variants":
-  run_once: true
   steps:
     - cmd: "python find_max_day_curve_dm.py"
       cwd: 5b_profile_generation
@@ -79,14 +78,12 @@ pre:
       cwd: 5b_profile_generation
 
 "5c":
-  run_once: true
   steps:
     - cmd: "python parquet_to_csv.py"
       cwd: 5c_csv_conversion
   verify: "5c"
 
 "6":
-  run_once: true
   steps:
     - cmd: "python save_needed_sd_parquets.py"
       cwd: 6_kvar_preparation
@@ -96,7 +93,6 @@ pre:
       cwd: 6_kvar_preparation
 
 "5c_variants":
-  run_once: true
   steps:
     - cmd: "python parquet_to_csv.py --scenario dm"
       cwd: 5c_csv_conversion
@@ -104,7 +100,6 @@ pre:
       cwd: 5c_csv_conversion
 
 "6_variants":
-  run_once: true
   steps:
     - cmd: "python rev_spec_kvar_kw_ratio.py --scenario dm"
       cwd: 6_kvar_preparation
@@ -116,7 +111,6 @@ pre:
       cwd: 6_kvar_preparation
 
 "7a":
-  run_once: true
   steps:
     - cmd: "python prepare_phase7_fire_test.py"
 

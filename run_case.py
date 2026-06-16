@@ -247,18 +247,17 @@ def main() -> None:
     runs_root = Path(resolved["local"].get("runs_root", "runs"))
     if not runs_root.is_absolute():
         runs_root = REPO_ROOT / runs_root
-    work_root = (REPO_ROOT / "runs" / resolved["case_id"] / "workspace").resolve()
-    resolved["work_root"] = str(work_root)
-
     print(f"Case {resolved['case_id']}: topology={resolved['topology_id']} "
           f"donor={resolved['donor_state']} seasons={seasons}")
     print(f"  PIPELINE_SMART_DS_ROOT={resolved['smart_ds_root']}")
     print(f"  PIPELINE_PARQUET_ROOT={resolved['parquet_root']}")
-    print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
 
     overall_ok = True
     done_once = set()
     for season in seasons:
+        work_root = (REPO_ROOT / "runs" / resolved["case_id"] / season / "workspace").resolve()
+        resolved["work_root"] = str(work_root)
+        print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
         run_dir = runs_root / resolved["case_id"] / season
         write_manifest(run_dir, resolved, season)
         prepare_work_root(resolved["work_root"])

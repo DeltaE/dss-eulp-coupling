@@ -18,7 +18,25 @@ from pipeline_utils import load_config, resolve_work_path
 # --- Configuration ------------------------------------------------------------
 cfg = load_config()
 STATE = cfg['state']
-SEASON = cfg['season']
+
+# Resolve season: PIPELINE_SEASON env var (set by run_case.py per season loop)
+# takes priority, then fall back to pipeline_config.yaml.  Never silently
+# default to 'unknown' — that masks the very bug this fix addresses.
+_env_season = os.environ.get("PIPELINE_SEASON", "").strip().lower()
+_cfg_season = cfg.get("season", "").strip().lower()
+SEASON = _env_season or _cfg_season
+if not SEASON:
+    raise RuntimeError(
+        "Cannot resolve season: neither PIPELINE_SEASON env var nor "
+        "pipeline_config.yaml 'season' key is set.  Fix your config."
+    )
+VALID_SEASONS = {"summer", "winter"}
+if SEASON not in VALID_SEASONS:
+    raise ValueError(
+        f"Season '{SEASON}' not in {VALID_SEASONS}. "
+        f"Check PIPELINE_SEASON env var or pipeline_config.yaml."
+    )
+print(f"[append] season = '{SEASON}'  (source: {'env PIPELINE_SEASON' if _env_season else 'pipeline_config.yaml'})")
 
 OUTPUT_DIR = Path(resolve_work_path("8_results_analysis"))
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -35,20 +53,6 @@ TARGET_FILES = [
     ("heating_assignment__FULL.csv", "heating_assignment__FULL_combined.csv"),
 ]
 
-# --- Helpers ------------------------------------------------------------------
-def parse_context(subdir_name: str):
-    """
-    Infer season and design from the folder name.
-    Returns (season, design), e.g., ('winter', 'lhs_100').
-    """
-    name = subdir_name.lower()
-    season = "summer" if "summer" in name else ("winter" if "winter" in name else "unknown")
-
-    # Check specific designs; order matters because 'lhs' is a substring of 'lhs_100'
-    design = STATE
-
-    return season, design
-
 
 def combine_and_save(base_dir: Path, output_dir: Path,
                      folders: list, input_filename: str, output_filename: str) -> pd.DataFrame:
@@ -61,7 +65,6 @@ def combine_and_save(base_dir: Path, output_dir: Path,
 
     print(f"\n=== Combining: {input_filename} ===")
     for subdir in folders:
-        season, design = parse_context(subdir)
         in_path = base_dir / subdir / input_filename
 
         if not in_path.exists():
@@ -72,8 +75,8 @@ def combine_and_save(base_dir: Path, output_dir: Path,
         # Drop typical accidental index columns if present
         df = df.loc[:, ~df.columns.str.contains(r"^Unnamed:")].copy()
 
-        df["season"] = season
-        df["design"] = design
+        df["season"] = SEASON
+        df["design"] = STATE
 
         frames.append(df)
         print(f"  ✓ Added {len(df):,} rows from {in_path}")

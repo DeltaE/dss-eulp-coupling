@@ -655,7 +655,7 @@ for feeder in feeders:
         def pick(seed_val, items, k):
             import random as _r
             if k <= 0 or len(items) == 0: return []
-            rng = _r.Random(int(seed_val) + hash(dst_folder_name) % 10_000_000)
+            rng = _r.Random(int(seed_val) + hash((substation_name, feeder_name)) % 10_000_000)
             items_copy = list(items)
             rng.shuffle(items_copy)
             return items_copy[:min(k, len(items_copy))]
