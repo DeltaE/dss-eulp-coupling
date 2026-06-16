@@ -1,0 +1,35 @@
+# Finite menu of available SMART-DS circuit topologies (the "circuit menu").
+# Absolute path is resolved at runtime:
+#     smart_ds_root = <local.smart_ds_base> / <smart_ds_relpath>
+# .dss feeder files are EXTERNAL inputs and are NOT versioned.
+# To add a topology: drop the circuit under smart_ds_base, add an entry here,
+# set status: ready. No core script changes needed.
+#
+# SELECTION CRITERIA (2x2 test):
+#   1. Both urban (not rural/industrial)
+#   2. Both base_timeseries (no pre-baked DER)
+#   3. Both have exactly 2 circuits (matches max_feeders=2)
+#   4. All circuits in 1000-2000 load range (no outlier stubs)
+#   5. Similar aggregate scale (~3300 NC vs ~3000 TX total loads)
+#   6. Different geographies (GSO vs AUS) = different states/climate zones
+
+topologies:
+  NC_GSO_urban_uhs13_1247:
+    topology_state: NC
+    geography: GSO
+    urbanicity: urban-suburban
+    feeder_id: uhs13_1247
+    smart_ds_relpath: "GSO/urban-suburban/base_timeseries/opendss"
+    circuit_folder: "uhs13_1247"
+    status: ready
+    description: "NC GSO urban-suburban feeder (2 circuits, 1405+1926 loads, ~3331 total)"
+
+  TX_AUS_urban_p2uhs12_1247:
+    topology_state: TX
+    geography: AUS
+    urbanicity: P2U
+    feeder_id: p2uhs12_1247
+    smart_ds_relpath: "AUS/P2U/base_timeseries/opendss"
+    circuit_folder: "p2uhs12_1247"
+    status: ready
+    description: "TX AUS P2U feeder (2 circuits, 1474+1523 loads, ~2997 total)"

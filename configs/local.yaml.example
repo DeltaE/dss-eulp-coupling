@@ -1,0 +1,10 @@
+# Per-machine config. COPY to configs/local.yaml (gitignored) and edit for THIS machine.
+# The same case YAML then runs unchanged on every machine.
+
+# Machine 3 (srye-deltae-05) example:
+smart_ds_base: "D:/lvg"     # topology smart_ds_root = smart_ds_base / topology.smart_ds_relpath
+runs_root: "runs"           # per-case provenance output (repo-relative or absolute)
+
+# Optional overrides (leave commented to use pipeline_config.yaml defaults):
+# smart_ds_parquet_root: "3b_smartds_eulp_match/parquet_data"   # -> PIPELINE_SMART_DS_PARQUET_ROOT
+# parquet_data_root: "./parquet_data"                            # -> PIPELINE_PARQUET_ROOT

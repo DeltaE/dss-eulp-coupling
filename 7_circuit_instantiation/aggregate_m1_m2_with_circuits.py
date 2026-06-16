@@ -10,11 +10,15 @@ Created on Tue Nov 11 20:35:25 2025
 # summary row per circuit with counts from .dss and substation transformer kVA.
 # Procedural / minimal functions approach.
 
+import os
 import re
 import sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import resolve_work_path
 
 # ---------- small helpers kept inline ----------
 def _dephase(bus_name: str) -> str:
@@ -38,7 +42,7 @@ M1_RE = re.compile(r"(?<![0-9A-Za-z])m1(?![0-9A-Za-z])", re.IGNORECASE)
 M2_RE = re.compile(r"(?<![0-9A-Za-z])m2(?![0-9A-Za-z])", re.IGNORECASE)
 
 if __name__ == "__main__":
-    ROOT = Path(__file__).resolve().parent
+    ROOT = Path(resolve_work_path("7_circuit_instantiation"))
 
     # Accumulators
     m1_frames = []

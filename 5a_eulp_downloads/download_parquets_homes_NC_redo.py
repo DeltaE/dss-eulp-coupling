@@ -15,7 +15,7 @@ import requests
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, resolve_work_path
 
 # -------------------------
 # Configuration
@@ -56,7 +56,8 @@ column_selection_case = {
 # Read the Phase 4 FINAL SELECTION (the chosen representatives), NOT the _FILTERED_ set.
 #   {STATE}_final_residential.csv  -> ~hundreds of buildings (one per chosen parquet)
 # The old _FILTERED_ file held every matched building and over-downloaded ~80x.
-METADATA_CSV_TEMPLATE = "./{STATE}_final_residential.csv"
+# Final selection CSV is staged into the workspace by run_case.py copy step.
+# Resolved via resolve_work_path at read time (see load_target_bldg_ids_for_state).
 
 # Download params
 DOWNLOAD_DIR_TEMPLATE = os.path.join(PARQUET_DATA_ROOT, f"parquet_residential_short_{CASE_ID}")
@@ -164,7 +165,7 @@ def load_target_bldg_ids_for_state(state, filter_dict):
     Loads ./{STATE}_final_residential.csv (the Phase 4 final selection)
     Applies the column filters in filter_dict and returns a set of bldg_id.
     """
-    path = METADATA_CSV_TEMPLATE.format(STATE=state)
+    path = resolve_work_path("5a_eulp_downloads", f"{state}_final_residential.csv")
     if not os.path.exists(path):
         raise FileNotFoundError(f"Metadata CSV not found: {path}")
     df = pd.read_csv(path)

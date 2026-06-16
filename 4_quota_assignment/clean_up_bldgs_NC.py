@@ -12,7 +12,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, resolve_work_path
 
 START_TIME = time.time()
 
@@ -22,8 +22,10 @@ SEASON = cfg['season']
 STATE_STR = STATE
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
-PHASE1_OUTPUT_DIR = os.path.join(REPO_ROOT, '1_data_provenance', 'outputs', 'pipeline_state')
-PHASE3_OUTPUT_DIR = os.path.join(REPO_ROOT, '3_tolerance_matching')
+PHASE1_OUTPUT_DIR = resolve_work_path('1_data_provenance', 'outputs', 'pipeline_state')
+PHASE3_OUTPUT_DIR = resolve_work_path('3_tolerance_matching')
+PHASE4_OUTPUT_DIR = resolve_work_path('4_quota_assignment')
+os.makedirs(PHASE4_OUTPUT_DIR, exist_ok=True)
 
 
 def metadata_csv(filename):
@@ -48,6 +50,10 @@ def phase3_csv(filename):
         if os.path.exists(candidate):
             return candidate
     return candidates[1]
+
+
+def phase4_csv(filename):
+    return resolve_work_path("4_quota_assignment", filename)
 
 # ===================================================
 # =========== RESIDENTIAL FILTERING SECTION =========
@@ -81,7 +87,7 @@ if FILTER_RESIDENTIAL:
     # 4) Filter the residential_data_SELECT_STATES_" + STATE_STR + ".csv by these bldg_ids
     df_res = pd.read_csv(metadata_csv("residential_data_SELECT_STATES.csv"))
     df_res_filtered = df_res[df_res["bldg_id"].isin(unique_bldg_ids_res)]
-    df_res_filtered.to_csv("residential_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv", index=False)
+    df_res_filtered.to_csv(phase4_csv("residential_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv"), index=False)
     print("Wrote residential_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv")
 
     # 5) Output a summary CSV to show how many times each bldg_id occurs and in which Source_Files
@@ -96,7 +102,7 @@ if FILTER_RESIDENTIAL:
             "Unique_Source_Files": unique_source_files
         })
     df_res_summary = pd.DataFrame(res_rows)
-    df_res_summary.to_csv("residential_building_source_map_" + STATE_STR + ".csv", index=False)
+    df_res_summary.to_csv(phase4_csv("residential_building_source_map_" + STATE_STR + ".csv"), index=False)
     print("Wrote residential_building_source_map_" + STATE_STR + ".csv")
 
     # ---------------------------------------------------------------------------
@@ -126,13 +132,13 @@ if FILTER_RESIDENTIAL:
     df_na = df_res_filtered[df_res_filtered["income_group"] == "Not Available"]
 
     # Write CSVs for Low, Mid, High
-    df_low.to_csv("residential_data_SELECT_STATES_FILTERED_low_" + STATE_STR + ".csv", index=False)
-    df_mid.to_csv("residential_data_SELECT_STATES_FILTERED_mid_" + STATE_STR + ".csv", index=False)
-    df_high.to_csv("residential_data_SELECT_STATES_FILTERED_high_" + STATE_STR + ".csv", index=False)
+    df_low.to_csv(phase4_csv("residential_data_SELECT_STATES_FILTERED_low_" + STATE_STR + ".csv"), index=False)
+    df_mid.to_csv(phase4_csv("residential_data_SELECT_STATES_FILTERED_mid_" + STATE_STR + ".csv"), index=False)
+    df_high.to_csv(phase4_csv("residential_data_SELECT_STATES_FILTERED_high_" + STATE_STR + ".csv"), index=False)
 
     # Only write Not Available if it has any rows
     if not df_na.empty:
-        df_na.to_csv("residential_data_SELECT_STATES_FILTERED_not_available_" + STATE_STR + ".csv", index=False)
+        df_na.to_csv(phase4_csv("residential_data_SELECT_STATES_FILTERED_not_available_" + STATE_STR + ".csv"), index=False)
 
     print("Wrote sub-slices by income group:")
     print("  - residential_data_SELECT_STATES_FILTERED_low_" + STATE_STR + ".csv")
@@ -175,7 +181,7 @@ if FILTER_COMMERCIAL:
     # 4) Filter the commercial_data_SELECT_STATES_" + STATE_STR + ".csv by these bldg_ids
     df_com = pd.read_csv(metadata_csv("commercial_data_SELECT_STATES.csv"))
     df_com_filtered = df_com[df_com["bldg_id"].isin(unique_bldg_ids_com)]
-    df_com_filtered.to_csv("commercial_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv", index=False)
+    df_com_filtered.to_csv(phase4_csv("commercial_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv"), index=False)
     print("Wrote commercial_data_SELECT_STATES_FILTERED_" + STATE_STR + ".csv")
 
     # 5) Output a summary CSV to show bldg_id occurrences
@@ -188,7 +194,7 @@ if FILTER_COMMERCIAL:
             "Unique_Source_Files": unique_source_files
         })
     df_com_summary = pd.DataFrame(com_rows)
-    df_com_summary.to_csv("commercial_building_source_map_" + STATE_STR + ".csv", index=False)
+    df_com_summary.to_csv(phase4_csv("commercial_building_source_map_" + STATE_STR + ".csv"), index=False)
     print("Wrote commercial_building_source_map_" + STATE_STR + ".csv")
 
     print("=== DONE COMMERCIAL FILTERING ===\n")

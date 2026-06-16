@@ -178,7 +178,7 @@ def _assert_agree(rows_a, rows_b, label):
 # =============================================================================
 def main():
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-    from pipeline_utils import load_config
+    from pipeline_utils import load_config, resolve_work_path
 
     start = time.time()
     cfg = load_config()
@@ -186,7 +186,7 @@ def main():
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
     repo_root = os.path.abspath(os.path.join(script_dir, ".."))
-    phase1_out = os.path.join(repo_root, "1_data_provenance", "outputs", "pipeline_state")
+    phase1_out = resolve_work_path("1_data_provenance", "outputs", "pipeline_state")
 
     def metadata_csv(filename):
         for c in (os.path.join(script_dir, filename),
@@ -196,7 +196,7 @@ def main():
                 return c
         return os.path.join(phase1_out, filename)
 
-    df_matches = pd.read_csv("review_parquet_matches.csv")
+    df_matches = pd.read_csv(resolve_work_path("3_tolerance_matching", "review_parquet_matches.csv"))
     df_com = pd.read_csv(metadata_csv("commercial_data_SELECT_STATES.csv"))
     df_res = pd.read_csv(metadata_csv("residential_data_SELECT_STATES.csv"))
     df_com = df_com.loc[df_com["State"] == state]
@@ -223,9 +223,15 @@ def main():
         res_rows = match_residential(df_matches, df_res, MATCH_METHOD)
 
     df_com_matches_out = pd.DataFrame(com_rows)
-    df_com_matches_out.to_csv(f"df_com_matches_out_{state}.csv", index=False)
+    df_com_matches_out.to_csv(
+        resolve_work_path("3_tolerance_matching", f"df_com_matches_out_{state}.csv"),
+        index=False,
+    )
     df_res_matches_out = pd.DataFrame(res_rows)
-    df_res_matches_out.to_csv(f"df_res_matches_out_{state}.csv", index=False)
+    df_res_matches_out.to_csv(
+        resolve_work_path("3_tolerance_matching", f"df_res_matches_out_{state}.csv"),
+        index=False,
+    )
 
     # ---- summaries (same as original) ----
     total_com = df_com["bldg_id"].nunique()

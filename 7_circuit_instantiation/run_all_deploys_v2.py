@@ -8,9 +8,14 @@ run_prepared_circuits.py  —  simple, procedural batch runner
 """
 
 import os, sys, subprocess, time, fnmatch
+import argparse
+
+_ap = argparse.ArgumentParser(description="Batch-run prepared circuit folders.")
+_ap.add_argument("--root", default=".", help="Directory to search for circuit folders")
+_args = _ap.parse_args()
 
 # ---- user knobs ----
-ROOT_DIR    = "."   # where to search
+ROOT_DIR    = _args.root   # where to search
 RUNNER      = "power_flow_sim_daily_EV_STO_DG_deploy.py"
 GLOB_NAME   = "*_circuit_*"  # only run folders whose name matches this
 MAX_RUN     = None  # e.g., 3 for a quick test; None = all

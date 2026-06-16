@@ -26,7 +26,7 @@ from collections import defaultdict
 import math, random
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, load_feeder_registry
+from pipeline_utils import load_config, load_feeder_registry, resolve_work_path
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -62,11 +62,11 @@ def resolve_config_path(path_value):
 BOOL_PASS_ON_EXISTING_FOLDER = False  # True → skip if exists; False → delete/replace
 
 SMARTDS_ROOT = resolve_config_path(cfg.get('smart_ds_root', '../3_smartds'))
-HP_BASELINE_ROOT = (REPO_ROOT / (STATE + '_4_profhp')).resolve()
-HP_DM_ROOT       = (REPO_ROOT / (STATE + '_6_profhp_dm')).resolve()
-HP_UN_ROOT       = (REPO_ROOT / (STATE + '_7_profhp_un')).resolve()
+HP_BASELINE_ROOT = Path(resolve_work_path("7_circuit_instantiation", STATE + '_4_profhp'))
+HP_DM_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_6_profhp_dm'))
+HP_UN_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_7_profhp_un'))
 
-PROFILES_USE_BENCH_DIR = (BASE_DIR / 'profiles_use_bench').resolve()
+PROFILES_USE_BENCH_DIR = Path(resolve_work_path("7_circuit_instantiation", "profiles_use_bench"))
 PROFILES_USE_BENCH_DIR.mkdir(exist_ok=True)
 
 RUNNER_BASENAME = 'power_flow_sim_daily_EV_STO_DG_deploy.py'  # we will patch+run this one
@@ -330,7 +330,7 @@ for feeder in feeders:
         # Use the mapped circuit number in the folder name
         dst_folder_name = f"{substation_name}_circuit_{circ_num}_{mix_name}"
 
-        dst_folder      = BASE_DIR / dst_folder_name
+        dst_folder      = Path(resolve_work_path("7_circuit_instantiation", dst_folder_name))
         dst_feeder_sub  = dst_folder / feeder_name
 
         if dst_folder.exists() and BOOL_PASS_ON_EXISTING_FOLDER:
@@ -750,6 +750,14 @@ for feeder in feeders:
         # Ensure circuit_name
         if "circuit_name = " in txt:
             txt = re.sub(r"circuit_name\s*=\s*['\"].*?['\"]", f"circuit_name = '{dst_folder_name}'", txt)
+
+        # Patch deployer_modules path so runner finds shared modules from repo
+        deployer_root = str((REPO_ROOT / "7_circuit_instantiation").resolve())
+        txt = re.sub(
+            r"ROOT\s*=\s*os\.path\.abspath\(os\.path\.join\(CURRENT_DIR,\s*['\"]\.\.['\"]\)\)",
+            lambda m: f'ROOT = r"{deployer_root}"',
+            txt
+        )
 
         runner_path.write_text(txt, encoding='utf-8')
         print("  • Patched runner (EV % + circuit_name)")

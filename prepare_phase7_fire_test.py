@@ -27,12 +27,16 @@ import shutil
 from pathlib import Path
 from datetime import datetime
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from pipeline_utils import load_config, resolve_work_path
+
 # ── CONFIG ──────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parent
-STATE = os.environ.get("PIPELINE_STATE", "TX")
-SEASON = os.environ.get("PIPELINE_SEASON", "summer")
+cfg = load_config()
+STATE = cfg['state']
+SEASON = cfg['season']
 
-CSV_SOURCE = REPO_ROOT / "5c_csv_conversion"
+CSV_SOURCE = Path(resolve_work_path("5c_csv_conversion"))
 PHASE7_DIR = REPO_ROOT / "7_circuit_instantiation"
 MIXES_DIR  = REPO_ROOT / "0_experimental_design"
 
@@ -87,7 +91,7 @@ for src_dir in all_5c_dirs:
         print(f"  SKIP: {src_dir.name} (unrecognized scenario suffix)")
         continue
 
-    profhp_root = REPO_ROOT / SCENARIO_MAP[scenario_suffix]
+    profhp_root = Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP[scenario_suffix]))
     dst_dir = profhp_root / "daily_csvs" / bucket_base
 
     csv_files = [f for f in src_dir.iterdir() if f.is_file() and f.suffix.lower() == ".csv"]
@@ -148,7 +152,7 @@ if copy_plan:
 # Verify
 header("STEP 1 VERIFY: profhp directory structure")
 for suffix, profhp_name in SCENARIO_MAP.items():
-    profhp_dir = REPO_ROOT / profhp_name
+    profhp_dir = Path(resolve_work_path("7_circuit_instantiation", profhp_name))
     daily = profhp_dir / "daily_csvs"
     if daily.is_dir():
         buckets = sorted([d for d in daily.iterdir() if d.is_dir()])
@@ -297,9 +301,9 @@ else:
 header("STEP 4: Pre-flight summary")
 
 checks = {
-    "profhp bridge (TX_4_profhp)":   (REPO_ROOT / f"{STATE}_4_profhp" / "daily_csvs").is_dir(),
-    "profhp bridge (TX_6_profhp_dm)": (REPO_ROOT / f"{STATE}_6_profhp_dm" / "daily_csvs").is_dir(),
-    "profhp bridge (TX_7_profhp_un)": (REPO_ROOT / f"{STATE}_7_profhp_un" / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['']})":              (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP[""])) / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['_dm']})":           (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_dm"])) / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['_uncontrolled']})": (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_uncontrolled"])) / "daily_csvs").is_dir(),
     "mixes_lhs.json":                 MIXES_PATH.is_file(),
     "feeder_registry.json":           (REPO_ROOT / "feeder_registry.json").is_file(),
     "pipeline_config.yaml":           (REPO_ROOT / "pipeline_config.yaml").is_file(),

@@ -1,0 +1,19 @@
+# Available EULP donor-profile states (the "donor menu").
+# donor_state drives EULP metadata filtering, profile matching/downloading,
+# and CSV generation -> sets PIPELINE_STATE.
+# parquet_data_root defaults to pipeline_config.yaml unless overridden in local.yaml.
+
+donors:
+  NC:
+    donor_state: NC
+    eulp_download_date: "20250330"
+    residential_metadata: "residential_data_SELECT_STATES.csv"
+    commercial_metadata: "commercial_data_SELECT_STATES.csv"
+    status: ready
+
+  TX:
+    donor_state: TX
+    eulp_download_date: "20250330"
+    residential_metadata: "residential_data_SELECT_STATES.csv"
+    commercial_metadata: "commercial_data_SELECT_STATES.csv"
+    status: ready
