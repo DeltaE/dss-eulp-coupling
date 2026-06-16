@@ -347,6 +347,12 @@ def verify_phase5c():
     ]
     matched = [d for d in all_dirs if _dir_matches_scenario(d)]
 
+    # Filter out empty catch-all "unknown_circuit" dirs created by TX donor
+    unknown = [d for d in matched if "unknown_circuit" in d]
+    matched = [d for d in matched if "unknown_circuit" not in d]
+    for u in unknown:
+        print(f"  [WARN] Skipping empty catch-all dir: {u}")
+
     check(
         f"Output dirs ({SCENARIO}, {SEASON}): {len(matched)}",
         len(matched) > 0,
