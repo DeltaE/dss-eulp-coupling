@@ -23,7 +23,7 @@ A feeder‑level **time series** of power flows plus a one‑line metadata “su
 ### `circuit_summary_combined.csv`
 One row per circuit/scenario/season/design—metadata to contextualize the time series.
 
-- Fields: `n_loads`, `n_evs`, `n_storage`, `n_pv`, `substation_xfmr_kva`, etc.  
+- Fields: `n_loads`, `n_evs`, `n_storage`, `n_pv`, `feeder_head_kva`, etc.  
 - Join keys: `circuit_folder + season + design (+ scenario)`
 
 ## 4.2 Visualization & Metrics

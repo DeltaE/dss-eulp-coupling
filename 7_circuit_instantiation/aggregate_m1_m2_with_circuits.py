@@ -7,7 +7,7 @@ Created on Tue Nov 11 20:35:25 2025
 
 #!/usr/bin/env python3
 # Aggregate m1/m2 CSVs and add (a) timestep column and (b) one time-independent
-# summary row per circuit with counts from .dss and substation transformer kVA.
+# summary row per circuit with counts from .dss and feeder head thermal kVA.
 # Procedural / minimal functions approach.
 
 import os
@@ -20,12 +20,88 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import resolve_work_path
 
-# ---------- small helpers kept inline ----------
-def _dephase(bus_name: str) -> str:
-    # Remove phase suffixes like ".1.2.3" and parentheses, quotes
-    b = bus_name.strip().strip('"').strip("'")
-    b = re.split(r"[.\(]", b, maxsplit=1)[0]
-    return b.lower()
+def _read_dss_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")
+    except Exception:
+        return path.read_text(errors="ignore")
+
+def _strip_dss_comment(raw: str) -> str:
+    return re.split(r"//|!", raw)[0].strip()
+
+def _iter_dss_commands(text: str):
+    current = ""
+    for raw in text.splitlines():
+        core = _strip_dss_comment(raw)
+        if not core:
+            continue
+        if core.lstrip().startswith("~"):
+            current = f"{current} {core.lstrip()[1:].strip()}".strip()
+        else:
+            if current:
+                yield current
+            current = core
+    if current:
+        yield current
+
+def _dss_value(command: str, key: str):
+    m = re.search(rf"\b{re.escape(key)}\s*=\s*(\"[^\"]+\"|'[^']+'|[^\s]+)", command, re.IGNORECASE)
+    if not m:
+        return None
+    return m.group(1).strip().strip('"').strip("'")
+
+def _float_or_none(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+def _find_dss_file(dss_files, name: str):
+    matches = [p for p in dss_files if p.name.lower() == name.lower()]
+    if not matches:
+        return None
+    return min(matches, key=lambda p: len(str(p)))
+
+def _feeder_head_kva(dss_files):
+    master_path = _find_dss_file(dss_files, "Master.dss")
+    lines_path = _find_dss_file(dss_files, "Lines.dss")
+    linecodes_path = _find_dss_file(dss_files, "LineCodes.dss")
+    if not (master_path and lines_path and linecodes_path):
+        return None
+
+    monitor_line_name = None
+    base_kv = None
+    for command in _iter_dss_commands(_read_dss_text(master_path)):
+        if re.search(r"\bnew\s+monitor\.m1\b", command, re.IGNORECASE):
+            element = _dss_value(command, "element")
+            if element and element.lower().startswith("line."):
+                monitor_line_name = element.split(".", 1)[1]
+        if re.search(r"\bnew\s+circuit\.", command, re.IGNORECASE):
+            base_kv = _float_or_none(_dss_value(command, "basekv"))
+    if not (monitor_line_name and base_kv is not None):
+        return None
+
+    linecode_name = None
+    for command in _iter_dss_commands(_read_dss_text(lines_path)):
+        m = re.search(r"\bnew\s+line\.([^\s]+)", command, re.IGNORECASE)
+        if not m or m.group(1).lower() != monitor_line_name.lower():
+            continue
+        linecode_name = _dss_value(command, "linecode")
+        break
+    if not linecode_name:
+        return None
+
+    normamps = None
+    for command in _iter_dss_commands(_read_dss_text(linecodes_path)):
+        m = re.search(r"\bnew\s+linecode\.([^\s]+)", command, re.IGNORECASE)
+        if not m or m.group(1).lower() != linecode_name.lower():
+            continue
+        normamps = _float_or_none(_dss_value(command, "normamps"))
+        break
+    if normamps is None:
+        return None
+
+    return normamps * base_kv * np.sqrt(3.0)
 
 # Folder pattern: <substation>_circuit_<id>_<scenario>
 FOLDER_RE = re.compile(r"^(.+)_(circuit_\d+)_(.+)$", re.IGNORECASE)
@@ -101,7 +177,7 @@ if __name__ == "__main__":
         m1_path = max(m1_big, key=lambda p: p.stat().st_size)
         m2_path = max(m2_big, key=lambda p: p.stat().st_size)
 
-        # ---- Parse DSS files for counts + substation transformer kVA ----
+        # ---- Parse DSS files for counts + feeder head thermal capacity ----
         dss_files = list(mcd.rglob("*.dss"))
 
         load_names = set()
@@ -109,19 +185,12 @@ if __name__ == "__main__":
         pv_names = set()
         ev_names = set()
 
-        source_buses = set()
-        line_edges = set()  # undirected edges via Lines (store both directions)
-        transformers = []   # list of dicts: {'buses': set([...]), 'kva': float or None}
-
         for dss in dss_files:
-            try:
-                text = dss.read_text(encoding="utf-8", errors="ignore")
-            except Exception:
-                text = dss.read_text(errors="ignore")
+            text = _read_dss_text(dss)
 
             for raw in text.splitlines():
                 # strip comments (// or !) and whitespace
-                core = re.split(r"//|!", raw)[0].strip()
+                core = _strip_dss_comment(raw)
                 if not core:
                     continue
                 line = core.lower()
@@ -145,93 +214,11 @@ if __name__ == "__main__":
                 if mpv:
                     pv_names.add(mpv.group(1))
 
-                # Vsource: grab substation/source bus
-                if "new vsource." in line:
-                    mb1 = re.search(r"\bbus1\s*=\s*([^\s\[\],]+)", line)
-                    if mb1:
-                        source_buses.add(_dephase(mb1.group(1)))
-
-                # Lines: build graph neighbors of source bus
-                if "new line." in line:
-                    b1 = re.search(r"\bbus1\s*=\s*([^\s\[\],]+)", line)
-                    b2 = re.search(r"\bbus2\s*=\s*([^\s\[\],]+)", line)
-                    if b1 and b2:
-                        bb1 = _dephase(b1.group(1))
-                        bb2 = _dephase(b2.group(1))
-                        line_edges.add((bb1, bb2))
-                        line_edges.add((bb2, bb1))
-
-                # Transformer: collect buses + kVA
-                if "new transformer." in line:
-                    t_buses = set()
-                    mbuses = re.search(r"\bbuses\s*=\s*\[([^\]]+)\]", line)
-                    if mbuses:
-                        inside = mbuses.group(1)
-                        for tok in re.split(r"[,\s]+", inside.strip()):
-                            if tok:
-                                t_buses.add(_dephase(tok))
-                    else:
-                        # Try bus / bus1 / bus2 tokens
-                        for key in ("bus1", "bus2", "bus"):
-                            # NOTE: rf-string is correct; avoid 'rfr"' typo.
-                            mkey = re.search(rf"\b{key}\s*=\s*([^\s\[\],]+)", line)
-                            if mkey:
-                                t_buses.add(_dephase(mkey.group(1)))
-
-                    kva_val = None
-                    mkva = re.search(r"\bkva\s*=\s*([\d\.eE\+\-]+)", line)
-                    if mkva:
-                        try:
-                            kva_val = float(mkva.group(1))
-                        except Exception:
-                            pass
-                    if kva_val is None:
-                        mkvas = re.search(r"\bkvas\s*=\s*\[([^\]]+)\]", line)
-                        if mkvas:
-                            nums = [s for s in re.split(r"[,\s]+", mkvas.group(1).strip()) if s]
-                            if nums:
-                                try:
-                                    kva_val = float(nums[0])
-                                except Exception:
-                                    pass
-
-                    transformers.append({"buses": t_buses, "kva": kva_val})
-
         n_loads = len(load_names)
         n_storage = len(storage_names)
         n_pv = len(pv_names)
         n_evs = len(ev_names)
-
-        # Heuristic: pick transformer connected to Vsource bus or one-hop neighbor via Lines
-        xfmr_kva = None
-        if source_buses:
-            src = next(iter(source_buses))
-            neighbors = {src}
-            for a, b in line_edges:
-                if a == src:
-                    neighbors.add(b)
-
-            # Prefer transformer that directly touches the source bus
-            chosen = None
-            for t in transformers:
-                if src in t["buses"]:
-                    chosen = t
-                    break
-            if chosen is None:
-                for t in transformers:
-                    if t["buses"] & neighbors:
-                        chosen = t
-                        break
-            if chosen is None and transformers:
-                # Fallback: largest kVA transformer if nothing matched
-                cand = [t["kva"] for t in transformers if t["kva"] is not None]
-                if cand:
-                    xfmr_kva = max(cand)
-            else:
-                xfmr_kva = chosen["kva"] if chosen else None
-        elif transformers:
-            cand = [t["kva"] for t in transformers if t["kva"] is not None]
-            xfmr_kva = max(cand) if cand else None
+        feeder_head_kva = _feeder_head_kva(dss_files)
 
         # Record a clean, time-independent summary row for this circuit
         summary_rows.append({
@@ -243,7 +230,7 @@ if __name__ == "__main__":
             "n_evs": n_evs,
             "n_storage": n_storage,
             "n_pv": n_pv,
-            "substation_xfmr_kva": xfmr_kva
+            "feeder_head_kva": feeder_head_kva
         })
 
         # ---- Load and annotate m1/m2 CSVs, add timestep + summary row ----
@@ -343,7 +330,7 @@ if __name__ == "__main__":
                 "n_evs": n_evs,
                 "n_storage": n_storage,
                 "n_pv": n_pv,
-                "substation_xfmr_kva": xfmr_kva,
+                "feeder_head_kva": feeder_head_kva,
                 "row_type": "summary",
                 "timestep": 0,  # clearly outside real time series
             }

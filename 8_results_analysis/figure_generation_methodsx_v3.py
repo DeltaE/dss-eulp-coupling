@@ -256,10 +256,8 @@ def figure_c(df):
     Computes peak P_3ph per (feeder, state, season, scenario) from
     time-series data rows.
 
-    NOTE: substation_xfmr_kva in the current pipeline captures service-
-    transformer ratings, not substation bank ratings.  Loading % is
-    deferred until the upstream extraction script is corrected.
-    See handover prompt: HANDOVER__substation_xfmr_kva.md
+    NOTE: feeder_head_kva captures feeder-head thermal capacity from
+    the monitored source line's LineCode normamps and circuit basekV.
     """
     data = df[df["row_type"] == "data"].copy()
     data["P_3ph (kW)"] = pd.to_numeric(data["P_3ph (kW)"], errors="coerce")

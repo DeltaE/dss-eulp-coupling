@@ -92,7 +92,10 @@ def resolve_case(case_path: Path) -> dict:
     if not smart_ds_base:
         sys.exit("local.yaml must define smart_ds_base.")
     topo_relpath = Path(topo["smart_ds_relpath"])
-    smart_ds_root = (Path(smart_ds_base) / topo_relpath).as_posix()
+    smart_ds_root = Path(smart_ds_base) / topo_relpath
+    if topo.get("circuit_folder"):
+        smart_ds_root = smart_ds_root / topo["circuit_folder"]
+    smart_ds_root = smart_ds_root.as_posix()
 
     # Donor parquet pool is the deterministic sibling of the opendss tree:
     #   <dataset>/<morphology>/base_timeseries/opendss  ->  <dataset>/<morphology>/parquet_data
