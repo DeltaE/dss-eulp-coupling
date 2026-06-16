@@ -55,10 +55,17 @@ def _load_pipeline_config():
         or r"D:\lvg\parquet_data"
     )
 
+    work_root = (
+        cfg.get("work_root")
+        or os.environ.get("PIPELINE_WORK_ROOT")
+        or "."
+    )
+
     return {
         "state": state,
         "season": season,
         "parquet_data_root": parquet_root,
+        "work_root": work_root,
         "_raw": cfg,
     }
 
@@ -71,6 +78,7 @@ CFG = _load_pipeline_config()
 STATE = CFG["state"]
 SEASON = CFG["season"]
 PARQUET_ROOT = CFG["parquet_data_root"]
+WORK_ROOT = CFG["work_root"]
 SCENARIO = "baseline"
 
 _pass = 0
@@ -509,9 +517,14 @@ def main():
 
     SCENARIO = args.scenario
 
+    # ── Anchor all relative paths to the workspace root ──
+    if WORK_ROOT and WORK_ROOT != ".":
+        os.chdir(WORK_ROOT)
+
     print(f"\n  verify_fire_test.py")
     print(f"  Config: State={STATE}  Season={SEASON}  Scenario={SCENARIO}")
     print(f"  Parquet root: {PARQUET_ROOT}")
+    print(f"  Work root:    {os.getcwd()}")
 
     t_total = time.perf_counter()
 
