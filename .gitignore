@@ -264,3 +264,6 @@ runs/
 
 # tolerance-matching copy of review CSV (2_circuit_matching was already covered)
 3_tolerance_matching/review_parquet_matches.csv
+
+# Plan refactoring
+_plan/
