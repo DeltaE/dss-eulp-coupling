@@ -25,6 +25,7 @@ import datetime as _dt
 import io
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -200,8 +201,16 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
             rel_cwd = step.get("cwd", ".")
             emit(f"  run ({rel_cwd}): {cmd}")
             if not dry_run:
-                rc = subprocess.run(cmd, cwd=REPO_ROOT / rel_cwd,
-                                    env=phase_env, shell=True).returncode
+                # shell=True routes through cmd.exe on Windows and /bin/sh on POSIX --
+                # different quoting/escaping rules for the same command string. On
+                # POSIX, run the already-substituted string as an argv list instead
+                # (no shell involved at all); Windows keeps its proven shell=True path.
+                if os.name == "posix":
+                    rc = subprocess.run(shlex.split(cmd), cwd=REPO_ROOT / rel_cwd,
+                                        env=phase_env, shell=False).returncode
+                else:
+                    rc = subprocess.run(cmd, cwd=REPO_ROOT / rel_cwd,
+                                        env=phase_env, shell=True).returncode
                 if rc != 0:
                     emit(f"  !! command failed (exit {rc})")
                     return False
@@ -210,8 +219,12 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
     if verify:
         emit(f"  verify --phase {verify}")
     if verify and not dry_run:
-        rc = subprocess.run(f"{ctx['python']} verify_phase.py --phase {verify}",
-                            cwd=REPO_ROOT, env=env, shell=True).returncode
+        if os.name == "posix":
+            rc = subprocess.run([sys.executable, "verify_phase.py", "--phase", str(verify)],
+                                cwd=REPO_ROOT, env=env, shell=False).returncode
+        else:
+            rc = subprocess.run(f"{ctx['python']} verify_phase.py --phase {verify}",
+                                cwd=REPO_ROOT, env=env, shell=True).returncode
         if rc != 0:
             emit(f"  !! verify failed (exit {rc})")
             return False
@@ -261,6 +274,31 @@ def _check_python_version() -> None:
               f"validated baseline.", file=sys.stderr)
 
 
+def _check_no_spaces_in_posix_paths(resolved: dict) -> None:
+    """On POSIX, phase 'cmd' strings are split with shlex.split() after
+    template substitution (see run_phase()) instead of going through a shell.
+    A substituted value containing a space would be mis-split into two argv
+    tokens with no error, so refuse to proceed rather than run a subtly wrong
+    command line."""
+    if os.name != "posix":
+        return
+    candidates = {
+        "PIPELINE_WORK_ROOT": resolved["work_root"],
+        "PIPELINE_SMART_DS_ROOT": resolved["smart_ds_root"],
+        "PIPELINE_PARQUET_ROOT": resolved["parquet_root"],
+        "python interpreter path": sys.executable,
+    }
+    offenders = {k: v for k, v in candidates.items() if " " in str(v)}
+    if offenders:
+        detail = "\n".join(f"  {k}: {v!r}" for k, v in offenders.items())
+        sys.exit(
+            "Refusing to run: the following path(s) contain a space, which "
+            "breaks the POSIX shlex.split() command path in run_phase():\n"
+            f"{detail}\n"
+            "Move the data / work root / interpreter to a space-free path."
+        )
+
+
 def main() -> None:
     _check_python_version()
     ap = argparse.ArgumentParser(description="Run a topology x donor instantiation case.")
@@ -305,6 +343,7 @@ def main() -> None:
     for season in seasons:
         work_root = workspaces[season]
         resolved["work_root"] = str(work_root)
+        _check_no_spaces_in_posix_paths(resolved)
         print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
         run_dir = runs_root / resolved["case_id"] / season
         env = build_env(resolved, season)
