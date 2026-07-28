@@ -13,7 +13,6 @@ Run from inside a prepared circuit folder: ./<STATE>_circuit_<n>_<mix>/
 
 import os, re, sys, csv, time, json, math, shutil, random, cmath
 import numpy as np, pandas as pd
-import comtypes.client as cc
 from copy import deepcopy
 
 # -----------------------
@@ -77,6 +76,7 @@ from pfs_heatpump_plotting import plot_combined_heatpump_sessions
 from pfs_write_csv_1 import write_simulation_results_to_csv
 from pfs_ev_base_profiles import process_vehicle_data
 from pfs_hp_base_profiles import generate_heatpump_profiles
+from dss_engine import create_dss_engine
 
 # -----------------------
 # Start
@@ -634,7 +634,7 @@ if master_dss_path:
     '''
 
 # ---------------- Compile & Solve ----------------
-DSSobj   = cc.CreateObject("OpenDSSEngine.DSS")
+DSSobj   = create_dss_engine()
 DSSobj.AllowForms = False
 DSSstart = DSSobj.Start(0)
 DSStext  = DSSobj.Text
