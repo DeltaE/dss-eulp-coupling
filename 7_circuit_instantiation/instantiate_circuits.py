@@ -371,11 +371,14 @@ for feeder in feeders:
             if nm.lower() == 'loadshapes.dss':  lshp_path  = dst_feeder_sub / nm
 
         # backups
+        loads_original = None
         for path in [loads_path, lshp_path]:
             if path is None: continue
             bkp = path.with_name(path.stem + '_original.dss')
             if bkp.exists(): bkp.unlink()
             shutil.copy2(path, bkp)
+            if path is loads_path:
+                loads_original = bkp
 
         # per-bucket indexing (state/season)
         bucket_name = bucket_from_map(feeder_name, STATE, SEASON)
@@ -390,9 +393,9 @@ for feeder in feeders:
             idx_dm       = index_csvs(HP_DM_ROOT)
             idx_un       = index_csvs(HP_UN_ROOT)
 
-        # means for flat-ones patch
-        loads_original = loads_path.with_name('Loads_original.dss')
-        per_daily_mean, global_mean = parse_means_for_daily(loads_original)
+        # means for flat-ones patch (loads_original is the backup path actually
+        # written above; its on-disk case tracks loads_path's, not a fixed literal)
+        per_daily_mean, global_mean = parse_means_for_daily(loads_original) if loads_original else ({}, (1.0, 0.0))
 
         # coverage diagnostics
         cov_b = sum(1 for fn in required_csvs if fn in idx_baseline)

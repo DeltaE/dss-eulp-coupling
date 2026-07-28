@@ -60,6 +60,21 @@ def is_feeder_dir(path):
         return False
     return {"loads.dss", "loadshapes.dss", "master.dss"}.issubset(names)
 
+def resolve_dss_file(directory, filename):
+    """Case-insensitive file lookup within `directory`. ext4 is genuinely
+    case-sensitive (unlike the Windows machine this was authored on), and
+    SMART-DS export casing is not guaranteed, so a hardcoded-case path can
+    silently miss a file that is actually present under a different case.
+    Returns the real on-disk path; raises clearly if no match exists."""
+    exact = os.path.join(directory, filename)
+    if os.path.exists(exact):
+        return exact
+    target = filename.lower()
+    for entry in os.listdir(directory):
+        if entry.lower() == target and os.path.isfile(os.path.join(directory, entry)):
+            return os.path.join(directory, entry)
+    raise FileNotFoundError(f"{filename} not found in {directory} (case-insensitive search)")
+
 # Fixed irradiance (96 points)
 irradiance_winter_padded = [0.0]*30 + [0.0889,0.13254,0.17853,0.12173,0.05258,0.04381,0.03429,0.04749,0.06053,0.07725,0.09377,0.09119,0.08877,0.09676,0.10466,0.11636,0.12792,0.1476,0.16692,0.18,0.19282,0.20862,0.2245,0.2171,0.2098,0.25007,0.28447,0.31986,0.34005,0.31685,0.28823,0.24886,0.20951,0.16926,0.1312,0.09432,0.06385,0.04184,0.03615,0.03066,0.02312,0.00845]+[0.0]*25
 irradiance_summer_padded = [0.0]*25 + [0.09904,0.16947,0.2279,0.29098,0.34296,0.39615,0.44168,0.48566,0.52159,0.55551,0.58447,0.61212,0.63157,0.65283,0.66968,0.68472,0.69552,0.70443,0.71021,0.71404,0.71482,0.71364,0.70865,0.70175,0.69187,0.68011,0.66613,0.65034,0.63108,0.61013,0.58641,0.56116,0.53425,0.50397,0.46959,0.43362,0.39509,0.35526,0.31306,0.26707,0.22195,0.17753,0.13386,0.09435,0.06009,0.03379,0.02603,0.02325,0.01879,0.01289]+[0.0]*21
@@ -109,8 +124,14 @@ lvl2_charger_perc = clamp01(ASSIGN.get("ev", {}).get("lvl2_perc", DEFAULT_EV_L2_
 print(f"EV params -> perc={ev_perc:.2f}, L2 share={lvl2_charger_perc:.2f}")
 
 # Read Loads.dss (for bases + daily mapping)
-PATH_LOADS_DSS       = os.path.join(CIRCUIT_DIR, 'Loads.dss')
-PATH_LOADS_DSS_ORIG  = os.path.join(CIRCUIT_DIR, 'Loads_original.dss')
+PATH_LOADS_DSS = resolve_dss_file(CIRCUIT_DIR, 'Loads.dss')
+try:
+    # Optional: the instantiation script's pre-modification backup. Resolve
+    # case-insensitively too -- its on-disk case tracks whatever case Loads.dss
+    # had at backup time, not this literal.
+    PATH_LOADS_DSS_ORIG = resolve_dss_file(CIRCUIT_DIR, 'Loads_original.dss')
+except FileNotFoundError:
+    PATH_LOADS_DSS_ORIG = os.path.join(CIRCUIT_DIR, 'Loads_original.dss')
 loads_content        = read_lines(PATH_LOADS_DSS)
 unique_bases = set(); all_full=set(); base_to_daily={}
 for line in loads_content:
@@ -130,7 +151,7 @@ print(f"Found {len(unique_loads_list)} unique base loads.")
 
 # Parsed attributes for EV loads
 parsed_loads_map = {}
-for line in read_lines(os.path.join(CIRCUIT_DIR, "Loads.dss")):
+for line in read_lines(PATH_LOADS_DSS):
     s = line.strip()
     if not s.lower().startswith("new load."): continue
     m = re.search(r"New\s+Load\.(\S+)", s)
@@ -229,6 +250,29 @@ def ensure_redirects_before_solve(master_path):
         out.extend(block_objs)
 
     write_lines(master_path, out)
+
+def assert_expected_redirects(master_path, storage_present, pv_present, ev_present):
+    """Fail loudly if a DER redirect we depend on didn't make it into Master.dss.
+
+    Without this, a silently-missed insertion (e.g. from a case mismatch on the
+    'Redirect ...' anchor lines) still compiles and solves -- it just reports a
+    Flex scenario containing no DER, with no error at all.
+    """
+    content = read_text(master_path)
+    def has_redirect(name):
+        return re.search(rf'(?i)\bRedirect\s+{re.escape(name)}\b', content) is not None
+    missing = []
+    if storage_present and not has_redirect("Storage.dss"):
+        missing.append("Storage.dss")
+    if pv_present and not (has_redirect("PVSystems.dss") and has_redirect("LoadShapes_PV.dss")):
+        missing.append("PVSystems.dss/LoadShapes_PV.dss")
+    if ev_present and not has_redirect("LoadShapes_EV.dss"):
+        missing.append("LoadShapes_EV.dss")
+    if missing:
+        raise RuntimeError(
+            f"Master.dss is missing expected Redirect line(s) for: {', '.join(missing)}. "
+            "DER would silently compile out of the circuit. Aborting before solve."
+        )
 
 def find_controller_anchor(master_path):
     """
@@ -402,9 +446,9 @@ for fn in dss_files:
         shutil.copy2(src, dst)
     except Exception:
         pass
-    if fn == 'Master.dss':
+    if fn.lower() == 'master.dss':
         master_dss_path = dst
-    if fn == 'LoadShapes.dss':
+    if fn.lower() == 'loadshapes.dss':
         lines = read_lines(dst)
         upd = []
         needle = f"file=../profiles_use_bench/{CIRCUIT_FOLDER}/"
@@ -414,7 +458,7 @@ for fn in dss_files:
         write_lines(dst, upd)
 
 # ---------------- Write EV shapes & loads ----------------
-loads_ev_path      = os.path.join(OUT_DIR, "Loads.dss")          # append into existing
+loads_ev_path      = resolve_dss_file(OUT_DIR, "Loads.dss")      # append into existing (copied above, case preserved)
 loadshapes_ev_path = os.path.join(OUT_DIR, "LoadShapes_EV.dss")  # new EV shapes file
 
 if ACTIVATE_EV and (N_u + N_c) > 0:
@@ -472,7 +516,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
         ml = read_lines(master_dss_path); new_ml = []; inserted=False
         for ln in ml:
             new_ml.append(ln)
-            if "Redirect LoadShapes.dss" in ln and not inserted:
+            if re.search(r'(?i)\bRedirect\s+LoadShapes\.dss\b', ln) and not inserted:
                 new_ml.append("\n! Added EV files\n")
                 new_ml.append("Redirect LoadShapes_EV.dss\n")
                 inserted = True
@@ -558,7 +602,7 @@ if storage_targets:
 if master_dss_path:
     ml = read_lines(master_dss_path)
     new_ml = ml[:]
-    if n_storage > 0 and not any("Redirect Storage.dss" in ln for ln in ml):
+    if n_storage > 0 and not any(re.search(r'(?i)\bRedirect\s+Storage\.dss\b', ln) for ln in ml):
         new_ml.append("\n! Added Storage file\nRedirect Storage.dss\n")
     if monitor_export_lines:
         new_ml.append("\n! Export monitor data for storage\n")
@@ -601,9 +645,9 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
     if master_dss_path:
         ml = read_lines(master_dss_path)
         new_ml = ml[:]
-        if n_pv > 0 and not any("Redirect LoadShapes_PV.dss" in ln for ln in ml):
+        if n_pv > 0 and not any(re.search(r'(?i)\bRedirect\s+LoadShapes_PV\.dss\b', ln) for ln in ml):
             new_ml.append("\n! Added PV loadshape\nRedirect LoadShapes_PV.dss\n")
-        if n_pv > 0 and not any("Redirect PVSystems.dss" in ln for ln in ml):
+        if n_pv > 0 and not any(re.search(r'(?i)\bRedirect\s+PVSystems\.dss\b', ln) for ln in ml):
             new_ml.append("\n! Added PV items\nRedirect PVSystems.dss\n")
         write_lines(master_dss_path, new_ml)
 
@@ -615,6 +659,12 @@ if master_dss_path:
     # --- Finalize Master to a DAILY run (96x15m) ---
     retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m")
     ensure_redirects_before_solve(master_dss_path)
+    assert_expected_redirects(
+        master_dss_path,
+        storage_present=(n_storage > 0),
+        pv_present=(n_pv > 0),
+        ev_present=(ACTIVATE_EV and (N_u + N_c) > 0),
+    )
     '''
     ml = read_lines(master_dss_path)
     new_ml = []; ins_ls = ins_pv = False

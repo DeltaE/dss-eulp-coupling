@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, resolve_config_path
+from pipeline_utils import load_config, resolve_config_path, resolve_dss_file
 
 
 parser = argparse.ArgumentParser()
@@ -33,7 +33,10 @@ if not root.exists():
     sys.stderr.write(f"SMART-DS root not found: {root}\n")
     sys.exit(1)
 
-candidates = [p for p in root.rglob("Loads.dss")]
+# Path.rglob() is case-sensitive on POSIX regardless of the underlying
+# filesystem's own case sensitivity, so a literal "Loads.dss" pattern would
+# silently find zero feeders if the export used a different case.
+candidates = [p for p in root.rglob("*") if p.is_file() and p.name.lower() == "loads.dss"]
 feeder_dirs = sorted(set(p.parent for p in candidates), key=lambda p: p.as_posix().lower())
 
 if args.max_feeders is not None:
@@ -42,7 +45,7 @@ if args.max_feeders is not None:
 for feeder_dir in feeder_dirs:
     Substation = feeder_dir.parent.name
     Feeder = feeder_dir.name
-    file_path = feeder_dir / "Loads.dss"
+    file_path = resolve_dss_file(feeder_dir, "Loads.dss")
     with open(file_path, "r", encoding="utf-8") as file:
         content = file.readlines()
 

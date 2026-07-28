@@ -59,6 +59,23 @@ def resolve_work_path(*parts):
     return os.path.join(work_root, *parts)
 
 
+def resolve_dss_file(directory, filename):
+    """Case-insensitive file lookup within `directory`. ext4 is genuinely
+    case-sensitive (unlike the Windows machines SMART-DS exports were
+    authored on), so a hardcoded-case path can silently miss a file that is
+    actually present under a different case. Returns a Path; raises
+    FileNotFoundError with a clear message if no case-insensitive match exists."""
+    directory = Path(directory)
+    exact = directory / filename
+    if exact.exists():
+        return exact
+    target = filename.lower()
+    for entry in directory.iterdir():
+        if entry.is_file() and entry.name.lower() == target:
+            return entry
+    raise FileNotFoundError(f"{filename} not found in {directory} (case-insensitive search)")
+
+
 def load_config(config_path=None):
     if config_path is None:
         config_path = REPO_ROOT / "pipeline_config.yaml"
