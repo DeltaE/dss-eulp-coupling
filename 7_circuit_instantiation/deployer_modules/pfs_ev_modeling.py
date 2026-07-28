@@ -18,8 +18,7 @@ Version: 0.1
 """
 
 # Import general packages
-import comtypes.client as cc
-import os 
+import os
 import datetime
 import pandas as pd
 import numpy as np
