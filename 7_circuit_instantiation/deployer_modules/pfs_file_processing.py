@@ -54,7 +54,7 @@ def modify_master_file(master_file_path, timestep, irradiance_zero):
     Returns:
     - None
     """
-    with open(master_file_path, 'r') as file:
+    with open(master_file_path, 'r', encoding='utf-8') as file:
         lines = file.readlines()
 
     new_lines = []
@@ -86,7 +86,7 @@ def modify_master_file(master_file_path, timestep, irradiance_zero):
             new_lines.append(line)
 
     # Write the new lines back to the master file
-    with open(master_file_path, 'w') as file:
+    with open(master_file_path, 'w', encoding='utf-8') as file:
         file.writelines(new_lines)
 
 
@@ -116,7 +116,7 @@ def modify_dss_files(file_path, timestep, profiles, BASE_MULTIPLIER,
         - load_names (list): A list of load names processed.
         - load_names_all (list): A list of all load names, including those not directly processed.
     """
-    with open(file_path, 'r') as file:
+    with open(file_path, 'r', encoding='utf-8') as file:
         lines = file.readlines()
 
     count_loads = 0
@@ -390,7 +390,7 @@ def modify_dss_files(file_path, timestep, profiles, BASE_MULTIPLIER,
         
         new_lines.append(line)
     
-    with open(file_path, 'w') as file:
+    with open(file_path, 'w', encoding='utf-8') as file:
         file.writelines(new_lines)
 
     return irr_zero, load_names, load_names_all
