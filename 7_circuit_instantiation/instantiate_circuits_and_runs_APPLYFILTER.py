@@ -18,7 +18,7 @@ instantiate_circuits_and_runs.py  (procedural; mixes with EV split)
 Keeps the procedural style and your working behaviors.
 """
 
-import os, re, sys, time, json, pickle, shutil, subprocess, csv
+import os, re, sys, time, json, pickle, shutil, subprocess, csv, hashlib
 from copy import deepcopy
 from pathlib import Path
 from typing import Optional, Iterable
@@ -58,6 +58,17 @@ def resolve_config_path(path_value):
     if path.is_absolute():
         return path
     return (REPO_ROOT / path).resolve()
+
+
+def _stable_seed_offset(key: str) -> int:
+    """Deterministic replacement for hash(...) % 10_000_000.
+
+    Python's hash() is randomized per-process for str/bytes (PYTHONHASHSEED)
+    from 3.3 onward, so seeding RNGs with it makes runs non-reproducible.
+    sha256 is stable across processes/machines/Python versions.
+    """
+    digest = hashlib.sha256(key.encode()).digest()[:8]
+    return int.from_bytes(digest, "big") % 10_000_000
 
 BOOL_PASS_ON_EXISTING_FOLDER = False  # True → skip if exists; False → delete/replace
 
@@ -424,7 +435,7 @@ for feeder in feeders:
             p_b, p_dm, p_un = (p_b/tot, p_dm/tot, p_un/tot)
 
         # 2) Exact counts via largest‑remainder rounding
-        bases = list(unique_bases)
+        bases = sorted(unique_bases)
         N = len(bases)
         raw = {'baseline': p_b*N, 'dm': p_dm*N, 'un': p_un*N}
         cnt = {k: int(math.floor(v)) for k, v in raw.items()}
@@ -447,7 +458,10 @@ for feeder in feeders:
         n_b, n_dm, n_un = cnt['baseline'], cnt['dm'], cnt['un']  # totals sum exactly to N
 
         # 3) Deterministic RNG per feeder (random look, reproducible)
-        rng = random.Random(int(heating_seed) + hash((substation_name, feeder_name)) % 10_000_000)
+        # Same offset feeds ev/storage/pv seeds below (pick()) — it depends only
+        # on (substation_name, feeder_name), not on which seed it's added to.
+        mix_seed_offset = _stable_seed_offset(f"{substation_name}|{feeder_name}")
+        rng = random.Random(int(heating_seed) + mix_seed_offset)
 
         # 4) Build randomized labels with exact counts, and randomized base order
         labels = (['baseline'] * n_b) + (['dm'] * n_dm) + (['un'] * n_un)
@@ -655,7 +669,7 @@ for feeder in feeders:
         def pick(seed_val, items, k):
             import random as _r
             if k <= 0 or len(items) == 0: return []
-            rng = _r.Random(int(seed_val) + hash((substation_name, feeder_name)) % 10_000_000)
+            rng = _r.Random(int(seed_val) + _stable_seed_offset(f"{substation_name}|{feeder_name}"))
             items_copy = list(items)
             rng.shuffle(items_copy)
             return items_copy[:min(k, len(items_copy))]
@@ -710,10 +724,18 @@ for feeder in feeders:
         up until here
         '''
         assignments = {
-            "ev": {"perc": ev_perc, "lvl2_perc": ev_lvl2, "seed": ev_seed},
+            # seed_offset/effective_seed: sha256-derived replacement for the old
+            # hash()-based offset (Task 0 determinism fix). Recorded so a referee
+            # can verify which RNG state actually produced this file.
+            "heating": {"seed": heating_seed, "seed_offset": mix_seed_offset,
+                        "effective_seed": int(heating_seed) + mix_seed_offset},
+            "ev": {"perc": ev_perc, "lvl2_perc": ev_lvl2, "seed": ev_seed,
+                   "seed_offset": mix_seed_offset, "effective_seed": ev_seed + mix_seed_offset},
             "ev_split": {"controlled": split_ctl, "uncontrolled": split_un},
-            "storage": {"perc_3ph": storage_perc, "seed": storage_seed},
-            "pv": {"perc_3ph": pv_perc, "seed": pv_seed},
+            "storage": {"perc_3ph": storage_perc, "seed": storage_seed,
+                        "seed_offset": mix_seed_offset, "effective_seed": storage_seed + mix_seed_offset},
+            "pv": {"perc_3ph": pv_perc, "seed": pv_seed,
+                   "seed_offset": mix_seed_offset, "effective_seed": pv_seed + mix_seed_offset},
             "disjoint_sets": disjoint_sets,
             "ev_loads_uncontrolled": ev_loads_un,
             "ev_loads_controlled":   ev_loads_ctl,
@@ -723,6 +745,13 @@ for feeder in feeders:
             "season": SEASON
         }
         (dst_folder / 'scenario_assignments.json').write_text(json.dumps(assignments, indent=2), encoding='utf-8')
+
+        # tracking['missing_files']: bases that fell back to a flat 96-point loadshape
+        # because no kW/kVAr CSV was found (see the flat-ones patch above). Previously
+        # computed and discarded silently; persist it next to the manifest so a missing
+        # source CSV is visible instead of masquerading as a normal run.
+        (dst_folder / 'missing_files_report.json').write_text(
+            json.dumps(tracking['missing_files'], indent=2), encoding='utf-8')
 
         print(f"  • Assigned (mix={mix_name}) "
               f"EV_unctl={len(ev_loads_un)} + EV_ctl={len(ev_loads_ctl)} (total {len(ev_hosts_all)} @ {ev_perc:.2%}), "

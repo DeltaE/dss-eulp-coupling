@@ -18,3 +18,8 @@ phase_order: [pre, "1", "2", "3", "4", "5a", "5b", "5d", "5b_variants", "5c", "5
 # Environment applied to every phase.
 base_env:
   PYTHONIOENCODING: "utf-8"
+  # Backstop only, not the fix: the real determinism fix is the sha256-based
+  # seed offset in instantiate_circuits_and_runs_APPLYFILTER.py (Task 0). This
+  # just neutralizes any other unaudited hash()-on-str/bytes call that PYTHONHASHSEED
+  # randomization would otherwise make process-dependent.
+  PYTHONHASHSEED: "0"
