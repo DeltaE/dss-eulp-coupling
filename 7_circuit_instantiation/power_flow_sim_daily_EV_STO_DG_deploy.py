@@ -88,7 +88,7 @@ PROFILES_PATH  = os.path.join('..', 'profiles_use_bench', CIRCUIT_FOLDER)
 # feeder subfolder
 subs = [d for d in os.listdir(CURRENT_DIR) if is_feeder_dir(os.path.join(CURRENT_DIR, d))]
 if not subs:
-    print("❌ No feeder subfolder with Loads, LoadShapes, and Master DSS files found.")
+    print("[FAIL] No feeder subfolder with Loads, LoadShapes, and Master DSS files found.")
     sys.exit(1)
 CIRCUIT_NAME = subs[0]
 CIRCUIT_DIR  = os.path.join(CURRENT_DIR, CIRCUIT_NAME)
@@ -99,14 +99,14 @@ ASSIGN = {}
 if os.path.exists(ASSIGN_PATH):
     try:
         ASSIGN = json.loads(read_text(ASSIGN_PATH))
-        print(f"✅ Loaded scenario assignments: {ASSIGN_PATH}")
+        print(f"[OK] Loaded scenario assignments: {ASSIGN_PATH}")
     except Exception as e:
-        print(f"⚠️ Could not parse scenario_assignments.json: {e}")
+        print(f"[WARN] Could not parse scenario_assignments.json: {e}")
 
 # EV params
 ev_perc           = clamp01(ASSIGN.get("ev", {}).get("perc", DEFAULT_EV_PERC))
 lvl2_charger_perc = clamp01(ASSIGN.get("ev", {}).get("lvl2_perc", DEFAULT_EV_L2_PERC))
-print(f"EV params → perc={ev_perc:.2f}, L2 share={lvl2_charger_perc:.2f}")
+print(f"EV params -> perc={ev_perc:.2f}, L2 share={lvl2_charger_perc:.2f}")
 
 # Read Loads.dss (for bases + daily mapping)
 PATH_LOADS_DSS       = os.path.join(CIRCUIT_DIR, 'Loads.dss')
@@ -197,13 +197,13 @@ def ensure_redirects_before_solve(master_path):
         s = ln.strip()
         out.append(ln)
 
-        # After LoadShapes.dss → shapes
+        # After LoadShapes.dss -> shapes
         if (not inserted_shapes) and re.search(r'(?i)\bRedirect\s+LoadShapes\.dss\b', ln):
             if block_shapes:
                 out.extend(block_shapes)
             inserted_shapes = True
 
-        # After Loads.dss → objects (storage/pv)
+        # After Loads.dss -> objects (storage/pv)
         if (not inserted_objs) and re.search(r'(?i)\bRedirect\s+Loads\.dss\b', ln):
             if block_objs:
                 out.extend(block_objs)
@@ -418,7 +418,7 @@ loads_ev_path      = os.path.join(OUT_DIR, "Loads.dss")          # append into e
 loadshapes_ev_path = os.path.join(OUT_DIR, "LoadShapes_EV.dss")  # new EV shapes file
 
 if ACTIVATE_EV and (N_u + N_c) > 0:
-    # EV loadshapes: uncontrolled → EVu_i, controlled → EVc_i
+    # EV loadshapes: uncontrolled -> EVu_i, controlled -> EVc_i
     with open(loadshapes_ev_path, "w") as f_ls:
         f_ls.write("! EV LoadShapes (uncontrolled + controlled)\n\n")
         for i in range(N_u):
@@ -435,7 +435,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
         for i, base in enumerate(json_ev_un):
             n1 = base + "_1"; n2 = base + "_2"
             if n1 not in parsed_loads_map or n2 not in parsed_loads_map:
-                # fallback: try any 1φ load
+                # fallback: try any 1-phase load
                 candidates = [n for n,a in parsed_loads_map.items() if a.get("ph") == "1"]
                 if not candidates:
                     continue
@@ -607,12 +607,12 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
             new_ml.append("\n! Added PV items\nRedirect PVSystems.dss\n")
         write_lines(master_dss_path, new_ml)
 
-# Finally, force Master to a DAILY run (96×15m), and (optionally) comment plot lines
+# Finally, force Master to a DAILY run (96x15m), and (optionally) comment plot lines
 retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m")
 
 # patch Master
 if master_dss_path:
-    # --- Finalize Master to a DAILY run (96×15m) ---
+    # --- Finalize Master to a DAILY run (96x15m) ---
     retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m")
     ensure_redirects_before_solve(master_dss_path)
     '''
@@ -651,7 +651,7 @@ if COMPILE_CIRCUIT and master_dss_path:
     DSStext.Command = f'Compile "{master_dss_path}"'
 
     '''
-    # Force DAILY time-series: 96 × 15-minute steps
+    # Force DAILY time-series: 96 x 15-minute steps
     DSStext.Command = "set mode=daily"
     DSStext.Command = "set stepsize=15m"
     DSStext.Command = "set number=96"
@@ -669,9 +669,21 @@ if COMPILE_CIRCUIT and master_dss_path:
 
     # Run the 96-step daily simulation
     # DSScircuit.Solution.Solve()
-    print(f"Converged? {DSScircuit.Solution.Converged}")
+    converged = bool(DSScircuit.Solution.Converged)
+    print(f"Converged? {converged}")
+else:
+    converged = None  # circuit was never compiled/solved
 
 
-print("✅ Finished single-scenario deploy.")
+print("[OK] Finished single-scenario deploy.")
 print(f"Time taken: {time.time() - START_TIME:.2f} s")
+if converged is not True:
+    # A non-convergent solve still writes Monitor CSVs (garbage data), and
+    # run_all_deploys_v2.py scores any rc==0 as a pass - without this the
+    # batch runner has no way to see the solve failed.
+    if converged is None:
+        print("[FAIL] circuit never solved - exiting non-zero.")
+    else:
+        print("[FAIL] Non-convergent solve - exiting non-zero.")
+    sys.exit(1)
 sys.exit(0)
