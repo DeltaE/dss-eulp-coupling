@@ -28,7 +28,7 @@ def write_simulation_results_to_csv(
     import sys
 
     # Writing to csv
-    with open(filename, mode='w', newline='') as file:
+    with open(filename, mode='w', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
     
         # Write the header

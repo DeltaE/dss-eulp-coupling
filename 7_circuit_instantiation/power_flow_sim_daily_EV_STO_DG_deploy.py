@@ -351,10 +351,43 @@ def peak_kw_for_load(full_name):
         for line in read_lines(PATH_LOADS_DSS_ORIG):
             if f"New Load.{full_name}" in line:
                 m_kw = re.search(r"\bkW=([0-9\.Ee+-]+)", line)
-                if m_kw: 
+                if m_kw:
                     v = try_float(m_kw.group(1), None)
                     if v is not None: return v
     return 10.0
+
+def get_circuit_name(master_path):
+    """Parse the 'New Circuit.<name>' line from Master.dss."""
+    with open(master_path, "r", encoding="utf-8") as f:
+        for ln in f:
+            m = re.search(r'(?i)^\s*new\s+circuit\.(\S+)', ln.strip())
+            if m:
+                return m.group(1)
+    return None
+
+def assert_monitor_exports(master_path, monitor_names, search_dir):
+    """Fail loudly if an expected 'Export Monitors <name>' CSV isn't on disk
+    after Compile/Solve, rather than silently trusting the export happened.
+
+    OpenDSS writes these to '<CircuitName>_Mon_<monitorname>_1.csv' under
+    DataPath (== search_dir here, since DataPath defaults to CWD and the
+    launcher runs this script with cwd=dst_folder) -- verified empirically
+    against a real solve on this machine, not assumed from documentation.
+    """
+    if not monitor_names:
+        return
+    circuit_name = get_circuit_name(master_path)
+    if not circuit_name:
+        raise RuntimeError("Could not parse circuit name from Master.dss to verify monitor exports.")
+    missing = [
+        name for name in monitor_names
+        if not os.path.exists(os.path.join(search_dir, f"{circuit_name}_Mon_{name}_1.csv"))
+    ]
+    if missing:
+        raise RuntimeError(
+            f"Expected monitor export CSV(s) not found after Compile/Solve: {missing} "
+            f"(circuit={circuit_name}, dir={search_dir})"
+        )
 
 # ---------------- EV profiles (both types) ----------------
 if ACTIVATE_EV:
@@ -463,7 +496,7 @@ loadshapes_ev_path = os.path.join(OUT_DIR, "LoadShapes_EV.dss")  # new EV shapes
 
 if ACTIVATE_EV and (N_u + N_c) > 0:
     # EV loadshapes: uncontrolled -> EVu_i, controlled -> EVc_i
-    with open(loadshapes_ev_path, "w") as f_ls:
+    with open(loadshapes_ev_path, "w", encoding="utf-8") as f_ls:
         f_ls.write("! EV LoadShapes (uncontrolled + controlled)\n\n")
         for i in range(N_u):
             row = arr_u[i, :]
@@ -473,7 +506,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
             f_ls.write(f"New Loadshape.EVc_{i} npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
 
     # Append EV loads (two legs _1/_2) using attributes from parsed_loads_map
-    with open(loads_ev_path, "a") as f_ld:
+    with open(loads_ev_path, "a", encoding="utf-8") as f_ld:
         f_ld.write("\n! EV Loads (mixed types)\n\n")
         # uncontrolled
         for i, base in enumerate(json_ev_un):
@@ -528,6 +561,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
 storage_targets = ASSIGN.get("storage_targets", []) if isinstance(ASSIGN, dict) else []
 storage_path = os.path.join(OUT_DIR, "Storage.dss")
 monitor_export_lines = []
+monitor_names = []       # bare monitor names (no class prefix), for the post-export existence check
 # Controller sizing knobs (override with env if desired)
 SC_KW_TARGET_FACTOR = float(os.environ.get("SC_KW_TARGET_FACTOR", "0.8"))  # fraction of total storage kW
 SC_KW_TARGET_LOW    = float(os.environ.get("SC_KW_TARGET_LOW",  "0.0"))    # charge threshold
@@ -570,6 +604,8 @@ if storage_targets:
             f_st.write(f"New Monitor.{mon_soc} element=Storage.{stg_name} mode=3\n\n")
             monitor_export_lines.append(f"Export Monitors {mon_pwr}\n")
             monitor_export_lines.append(f"Export Monitors {mon_soc}\n")
+            monitor_names.append(mon_pwr)
+            monitor_names.append(mon_soc)
 
             storage_names.append(stg_name)
             storage_objnames.append(f"Storage.{stg_name}")
@@ -615,7 +651,7 @@ n_pv = 0
 if PV_KW_PER_PEAK > 0.0 and pv_targets:
     pv_path    = os.path.join(OUT_DIR, "PVSystems.dss")
     pv_ls_path = os.path.join(OUT_DIR, "LoadShapes_PV.dss")
-    with open(pv_path, "w") as f_pv, open(pv_ls_path, "w") as f_ls:
+    with open(pv_path, "w", encoding="utf-8") as f_pv, open(pv_ls_path, "w", encoding="utf-8") as f_ls:
         f_pv.write("! PV SYSTEMS (from JSON targets)\n\n")
         f_ls.write("! PV LoadShapes\n\n")
         season = (ASSIGN.get("season") or "summer").lower()
@@ -721,6 +757,10 @@ if COMPILE_CIRCUIT and master_dss_path:
     # DSScircuit.Solution.Solve()
     converged = bool(DSScircuit.Solution.Converged)
     print(f"Converged? {converged}")
+
+    # Master.dss's own embedded "Solve"/"Export Monitors" lines run as part of
+    # the Compile above; don't just trust that -- confirm the CSVs landed.
+    assert_monitor_exports(master_dss_path, monitor_names, CURRENT_DIR)
 else:
     converged = None  # circuit was never compiled/solved
 

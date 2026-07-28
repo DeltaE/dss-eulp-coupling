@@ -98,7 +98,7 @@ def load_config(config_path=None):
     check_python_version()
     if config_path is None:
         config_path = REPO_ROOT / "pipeline_config.yaml"
-    with open(config_path) as f:
+    with open(config_path, encoding="utf-8") as f:
         cfg = PipelineConfig(yaml.safe_load(f) or {})
 
     for key, var in RUN_VALUES.items():

@@ -179,7 +179,7 @@ print(f"  Mixes defined: {list(mixes.keys())}")
 print(f"\n  Expected circuit folders after instantiation:")
 try:
     reg_path = REGISTRY_PATH
-    with reg_path.open("r") as f:
+    with reg_path.open("r", encoding="utf-8") as f:
         reg = json.load(f)
     for entry in reg["feeders"]:
         sub = entry["substation"]
