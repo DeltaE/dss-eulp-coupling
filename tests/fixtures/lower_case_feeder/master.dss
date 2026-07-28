@@ -1,0 +1,7 @@
+Clear
+New Circuit.fixture_circuit basekv=12.47 pu=1.0 phases=3
+
+Redirect loads.dss
+Redirect loadshapes.dss
+
+Solve mode=yearly stepsize=15m number=35040
