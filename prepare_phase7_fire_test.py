@@ -17,7 +17,7 @@ What this script does:
   3. Checks for data_ev/ and warns if missing (cannot auto-generate).
   4. Writes a summary of what was done.
 
-Safe to run multiple times — uses overwrite protection with confirmation.
+Safe to run multiple times — overwrites profhp copies and reuses existing mixes unless --regenerate is passed.
 """
 
 import os
@@ -26,6 +26,11 @@ import json
 import shutil
 from pathlib import Path
 from datetime import datetime
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--regenerate", action="store_true")
+args = parser.parse_args()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pipeline_utils import load_config, resolve_work_path
@@ -118,14 +123,8 @@ print(f"\n  Total files to copy: {total_files:,}")
 # Check for existing directories
 existing = [e for e in copy_plan if e["dst"].exists()]
 if existing:
-    print(f"\n  WARNING: {len(existing)} destination(s) already exist:")
     for e in existing:
-        n_existing = sum(1 for f in e["dst"].iterdir() if f.is_file())
-        print(f"    {e['dst']} ({n_existing} files)")
-    resp = input("\n  Overwrite existing? [y/N]: ").strip().lower()
-    if resp != "y":
-        print("  Skipping profhp bridge creation.")
-        copy_plan = []
+        print(f"Overwriting {e['dst']}")
 
 # Execute copies
 copied_total = 0
@@ -213,16 +212,8 @@ fire_test_mixes = {
     },
 }
 
-if MIXES_PATH.exists():
-    print(f"  WARNING: {MIXES_PATH} already exists!")
-    resp = input("  Overwrite? [y/N]: ").strip().lower()
-    if resp != "y":
-        print("  Skipping mixes generation.")
-    else:
-        MIXES_DIR.mkdir(parents=True, exist_ok=True)
-        with MIXES_PATH.open("w", encoding="utf-8") as f:
-            json.dump(fire_test_mixes, f, indent=2)
-        print(f"  ✅ Wrote {MIXES_PATH}")
+if MIXES_PATH.exists() and not args.regenerate:
+    print(f"Using existing {MIXES_PATH}")
 else:
     MIXES_DIR.mkdir(parents=True, exist_ok=True)
     with MIXES_PATH.open("w", encoding="utf-8") as f:
