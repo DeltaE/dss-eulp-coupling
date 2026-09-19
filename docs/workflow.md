@@ -40,8 +40,8 @@ python run_mix_generator.py
 1. `copy_circuits.py` — Copy Smart-DS circuits to working dir  
 2. `circuit_make_daily_list_sets.py` — Extract daily load patterns  
 3. `review_parquet_matches.py` — Review available parquet files  
-4. `match_smartds_parquets_NC.py` — Match circuits to EULP profiles  
-5. `clean_up_bldgs_NC.py` — Filter/organize building data  
+4. `match_smartds_parquets_impl.py` — Match circuits to EULP profiles  
+5. `clean_up_bldgs_impl.py` — Filter/organize building data  
 6. `select_rep_family_NC.py` — Select representative buildings
 
 ```bash
@@ -49,8 +49,8 @@ cd ../1b_smartds_eulp_match
 python copy_circuits.py
 python circuit_make_daily_list_sets.py
 python review_parquet_matches.py
-python match_smartds_parquets_NC.py
-python clean_up_bldgs_NC.py
+python match_smartds_parquets_impl.py
+python clean_up_bldgs_impl.py
 python select_rep_family_NC.py
 ```
 
@@ -69,8 +69,8 @@ Variants: **baseline** (`2_profiles_heat_pumps`), **demand management** (`4_prof
 **Typical workflow:**
 ```bash
 cd ../2_profiles_heat_pumps
-python scale_feeder_curves_NC.py
-python find_max_day_curve_NC.py
+python scale_feeder_curves_impl.py
+python find_max_day_curve_impl.py
 python plot_parquet_differences.py
 python get_scenario_csv_controls.py
 ```

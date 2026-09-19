@@ -2,7 +2,7 @@
 """Regenerate Table 2 from the four case workspaces, checking both seasons.
 
 Outputs table2.csv and table2.md under the active work root's Phase 8 directory.
-Phase 4 counts reproduce select_rep_family's report() from its saved final CSVs,
+Phase 4 counts reproduce phase4_select's report() from its saved final CSVs,
 so generation does not rerun assignment or depend on temporary console logs.
 """
 import argparse

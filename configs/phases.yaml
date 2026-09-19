@@ -30,15 +30,15 @@ pre:
 "3":
   steps:
     - copy: ["{work_root}/2_circuit_matching/review_parquet_matches.csv", "{work_root}/3_tolerance_matching/review_parquet_matches.csv"]
-    - cmd: "python match_smartds_parquets.py"
+    - cmd: "python phase3_match.py"
       cwd: 3_tolerance_matching
   verify: "3"
 
 "4":
   steps:
-    - cmd: "python clean_up_bldgs.py"
+    - cmd: "python phase4_cleanup.py"
       cwd: 4_quota_assignment
-    - cmd: "python select_rep_family.py"
+    - cmd: "python phase4_select.py"
       cwd: 4_quota_assignment
   verify: "4"
 
@@ -46,9 +46,9 @@ pre:
   steps:
     - copy: ["{work_root}/4_quota_assignment/{state}_final_residential.csv", "{work_root}/5a_eulp_downloads/"]
     - copy: ["{work_root}/4_quota_assignment/{state}_final_commercial.csv", "{work_root}/5a_eulp_downloads/"]
-    - cmd: "python download_parquets_homes_redo.py"
+    - cmd: "python phase5a_download_homes.py"
       cwd: 5a_eulp_downloads
-    - cmd: "python download_parquets_commercial_redo.py"
+    - cmd: "python phase5a_download_commercial.py"
       cwd: 5a_eulp_downloads
   verify: "5a"
 
@@ -56,9 +56,9 @@ pre:
   steps:
     - copy: ["{work_root}/4_quota_assignment/{state}_final_commercial.csv", "{work_root}/5b_profile_generation/"]
     - copy: ["{work_root}/4_quota_assignment/{state}_final_residential.csv", "{work_root}/5b_profile_generation/"]
-    - cmd: "python scale_feeder_curves.py"
+    - cmd: "python phase5b_scale.py"
       cwd: 5b_profile_generation
-    - cmd: "python find_max_day_curve.py"
+    - cmd: "python phase5b_peak.py"
       cwd: 5b_profile_generation
   verify: "5b"
 
@@ -72,9 +72,9 @@ pre:
 
 "5b_variants":
   steps:
-    - cmd: "python find_max_day_curve_dm.py"
+    - cmd: "python phase5b_variants_dm.py"
       cwd: 5b_profile_generation
-    - cmd: "python find_max_day_curve_uncontrolled.py"
+    - cmd: "python phase5b_variants_uncontrolled.py"
       cwd: 5b_profile_generation
 
 "5c":

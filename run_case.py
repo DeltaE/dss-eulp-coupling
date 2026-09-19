@@ -8,7 +8,7 @@ are intentionally OUT of scope here - they live downstream in 0_experimental_des
 LHS) and Phase 7 (DER deployment).
 
 This layer runs only the DETERMINISTIC instantiation chain (the proven fire-test sequence):
-    pre -> 1 -> 2 -> 3 -> 4 -> 5a -> 5b -> 5d -> 5b_variants -> 5c
+    pre -> 1 -> 2 -> 3 -> 4 -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> 7a -> 7b -> 7c -> 8
 It sets the PIPELINE_* environment variables the existing scripts already read
 (see pipeline_utils.py) and shells out to them. No core pipeline code is modified.
 

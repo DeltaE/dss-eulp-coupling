@@ -126,12 +126,12 @@ commands. For full runs, omit that option.
 | 0 | `0_experimental_design` | `run_mix_generator.py` | `pipeline_config.yaml` | `mixes_lhs.json`, `mixes_sobol.json`, `mixes_compare_long.csv`, `lhs_vs_sobol_summary.csv`, QA plots | `python 0_experimental_design\run_mix_generator.py` |
 | 1 | `1_data_provenance` | `src\eulp_metadata\build.py` | `1_data_provenance\data_raw`, `1_data_provenance\data_derived\historical`, `pipeline_config.yaml` | `1_data_provenance\outputs\pipeline_state\commercial_data_SELECT_STATES.csv`, `residential_data_SELECT_STATES.csv`, manifests, row counts | `pushd 1_data_provenance`<br>`set PYTHONPATH=src`<br>`python -m eulp_metadata.build --cluster pipeline_state --validate`<br>`popd` |
 | 2 | `2_circuit_matching` | `copy_circuits.py`, `circuit_make_daily_list_sets.py`, `review_parquet_matches.py` | `smart_ds_root`, SMART-DS source load parquets in `2_circuit_matching\parquet_data` | `2_circuit_matching\circuits_plain_format`, per-circuit `daily_list_set_*.pkl`, `2_circuit_matching\review_parquet_matches.csv`, root `feeder_registry.json` | `pushd 2_circuit_matching`<br>`python copy_circuits.py`<br>`python circuit_make_daily_list_sets.py`<br>`python review_parquet_matches.py`<br>`popd` |
-| 3 | `3_tolerance_matching` | `match_smartds_parquets.py` | `review_parquet_matches.csv`, Phase 1 metadata outputs | `df_com_matches_out_%PIPELINE_STATE%.csv`, `df_res_matches_out_%PIPELINE_STATE%.csv` | `copy /Y 2_circuit_matching\review_parquet_matches.csv 3_tolerance_matching\review_parquet_matches.csv`<br>`pushd 3_tolerance_matching`<br>`python match_smartds_parquets.py`<br>`popd` |
-| 4 | `4_quota_assignment` | `clean_up_bldgs.py`, `select_rep_family.py` | Phase 3 match outputs, Phase 1 metadata outputs | filtered metadata CSVs, source maps, `%PIPELINE_STATE%_final_commercial.csv`, `%PIPELINE_STATE%_final_residential.csv` | `pushd 4_quota_assignment`<br>`python clean_up_bldgs.py`<br>`python select_rep_family.py`<br>`popd` |
-| 5a | `5a_eulp_downloads` | `download_parquets_homes_redo.py`, `download_parquets_commercial_redo.py` | Phase 4 filtered metadata copied into `5a_eulp_downloads`, OEDI EULP profile access | EULP parquet folders under `parquet_data_root` | `copy /Y 4_quota_assignment\residential_data_SELECT_STATES_FILTERED_%PIPELINE_STATE%.csv 5a_eulp_downloads\`<br>`copy /Y 4_quota_assignment\commercial_data_SELECT_STATES_FILTERED_%PIPELINE_STATE%.csv 5a_eulp_downloads\`<br>`pushd 5a_eulp_downloads`<br>`python download_parquets_homes_redo.py`<br>`python download_parquets_commercial_redo.py`<br>`popd` |
-| 5b | `5b_profile_generation` | `scale_feeder_curves.py`, `find_max_day_curve.py` | root `parsed_loads_SUMMARY.csv`, root `feeder_registry.json`, Phase 4 final representative CSVs, Phase 5a EULP parquets | `%PIPELINE_STATE%_parquet_and_bldgs.csv`, `%PIPELINE_STATE%_required_parquets_per_feeder.csv`, baseline daily parquets | `copy /Y 4_quota_assignment\%PIPELINE_STATE%_final_commercial.csv 5b_profile_generation\`<br>`copy /Y 4_quota_assignment\%PIPELINE_STATE%_final_residential.csv 5b_profile_generation\`<br>`pushd 5b_profile_generation`<br>`python scale_feeder_curves.py`<br>`python find_max_day_curve.py`<br>`popd` |
+| 3 | `3_tolerance_matching` | `phase3_match.py` | `review_parquet_matches.csv`, Phase 1 metadata outputs | `df_com_matches_out_%PIPELINE_STATE%.csv`, `df_res_matches_out_%PIPELINE_STATE%.csv` | `copy /Y 2_circuit_matching\review_parquet_matches.csv 3_tolerance_matching\review_parquet_matches.csv`<br>`pushd 3_tolerance_matching`<br>`python phase3_match.py`<br>`popd` |
+| 4 | `4_quota_assignment` | `phase4_cleanup.py`, `phase4_select.py` | Phase 3 match outputs, Phase 1 metadata outputs | filtered metadata CSVs, source maps, `%PIPELINE_STATE%_final_commercial.csv`, `%PIPELINE_STATE%_final_residential.csv` | `pushd 4_quota_assignment`<br>`python phase4_cleanup.py`<br>`python phase4_select.py`<br>`popd` |
+| 5a | `5a_eulp_downloads` | `phase5a_download_homes.py`, `phase5a_download_commercial.py` | Phase 4 filtered metadata copied into `5a_eulp_downloads`, OEDI EULP profile access | EULP parquet folders under `parquet_data_root` | `copy /Y 4_quota_assignment\residential_data_SELECT_STATES_FILTERED_%PIPELINE_STATE%.csv 5a_eulp_downloads\`<br>`copy /Y 4_quota_assignment\commercial_data_SELECT_STATES_FILTERED_%PIPELINE_STATE%.csv 5a_eulp_downloads\`<br>`pushd 5a_eulp_downloads`<br>`python phase5a_download_homes.py`<br>`python phase5a_download_commercial.py`<br>`popd` |
+| 5b | `5b_profile_generation` | `phase5b_scale.py`, `phase5b_peak.py` | root `parsed_loads_SUMMARY.csv`, root `feeder_registry.json`, Phase 4 final representative CSVs, Phase 5a EULP parquets | `%PIPELINE_STATE%_parquet_and_bldgs.csv`, `%PIPELINE_STATE%_required_parquets_per_feeder.csv`, baseline daily parquets | `copy /Y 4_quota_assignment\%PIPELINE_STATE%_final_commercial.csv 5b_profile_generation\`<br>`copy /Y 4_quota_assignment\%PIPELINE_STATE%_final_residential.csv 5b_profile_generation\`<br>`pushd 5b_profile_generation`<br>`python phase5b_scale.py`<br>`python phase5b_peak.py`<br>`popd` |
 | 5d | `5d_scenario_controls` | `plot_parquet_differences.py`, `get_scenario_csv_controls.py` | Phase 5a EULP parquets, Phase 5b baseline mapping CSVs | `plot_parquet_differences\combined_scenarios.csv`, `get_scenario_csv_controls\*_dm.csv`, `*_uncontrolled.csv` | `pushd 5d_scenario_controls`<br>`python plot_parquet_differences.py`<br>`python get_scenario_csv_controls.py`<br>`popd` |
-| 5b variants | `5b_profile_generation` | `find_max_day_curve_dm.py`, `find_max_day_curve_uncontrolled.py` | Phase 5d DM/uncontrolled control CSVs and Phase 5a EULP parquets | DM and uncontrolled daily parquets under `5b_profile_generation\daily_parquets` | `pushd 5b_profile_generation`<br>`python find_max_day_curve_dm.py`<br>`python find_max_day_curve_uncontrolled.py`<br>`popd` |
+| 5b variants | `5b_profile_generation` | `phase5b_variants_dm.py`, `phase5b_variants_uncontrolled.py` | Phase 5d DM/uncontrolled control CSVs and Phase 5a EULP parquets | DM and uncontrolled daily parquets under `5b_profile_generation\daily_parquets` | `pushd 5b_profile_generation`<br>`python phase5b_variants_dm.py`<br>`python phase5b_variants_uncontrolled.py`<br>`popd` |
 | 5c | `5c_csv_conversion` | `parquet_to_csv.py` | `5b_profile_generation\daily_parquets`, root `feeder_registry.json`, Phase 5d DM mapping CSV | circuit loadshape CSV folders, `folder_timestamps.pkl`, `folder_equiv.pkl`, `folder_list_loadshapes.pkl` | `pushd 5c_csv_conversion`<br>`python parquet_to_csv.py`<br>`popd` |
 | 6 | `6_kvar_preparation` | `save_needed_sd_parquets.py`, `rev_spec_kvar_kw_ratio.py`, `generate_kvar_csvs.py` | Phase 5b mapping CSV, Phase 5c CSV folders and `folder_timestamps.pkl`, original source parquets at `smart_ds_parquet_root` | `needed_parquets.pkl`, `kvar_ratios.pkl`, matching `_kvar_` CSVs beside `_kw_` CSVs | copy/symlink Phase 5c CSV folders and `folder_timestamps.pkl` into `6_kvar_preparation`, then:<br>`pushd 6_kvar_preparation`<br>`python save_needed_sd_parquets.py`<br>`python rev_spec_kvar_kw_ratio.py`<br>`python generate_kvar_csvs.py`<br>`popd` |
 | 7 | `7_circuit_instantiation` | `instantiate_circuits_and_runs_APPLYFILTER.py`, `run_all_deploys_v2.py`, `check_monitor_outputs.py`, `aggregate_m1_m2_with_circuits.py` | root `feeder_registry.json`, `smart_ds_root`, `0_experimental_design\mixes_lhs.json`, profile roots `%PIPELINE_STATE%_4_profhp`, `%PIPELINE_STATE%_6_profhp_dm`, `%PIPELINE_STATE%_7_profhp_un` | prepared circuit folders, `profiles_use_bench`, OpenDSS monitor CSVs, `aggregate_m1.csv`, `aggregate_m2.csv`, `circuit_summary.csv`, heating assignment audit files | `pushd 7_circuit_instantiation`<br>`python instantiate_circuits_and_runs_APPLYFILTER.py`<br>`python run_all_deploys_v2.py`<br>`python check_monitor_outputs.py`<br>`python aggregate_m1_m2_with_circuits.py`<br>`popd` |
@@ -149,7 +149,7 @@ symlinks, or a shared generated location.
 | SMART-DS source load parquets | `2_circuit_matching\parquet_data` | `review_parquet_matches.py` hardcodes `./parquet_data`. Copy or symlink the needed SMART-DS load parquets before Phase 2 review. | Yes. Read from `pipeline_config.yaml` instead of a local folder. |
 | `2_circuit_matching\review_parquet_matches.csv` | `3_tolerance_matching\review_parquet_matches.csv` | Manual copy required before running Phase 3. | Yes. Phase 3 can read from Phase 2 output path directly. |
 | `4_quota_assignment\residential_data_SELECT_STATES_FILTERED_%PIPELINE_STATE%.csv` and commercial equivalent | `5a_eulp_downloads\` | Manual copy required because Phase 5a download scripts read filtered metadata from their current folder. | Yes. Phase 5a can search Phase 4 outputs or use config paths. |
-| `4_quota_assignment\%PIPELINE_STATE%_final_commercial.csv` and `%PIPELINE_STATE%_final_residential.csv` | `5b_profile_generation\` | Manual copy required because `scale_feeder_curves.py` reads final representative CSVs from its current folder. | Yes. Read from Phase 4 output path. |
+| `4_quota_assignment\%PIPELINE_STATE%_final_commercial.csv` and `%PIPELINE_STATE%_final_residential.csv` | `5b_profile_generation\` | Manual copy required because `phase5b_scale.py` reads final representative CSVs from its current folder. | Yes. Read from Phase 4 output path. |
 | `5b_profile_generation\%PIPELINE_STATE%_parquet_and_bldgs.csv` and `%PIPELINE_STATE%_required_parquets_per_feeder.csv` | `5d_scenario_controls\get_scenario_csv_controls.py` | No copy required if files remain in `5b_profile_generation`; Phase 5d already checks there. | Already partially automated. |
 | `5d_scenario_controls\get_scenario_csv_controls\*_dm.csv` and `*_uncontrolled.csv` | `5b_profile_generation` and `5c_csv_conversion` | No copy required for the current wrappers; they read from the Phase 5d output folder. | Already partially automated. |
 | `5b_profile_generation\daily_parquets` | `5c_csv_conversion` | No copy required; Phase 5c searches `..\5b_profile_generation\daily_parquets`. | Already automated. |
@@ -199,29 +199,29 @@ popd
 :: Phase 3: tolerance matching.
 copy /Y 2_circuit_matching\review_parquet_matches.csv 3_tolerance_matching\review_parquet_matches.csv
 pushd 3_tolerance_matching
-python match_smartds_parquets.py
+python phase3_match.py
 popd
 
 :: Phase 4: filter and select representative buildings.
 pushd 4_quota_assignment
-python clean_up_bldgs.py
-python select_rep_family.py
+python phase4_cleanup.py
+python phase4_select.py
 popd
 
 :: Phase 5a: download the selected EULP parquets.
 copy /Y 4_quota_assignment\residential_data_SELECT_STATES_FILTERED_%PIPELINE_STATE%.csv 5a_eulp_downloads\
 copy /Y 4_quota_assignment\commercial_data_SELECT_STATES_FILTERED_%PIPELINE_STATE%.csv 5a_eulp_downloads\
 pushd 5a_eulp_downloads
-python download_parquets_homes_redo.py
-python download_parquets_commercial_redo.py
+python phase5a_download_homes.py
+python phase5a_download_commercial.py
 popd
 
 :: Phase 5b: build baseline and variant daily parquet slices.
 copy /Y 4_quota_assignment\%PIPELINE_STATE%_final_commercial.csv 5b_profile_generation\
 copy /Y 4_quota_assignment\%PIPELINE_STATE%_final_residential.csv 5b_profile_generation\
 pushd 5b_profile_generation
-python scale_feeder_curves.py
-python find_max_day_curve.py
+python phase5b_scale.py
+python phase5b_peak.py
 popd
 
 pushd 5d_scenario_controls
@@ -230,8 +230,8 @@ python get_scenario_csv_controls.py
 popd
 
 pushd 5b_profile_generation
-python find_max_day_curve_dm.py
-python find_max_day_curve_uncontrolled.py
+python phase5b_variants_dm.py
+python phase5b_variants_uncontrolled.py
 popd
 
 :: Phase 5c: convert daily parquets to kW CSV loadshapes.
@@ -293,17 +293,17 @@ No files were renamed in this phase.
 | `1_data_provenance/scripts_legacy/slice_states_v3.py` | 1 legacy | Version suffix and duplicated state slicing. | Keep as legacy reference; prefer `pipeline_state` cluster. |
 | `2_circuit_matching/circuit_make_daily_list_sets.py` | 2 | Ambiguous and grammatically unclear; extracts yearly/daily loadshape names into pickles. | Candidate rename `extract_loadshape_name_sets.py`. |
 | `2_circuit_matching/review_parquet_matches.py` | 2 | "Review" is vague; script computes monthly stats for matching. | Candidate rename `summarize_smartds_parquet_matches.py`. |
-| `3_tolerance_matching/match_smartds_parquets_NC.py` | 3 | State in name even though code reads `pipeline_config.yaml`. | Keep behind wrapper for now; candidate rename `match_smartds_parquets_impl.py`. |
-| `4_quota_assignment/clean_up_bldgs_NC.py` | 4 | State in name and "clean up" is vague. | Keep behind wrapper for now; candidate rename `filter_matched_buildings.py`. |
+| `3_tolerance_matching/match_smartds_parquets_impl.py` | 3 | State in name even though code reads `pipeline_config.yaml`. | Keep behind wrapper for now; candidate rename `match_smartds_parquets_impl.py`. |
+| `4_quota_assignment/clean_up_bldgs_impl.py` | 4 | State in name and "clean up" is vague. | Keep behind wrapper for now; candidate rename `filter_matched_buildings.py`. |
 | `4_quota_assignment/select_rep_family_NC.py` | 4 | State in name; "family" is unclear for representative building selection. | Keep behind wrapper for now; candidate rename `select_representative_buildings.py`. |
 | `5a_eulp_downloads/download_parquets_homes_NC.py` | 5a | State in name even though code is parameterized. | Keep as legacy implementation behind state-agnostic wrapper. |
-| `5a_eulp_downloads/download_parquets_homes_NC_redo.py` | 5a | State in name plus "redo" suffix; overlaps with non-redo version. | Prefer wrapper `download_parquets_homes_redo.py`; candidate implementation rename after approval. |
+| `5a_eulp_downloads/download_parquets_homes_redo_impl.py` | 5a | State in name plus "redo" suffix; overlaps with non-redo version. | Prefer wrapper `phase5a_download_homes.py`; candidate implementation rename after approval. |
 | `5a_eulp_downloads/download_parquets_commercial_NC.py` | 5a | State in name even though code is parameterized. | Keep as legacy implementation behind state-agnostic wrapper. |
-| `5a_eulp_downloads/download_parquets_commercial_NC_redo.py` | 5a | State in name plus "redo" suffix; overlaps with non-redo version. | Prefer wrapper `download_parquets_commercial_redo.py`; candidate implementation rename after approval. |
-| `5b_profile_generation/scale_feeder_curves_NC.py` | 5b | State in name even though code is parameterized. | Keep behind wrapper for now; candidate rename `scale_feeder_curves_impl.py`. |
-| `5b_profile_generation/find_max_day_curve_NC.py` | 5b | State in name even though code is parameterized. | Keep behind wrapper for now; candidate rename `find_max_day_curve_baseline.py`. |
-| `5b_profile_generation/find_max_day_curve_NC_dm.py` | 5b variants | State in name even though code is parameterized. | Keep behind wrapper for now; candidate rename `find_max_day_curve_dm_impl.py`. |
-| `5b_profile_generation/find_max_day_curve_MT_uncontrolled.py` | 5b variants | Wrong state in name for a parameterized uncontrolled script. | Keep behind wrapper for now; candidate rename `find_max_day_curve_uncontrolled_impl.py`. |
+| `5a_eulp_downloads/download_parquets_commercial_redo_impl.py` | 5a | State in name plus "redo" suffix; overlaps with non-redo version. | Prefer wrapper `phase5a_download_commercial.py`; candidate implementation rename after approval. |
+| `5b_profile_generation/scale_feeder_curves_impl.py` | 5b | State in name even though code is parameterized. | Keep behind wrapper for now; candidate rename `scale_feeder_curves_impl.py`. |
+| `5b_profile_generation/find_max_day_curve_impl.py` | 5b | State in name even though code is parameterized. | Keep behind wrapper for now; candidate rename `find_max_day_curve_baseline.py`. |
+| `5b_profile_generation/find_max_day_curve_dm_impl.py` | 5b variants | State in name even though code is parameterized. | Keep behind wrapper for now; candidate rename `find_max_day_curve_dm_impl.py`. |
+| `5b_profile_generation/find_max_day_curve_uncontrolled_impl.py` | 5b variants | Wrong state in name for a parameterized uncontrolled script. | Keep behind wrapper for now; candidate rename `find_max_day_curve_uncontrolled_impl.py`. |
 | `5d_scenario_controls/plot_parquet_differences.py` | 5d | Name says plot, but output drives scenario-control selection. | Candidate rename `summarize_profile_scenario_differences.py`. |
 | `6_kvar_preparation/save_needed_sd_parquets.py` | 6 | Ambiguous abbreviation `sd`; output is a needed source parquet list. | Candidate rename `list_needed_source_parquets.py`. |
 | `6_kvar_preparation/rev_spec_kvar_kw_ratio.py` | 6 | Ambiguous abbreviations and legacy name. | Candidate rename `derive_kvar_kw_ratios.py`. |

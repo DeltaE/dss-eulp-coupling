@@ -2,7 +2,7 @@
 """
 Optimized tolerance matching for the SMART-DS x EULP coupling pipeline.
 
-Drop-in replacement for match_smartds_parquets_NC.py. Produces matches identical
+Drop-in replacement for match_smartds_parquets_impl.py. Produces matches identical
 to the original triple-nested-loop version, but vectorized.
 
 Two methods are provided:

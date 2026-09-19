@@ -56,9 +56,9 @@ metadata filenames. Set `status: ready`.
 
 ## Phase boundary (why these phases)
 
-The layer runs the deterministic chain only:
-`pre -> 1 -> 2 -> 3 -> 4 -> 5a -> 5b -> 5d -> 5b_variants -> 5c` (the proven sequence in
-`FIRE_TEST_CHEATSHEET.md`). Note "pre" here is `0_download_smartds` (circuit staging), NOT
+The layer runs the chain configured in `configs/defaults.yaml`:
+`pre -> 1 -> 2 -> 3 -> 4 -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> 7a -> 7b -> 7c -> 8`.
+Note "pre" here is `0_download_smartds` (circuit staging), NOT
 `0_experimental_design`. Phases 2-6 were verified to have **zero** dependency on
 `0_experimental_design` (the LHS); that stage and Phase 7 (DER deployment) consume the mixes and
 are deliberately downstream.

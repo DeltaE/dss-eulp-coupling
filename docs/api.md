@@ -20,7 +20,7 @@ If your modules are importable (e.g., your repo is a package or you add the repo
 If you prefer documenting scripts by hand, create subpages like:
 
 - `scripts/run_mix_generator.md`
-- `scripts/match_smartds_parquets_NC.md`
+- `scripts/match_smartds_parquets_impl.md`
 - `scripts/instantiate_circuits_and_runs_APPLYFILTER.md`
 
 Each page should include **Purpose**, **Inputs**, **Outputs**, **Key Flags/Parameters**, and **Examples**.

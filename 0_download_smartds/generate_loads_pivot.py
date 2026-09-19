@@ -33,7 +33,7 @@ grouped["REAL_LOAD_COUNT"] = grouped.apply(
     axis=1
 ).astype(int)
 
-# Pre-compute the parquet name (used downstream by scale_feeder_curves.py)
+# Pre-compute the parquet name (used downstream by phase5b_scale.py)
 grouped["Parquet_Name"] = grouped["Yearly_Type"] + "_" + grouped["Yearly_Number"].astype(str) + ".parquet"
 
 columns = [

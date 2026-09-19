@@ -89,25 +89,25 @@ Pop-Location
 
 # 3. Tolerance matching
 Push-Location .\3_tolerance_matching
-python .\match_smartds_parquets.py
+python .\phase3_match.py
 Pop-Location
 
 # 4. Quota assignment
 Push-Location .\4_quota_assignment
-python .\clean_up_bldgs.py
-python .\select_rep_family.py
+python .\phase4_cleanup.py
+python .\phase4_select.py
 Pop-Location
 
 # 5a. Download EULP parquets
 Push-Location .\5a_eulp_downloads
-python .\download_parquets_homes_redo.py
-python .\download_parquets_commercial_redo.py
+python .\phase5a_download_homes.py
+python .\phase5a_download_commercial.py
 Pop-Location
 
 # 5b. Baseline profiles
 Push-Location .\5b_profile_generation
-python .\scale_feeder_curves.py
-python .\find_max_day_curve.py
+python .\phase5b_scale.py
+python .\phase5b_peak.py
 Pop-Location
 
 # 5d. Scenario controls for DM/uncontrolled variants
@@ -118,8 +118,8 @@ Pop-Location
 
 # 5b. DM and uncontrolled peak-day variants
 Push-Location .\5b_profile_generation
-python .\find_max_day_curve_dm.py
-python .\find_max_day_curve_uncontrolled.py
+python .\phase5b_variants_dm.py
+python .\phase5b_variants_uncontrolled.py
 Pop-Location
 
 # 5c. CSV conversion
@@ -154,8 +154,8 @@ Pop-Location
 
 | Artifact | Producer | Consumer |
 | --- | --- | --- |
-| `commercial_data_SELECT_STATES.csv`, `residential_data_SELECT_STATES.csv` | `1_data_provenance` cluster `pipeline_state` | `3_tolerance_matching/match_smartds_parquets.py` |
-| `{STATE}_required_parquets_per_feeder_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5b_profile_generation/find_max_day_curve_dm.py` |
+| `commercial_data_SELECT_STATES.csv`, `residential_data_SELECT_STATES.csv` | `1_data_provenance` cluster `pipeline_state` | `3_tolerance_matching/phase3_match.py` |
+| `{STATE}_required_parquets_per_feeder_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5b_profile_generation/phase5b_variants_dm.py` |
 | `{STATE}_parquet_and_bldgs_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5c_csv_conversion/parquet_to_csv.py` |
 | `profiles_use_bench/` | `7_circuit_instantiation/instantiate_circuits_and_runs_APPLYFILTER.py` | `7_circuit_instantiation/power_flow_sim_daily_EV_STO_DG_deploy.py` |
 | `mixes_lhs.json` | `0_experimental_design/run_mix_generator.py` | `7_circuit_instantiation/instantiate_circuits_and_runs_APPLYFILTER.py` |
