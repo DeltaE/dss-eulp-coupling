@@ -55,6 +55,45 @@ remain for provenance/compatibility, but they now read `pipeline_config.yaml`.
 - Enough local disk for parquet and CSV profile data.
 - Windows + OpenDSS installed for phase 7 (`comtypes` uses the OpenDSS COM interface).
 
+## Prerequisites for a cold clone
+
+Copy `configs/local.yaml.example` to `configs/local.yaml` and set the machine paths.
+
+Place the two EULP baseline metadata CSVs at these paths:
+
+- `1_data_provenance/data_raw/Metadata_NC_Residential/NC_baseline_metadata_and_annual_results.csv`
+- `1_data_provenance/data_raw/Metadata_NC_Commercial/NC_baseline_metadata_and_annual_results.csv`
+
+Populate `5b_profile_generation/daily_parquets/` with the parquet pool.
+The verified run used a pre-populated pool.
+Phases 5a and 5b can also download and generate it.
+
+Place the two Phase 1 historical validation CSVs at these paths:
+
+- `1_data_provenance/data_derived/historical/residential_data_SELECT_STATES_NC.csv`
+- `1_data_provenance/data_derived/historical/commercial_data_SELECT_STATES_NC.csv`
+
+Known issue: Phase 1 reads these validation CSVs from the script directory.
+This dependency is to be tracked as a GitHub issue.
+
+Run these eight commands from the repository root:
+
+```powershell
+python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --season summer
+python run_case.py --case configs/cases/NC_GSO_urban__TX.yaml --all --season summer
+python run_case.py --case configs/cases/TX_AUS_urban__NC.yaml --all --season summer
+python run_case.py --case configs/cases/TX_AUS_urban__TX.yaml --all --season summer
+python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --season winter
+python run_case.py --case configs/cases/NC_GSO_urban__TX.yaml --all --season winter
+python run_case.py --case configs/cases/TX_AUS_urban__NC.yaml --all --season winter
+python run_case.py --case configs/cases/TX_AUS_urban__TX.yaml --all --season winter
+```
+
+Verified on 2026-09-21 by a fresh clone at `71524a4` reproducing 14,659 of the
+14,660 files in the `NC_GSO_urban__NC` summer manifest byte for byte; the remaining
+file, `1_data_provenance/outputs/pipeline_state/row_counts.csv`, records absolute
+paths and is excluded.
+
 ## Run Sequence
 
 Run these from the repository root unless the command uses `Push-Location`.
