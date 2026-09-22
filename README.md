@@ -57,24 +57,26 @@ remain for provenance/compatibility, but they now read `pipeline_config.yaml`.
 
 ## Prerequisites for a cold clone
 
-Copy `configs/local.yaml.example` to `configs/local.yaml` and set the machine paths.
+Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths, including the SMART-DS data root.
 
-Place the two EULP baseline metadata CSVs at these paths:
+The pipeline resolves two SMART-DS topologies under that root. Each provides a `base_timeseries/opendss/<feeder>` tree and a co-located `parquet_data` pool:
+
+- `GSO/urban-suburban/` (feeder `uhs13_1247`)
+- `AUS/P2U/` (feeder `p2uhs12_1247`)
+
+Place the four EULP baseline metadata CSVs at these paths:
 
 - `1_data_provenance/data_raw/Metadata_NC_Residential/NC_baseline_metadata_and_annual_results.csv`
 - `1_data_provenance/data_raw/Metadata_NC_Commercial/NC_baseline_metadata_and_annual_results.csv`
+- `1_data_provenance/data_raw/Metadata_TX_Residential/TX_baseline_metadata_and_annual_results.csv`
+- `1_data_provenance/data_raw/Metadata_TX_Commercial/TX_baseline_metadata_and_annual_results.csv`
 
-Populate `5b_profile_generation/daily_parquets/` with the parquet pool.
-The verified run used a pre-populated pool.
-Phases 5a and 5b can also download and generate it.
+Each CSV comes from its OEDI collection:
 
-Place the two Phase 1 historical validation CSVs at these paths:
-
-- `1_data_provenance/data_derived/historical/residential_data_SELECT_STATES_NC.csv`
-- `1_data_provenance/data_derived/historical/commercial_data_SELECT_STATES_NC.csv`
-
-Known issue: Phase 1 reads these validation CSVs from the script directory.
-This dependency is to be tracked as a GitHub issue.
+- NC residential: <OEDI URL>
+- NC commercial: <OEDI URL>
+- TX residential: <OEDI URL>
+- TX commercial: <OEDI URL>
 
 Run these eight commands from the repository root:
 
@@ -89,10 +91,9 @@ python run_case.py --case configs/cases/TX_AUS_urban__NC.yaml --all --season win
 python run_case.py --case configs/cases/TX_AUS_urban__TX.yaml --all --season winter
 ```
 
-Verified on 2026-09-21 by a fresh clone at `71524a4` reproducing 14,659 of the
-14,660 files in the `NC_GSO_urban__NC` summer manifest byte for byte; the remaining
-file, `1_data_provenance/outputs/pipeline_state/row_counts.csv`, records absolute
-paths and is excluded.
+### Reproduction record
+
+Verified on 2026-09-21. A fresh clone at `61461cd` reproduced all eight case-seasons on Windows, with Python 3.11.7 and OpenDSS 9.8.0.1 through the COM interface. The comparison covered 110,268 output files. All matched byte for byte. Eight `row_counts.csv` files are excluded because they record absolute paths. `validation_summary.csv` is no longer produced.
 
 ## Run Sequence
 
