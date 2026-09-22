@@ -73,10 +73,10 @@ Place the four EULP baseline metadata CSVs at these paths:
 
 Each CSV comes from its OEDI collection:
 
-- NC residential: <OEDI URL>
-- NC commercial: <OEDI URL>
-- TX residential: <OEDI URL>
-- TX commercial: <OEDI URL>
+- NC residential: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fresstock_tmy3_release_2%2Fmetadata_and_annual_results%2Fby_state%2Fstate%3DNC%2Fcsv%2F
+- NC commercial: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fcomstock_amy2018_release_1%2Fmetadata_and_annual_results%2Fby_state%2Fstate%3DNC%2Fcsv%2F
+- TX residential: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fresstock_tmy3_release_2%2Fmetadata_and_annual_results%2Fby_state%2Fstate%3DTX%2Fcsv%2F
+- TX commercial: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fcomstock_amy2018_release_1%2Fmetadata_and_annual_results%2Fby_state%2Fstate%3DTX%2Fcsv%2F
 
 Run these eight commands from the repository root:
 
