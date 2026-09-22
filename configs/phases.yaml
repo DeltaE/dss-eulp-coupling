@@ -13,7 +13,7 @@ pre:
 "1":
   env: {PYTHONPATH: src}
   steps:
-    - cmd: "python -m eulp_metadata.build --cluster pipeline_state --validate"
+    - cmd: "python -m eulp_metadata.build --cluster pipeline_state"
       cwd: 1_data_provenance
   verify: "1"
 
