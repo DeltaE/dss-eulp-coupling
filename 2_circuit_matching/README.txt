@@ -10,7 +10,7 @@
 
 6) Run clean_up_bldgs_impl.py. This will produce "commercial_building_source_map_NC.csv" AND "residential_data_SELECT_STATES_FILTERED_mid_NC.csv" (and permutations).
 
-7) Now you could run select_rep_family_NC.py. This will result in "NC_final_commercial.csv" AND "NC_final_residential.csv". For this to run completely, crease folder "parquet_residential_short_20250330_NC".
+7) Now you could run select_rep_family_v2.py. This will result in "NC_final_commercial.csv" AND "NC_final_residential.csv". For this to run completely, crease folder "parquet_residential_short_20250330_NC".
 After running step #7, we get NC_final_commercial.csv and NC_final_residential.csv
 
 
