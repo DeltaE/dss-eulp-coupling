@@ -42,7 +42,7 @@ python run_mix_generator.py
 3. `review_parquet_matches.py` — Review available parquet files  
 4. `match_smartds_parquets_impl.py` — Match circuits to EULP profiles  
 5. `clean_up_bldgs_impl.py` — Filter/organize building data  
-6. `select_rep_family_NC.py` — Select representative buildings
+6. `select_rep_family_v2.py` — Select representative buildings
 
 ```bash
 cd ../1b_smartds_eulp_match
@@ -51,7 +51,7 @@ python circuit_make_daily_list_sets.py
 python review_parquet_matches.py
 python match_smartds_parquets_impl.py
 python clean_up_bldgs_impl.py
-python select_rep_family_NC.py
+python select_rep_family_v2.py
 ```
 
 ### Phase 3 — Data Acquisition (1c_eulp_downloads)
