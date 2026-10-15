@@ -26,8 +26,7 @@ $env:PIPELINE_SEASON = "summer"
 $env:PIPELINE_SMART_DS_PARQUET_ROOT = "D:\path\to\smartds\parquet_data"
 ```
 
-The primary runnable scripts are state-agnostic. Some original `*_NC.py` files
-remain for provenance/compatibility, but they now read `pipeline_config.yaml`.
+The primary runnable scripts are state-agnostic.
 
 ## Pipeline Phases
 
@@ -178,7 +177,6 @@ Pop-Location
 Push-Location .\7_circuit_instantiation
 python .\instantiate_circuits_and_runs_APPLYFILTER.py
 python .\run_all_deploys_v2.py
-python .\check_monitor_outputs.py
 python .\aggregate_m1_m2_with_circuits.py
 Pop-Location
 
