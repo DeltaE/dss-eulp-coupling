@@ -7,7 +7,7 @@ You can document key scripts and functions, even if they are not a formal Python
 If your modules are importable (e.g., your repo is a package or you add the repo root to `sys.path`), you can use `autodoc`:
 
 ```{code-block} rst
-.. automodule:: 0_code_xlrm.run_mix_generator
+.. automodule:: 0_experimental_design.run_mix_generator
    :members:
    :undoc-members:
    :show-inheritance:
