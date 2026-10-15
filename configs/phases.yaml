@@ -1,4 +1,4 @@
-# Declarative encoding of the proven fire-test sequence (Pre -> 5c).
+# Phase definitions for run_case.py. --all runs the phases in defaults.yaml phase_order, pre to 8, for each selected season. A failed phase ends that season.
 # Placeholders substituted from the resolved case: {smart_ds_root}, {max_feeders}, {state}, {work_root}.
 # Each step is either {cmd: "..."} (optional cwd:) or {copy: [src, dst]} (dst ending "/" = into dir).
 # 'verify' runs `python verify_fire_test.py --phase <id>` from repo root after the steps.
