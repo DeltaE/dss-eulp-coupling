@@ -102,7 +102,6 @@ for circuit_id, p in enumerate(feeders, start=1):
 registry = {
     "state": STATE,
     "smart_ds_root": str(SMARTDS_ROOT),
-    "generated_at": datetime.now(timezone.utc).isoformat(),
     "feeders": registry_entries,
     "circuit_name_map": {
         entry["feeder_name"]: entry["circuit"] for entry in registry_entries

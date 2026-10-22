@@ -104,7 +104,6 @@ def write_registry(path: Path, smartds_root: Path, target: Path, plan: list[Feed
     registry = {
         "smart_ds_root": str(smartds_root),
         "circuits_plain_format": str(target),
-        "generated_at": datetime.now(timezone.utc).isoformat(),
         "feeders": [
             {
                 "circuit_id": index,
