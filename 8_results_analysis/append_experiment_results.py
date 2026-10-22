@@ -68,8 +68,8 @@ def combine_and_save(base_dir: Path, output_dir: Path,
         in_path = base_dir / subdir / input_filename
 
         if not in_path.exists():
-            print(f"  ⚠️  Not found, skipping: {in_path}")
-            continue
+            print(f"  ❌ Missing input file {input_filename} at {in_path}")
+            sys.exit(1)
 
         df = pd.read_csv(in_path, low_memory=False)
         # Drop typical accidental index columns if present
@@ -82,8 +82,8 @@ def combine_and_save(base_dir: Path, output_dir: Path,
         print(f"  ✓ Added {len(df):,} rows from {in_path}")
 
     if not frames:
-        print(f"  → No files found for {input_filename}. Nothing written.")
-        return pd.DataFrame()
+        print(f"  ❌ No input file {input_filename} found in {folders}")
+        sys.exit(1)
 
     combined = pd.concat(frames, axis=0, ignore_index=True)
     out_path = output_dir / output_filename
