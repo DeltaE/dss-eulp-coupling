@@ -13,7 +13,8 @@ Run from Anaconda Prompt on Machine 3:
 What this script does:
   1. Builds profhp bridge directories (TX_4_profhp, TX_6_profhp_dm, TX_7_profhp_un)
      by copying CSVs from 5c_csv_conversion into the structure Phase 7 expects.
-  2. Generates a minimal mixes_lhs.json in 0_experimental_design/ for fire testing.
+  2. Generates a minimal mixes_lhs.json in 0_experimental_design/ for fire testing
+     if it is missing, and copies it to <workspace>/7_circuit_instantiation/.
   3. Checks for data_ev/ and warns if missing (cannot auto-generate).
   4. Writes a summary of what was done.
 
@@ -219,6 +220,12 @@ else:
     with MIXES_PATH.open("w", encoding="utf-8") as f:
         json.dump(fire_test_mixes, f, indent=2)
     print(f"  ✅ Wrote {MIXES_PATH}")
+
+# 7b reads the mixes from the workspace; copy the file byte for byte
+WORK_MIXES_PATH = Path(resolve_work_path("7_circuit_instantiation", "mixes_lhs.json"))
+WORK_MIXES_PATH.parent.mkdir(parents=True, exist_ok=True)
+shutil.copyfile(MIXES_PATH, WORK_MIXES_PATH)
+print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
 
 print(f"  Mixes defined: {list(fire_test_mixes.keys())}")
 print(f"  → {len(fire_test_mixes)} mixes × 2 feeders = {len(fire_test_mixes) * 2} circuit folders expected")

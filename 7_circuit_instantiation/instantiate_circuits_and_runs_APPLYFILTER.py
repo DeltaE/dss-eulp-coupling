@@ -100,7 +100,7 @@ RUN_AFTER_PREP = False # True
 EV_SPLIT_CTL_DEFAULT = float(os.environ.get('EV_SPLIT_CONTROLLED', '0.5'))  # 0..1
 
 # Path to your DOE-generated mixes file
-MIXES_FILE = REPO_ROOT / "0_experimental_design" / "mixes_lhs.json"   # or mixes_sobol.json
+MIXES_FILE = Path(resolve_work_path("7_circuit_instantiation", "mixes_lhs.json"))   # copied there by Phase 7a
 
 with MIXES_FILE.open("r", encoding="utf-8") as f:
     MIXES = json.load(f)

@@ -205,6 +205,6 @@ The `phase*.py` scripts are thin wrappers around the implementation scripts.
 - Phase 5b_variants and Phase 5c read the Phase 5d controls from `5d_scenario_controls/get_scenario_csv_controls/`.
 - Phase 5c reads the daily parquets from `5b_profile_generation/daily_parquets/`.
 - Phase 6 reads the Phase 5b mapping CSV, the Phase 5c CSV folders and `folder_timestamps.pkl`.
-- Phase 7 reads `0_experimental_design/mixes_lhs.json` directly.
+- Phase 7a copies `0_experimental_design/mixes_lhs.json` to `7_circuit_instantiation/mixes_lhs.json` in the workspace. Phase 7b reads that copy.
 - Phase 7 reads the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un`. It indexes the CSVs under their `daily_csvs/` subfolders. Phase 7a builds these roots from the Phase 5c CSVs.
 - Phase 8 reads the Phase 7 outputs from `7_circuit_instantiation/`.

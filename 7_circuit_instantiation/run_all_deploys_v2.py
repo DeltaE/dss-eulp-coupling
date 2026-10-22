@@ -10,6 +10,9 @@ run_prepared_circuits.py  —  simple, procedural batch runner
 import os, sys, subprocess, time, fnmatch
 import argparse
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from pipeline_utils import resolve_work_path
+
 _ap = argparse.ArgumentParser(description="Batch-run prepared circuit folders.")
 _ap.add_argument("--root", default=".", help="Directory to search for circuit folders")
 _args = _ap.parse_args()
@@ -22,7 +25,7 @@ MAX_RUN     = None  # e.g., 3 for a quick test; None = all
 STOP_ON_ERR = False  # True → stop at first nonzero exit code
 
 # --- simple logging to a text file (UTF-8) ---
-LOG_FILE = "run_log.txt"   # set to None to disable file logging
+LOG_FILE = resolve_work_path("7_circuit_instantiation", "run_log.txt")   # set to None to disable file logging
 APPEND   = True            # False = overwrite, True = append
 
 # ---- tiny helpers (keep it minimal) ----

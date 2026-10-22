@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Cross-case validation for the 2x2 pipeline consolidation.
-Input : m2_all_cases_all_seasons.csv
+Input : <runs root>/m2_all_cases_all_seasons.csv (written by gather_m2_cases.py)
 Design: 4 cases x 2 seasons x 3 fire mixes x 2 feeders, 96 timesteps each.
 
 Sections:
@@ -14,14 +14,25 @@ Sections:
   7. Anomaly flags
 """
 import sys
+from pathlib import Path
 import numpy as np
 import pandas as pd
+import yaml
 
 pd.set_option("display.width", 200)
 pd.set_option("display.max_columns", 40)
 pd.set_option("display.float_format", lambda x: f"{x:,.2f}")
 
-CSV = sys.argv[1] if len(sys.argv) > 1 else "m2_all_cases_all_seasons.csv"
+REPO_ROOT = Path(__file__).resolve().parent
+# runs root: runs_root in configs/local.yaml (repo-relative or absolute), as in run_case.py
+LOCAL_YAML = REPO_ROOT / "configs" / "local.yaml"
+if not LOCAL_YAML.exists():
+    sys.exit(f"Missing {LOCAL_YAML}. Copy configs/local.yaml.example to configs/local.yaml.")
+with open(LOCAL_YAML, encoding="utf-8") as fh:
+    RUNS_ROOT = Path((yaml.safe_load(fh) or {}).get("runs_root", "runs"))
+if not RUNS_ROOT.is_absolute():
+    RUNS_ROOT = REPO_ROOT / RUNS_ROOT
+CSV = sys.argv[1] if len(sys.argv) > 1 else RUNS_ROOT / "m2_all_cases_all_seasons.csv"
 
 PCOL, QCOL, SCOL = "P_3ph (kW)", "Q_3ph (kVAr)", "S_3ph (kVA)"
 PHASE_P = ["P1 (kW)", "P2 (kW)", "P3 (kW)"]
@@ -30,6 +41,10 @@ SC_ORDER = {"fire_baseline": 0, "fire_mixed": 1, "fire_stress": 2}
 
 EXPECT = dict(cases=4, seasons=2, scenarios=3, feeders=2, ts=96)
 EXPECT_COMBOS = EXPECT["cases"] * EXPECT["seasons"] * EXPECT["scenarios"] * EXPECT["feeders"]
+# circuit_folder keys are folder names (<substation>_circuit_<n>_<mix>) that carry neither
+# donor nor season. Four cases and two seasons give 48 combos, which collapse to
+# 2 substations x 2 feeders x 3 scenarios = 12 keys.
+EXPECT_CIRCUIT_FOLDERS = 12
 
 
 def rule(title):
@@ -101,8 +116,9 @@ def sec1_structural(df, data, summ, peaks):
     ts_map = df.groupby("topology")["substation"].nunique()
     print(f"topology -> substation is 1:1     : {'OK' if (ts_map==1).all() else 'MISMATCH'}")
     cf_map = df.groupby("circuit_folder").size()
-    print(f"circuit_folder values             : {df['circuit_folder'].nunique()} "
-          f"(expected {EXPECT_COMBOS//EXPECT['seasons']} = subst x feeder x scenario)")
+    n_cf = df['circuit_folder'].nunique()
+    print(f"circuit_folder values             : found {n_cf} of {EXPECT_CIRCUIT_FOLDERS} "
+          f"(subst x feeder x scenario)  {'OK' if n_cf >= EXPECT_CIRCUIT_FOLDERS else 'MISSING'}")
 
     # NaN audit
     power_cols = [PCOL, QCOL, SCOL, "hour", "timestep"]
@@ -123,6 +139,7 @@ def sec1_structural(df, data, summ, peaks):
           f"(data {len(dset)}, summary {len(sset)})")
     summ_dup = summ.duplicated(subset=skeys).sum()
     print(f"Duplicate summary rows per combo    : {summ_dup}  {'OK' if summ_dup==0 else 'DUPES'}")
+    return n_cf
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +347,7 @@ def main():
     summ = df[df.row_type == "summary"].copy()
     peaks = build_peaks(data)
 
-    sec1_structural(df, data, summ, peaks)
+    n_cf = sec1_structural(df, data, summ, peaks)
     sec2_per_case(peaks)
     sec3_donor(peaks)
     sec4_topology(peaks)
@@ -340,8 +357,12 @@ def main():
     sec7_anomalies(df, data, summ, peaks)
 
     # persist the derived per-combo peak table for downstream use
-    peaks.drop(columns=["sc_rank"]).to_csv("peaks_per_combo.csv", index=False)
-    print("\n[written] peaks_per_combo.csv  (48 rows, one per simulation combo)")
+    peaks_path = RUNS_ROOT / "peaks_per_combo.csv"
+    peaks.drop(columns=["sc_rank"]).to_csv(peaks_path, index=False)
+    print(f"\n[written] {peaks_path}  (48 rows, one per simulation combo)")
+
+    if n_cf < EXPECT_CIRCUIT_FOLDERS:
+        sys.exit(f"circuit_folder values: found {n_cf} of {EXPECT_CIRCUIT_FOLDERS}")
 
 
 if __name__ == "__main__":

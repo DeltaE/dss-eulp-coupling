@@ -13,6 +13,7 @@ Drop this in the repo root and run:
 import sys
 from pathlib import Path
 import pandas as pd
+import yaml
 
 # %% config -----------------------------------------------------------------
 
@@ -29,7 +30,15 @@ REPO_ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve()
 RUNS_DIR = REPO_ROOT / "runs"
 REL_CSV = Path("workspace") / "8_results_analysis" / "aggregate_m2_combined.csv"
 
-OUT_PATH = REPO_ROOT / "m2_all_cases_all_seasons.csv"
+# runs root: runs_root in configs/local.yaml (repo-relative or absolute), as in run_case.py
+LOCAL_YAML = REPO_ROOT / "configs" / "local.yaml"
+if not LOCAL_YAML.exists():
+    sys.exit(f"Missing {LOCAL_YAML}. Copy configs/local.yaml.example to configs/local.yaml.")
+with open(LOCAL_YAML, encoding="utf-8") as fh:
+    RUNS_ROOT = Path((yaml.safe_load(fh) or {}).get("runs_root", "runs"))
+if not RUNS_ROOT.is_absolute():
+    RUNS_ROOT = REPO_ROOT / RUNS_ROOT
+OUT_PATH = RUNS_ROOT / "m2_all_cases_all_seasons.csv"
 
 # %% gather ------------------------------------------------------------------
 
