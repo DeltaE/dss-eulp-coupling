@@ -34,7 +34,7 @@ parser.add_argument("--regenerate", action="store_true")
 args = parser.parse_args()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pipeline_utils import load_config, resolve_work_path
+from pipeline_utils import load_config, resolve_config_path, resolve_work_path
 
 # ── CONFIG ──────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parent
@@ -45,6 +45,8 @@ SEASON = cfg['season']
 CSV_SOURCE = Path(resolve_work_path("5c_csv_conversion"))
 PHASE7_DIR = REPO_ROOT / "7_circuit_instantiation"
 MIXES_DIR  = REPO_ROOT / "0_experimental_design"
+# Workspace registry: PIPELINE_FEEDER_REGISTRY_PATH (set by run_case.py), else <work_root>/feeder_registry.json
+REGISTRY_PATH = resolve_config_path(cfg.get("feeder_registry_path", os.path.join(cfg["work_root"], "feeder_registry.json")))
 
 # profhp directory mapping:
 #   scenario suffix in 5c folder name  →  profhp root directory name
@@ -233,7 +235,7 @@ print(f"  → {len(fire_test_mixes)} mixes × 2 feeders = {len(fire_test_mixes) 
 # Show what the instantiation will produce
 print(f"\n  Expected circuit folders after instantiation:")
 try:
-    reg_path = REPO_ROOT / "feeder_registry.json"
+    reg_path = REGISTRY_PATH
     with reg_path.open("r") as f:
         reg = json.load(f)
     for entry in reg["feeders"]:
@@ -303,7 +305,7 @@ checks = {
     f"profhp bridge ({SCENARIO_MAP['_dm']})":           (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_dm"])) / "daily_csvs").is_dir(),
     f"profhp bridge ({SCENARIO_MAP['_uncontrolled']})": (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_uncontrolled"])) / "daily_csvs").is_dir(),
     "mixes_lhs.json":                 MIXES_PATH.is_file(),
-    "feeder_registry.json":           (REPO_ROOT / "feeder_registry.json").is_file(),
+    "feeder_registry.json":           REGISTRY_PATH.is_file(),
     "pipeline_config.yaml":           (REPO_ROOT / "pipeline_config.yaml").is_file(),
     "data_ev/":                        data_ev_target.is_dir(),
     "SMART-DS root":                   Path(os.environ.get("PIPELINE_SMART_DS_ROOT", "")).is_dir(),
