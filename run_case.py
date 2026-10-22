@@ -261,6 +261,10 @@ def main() -> None:
         work_root = (REPO_ROOT / "runs" / resolved["case_id"] / season / "workspace").resolve()
         resolved["work_root"] = str(work_root)
         print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
+        if args.all and work_root.exists():
+            sys.exit(f"runs/{resolved['case_id']}/{season}/workspace already exists. "
+                     f"A run always starts from an empty workspace.\n"
+                     f"Delete that folder to rerun this case-season, or run a different case.")
         run_dir = runs_root / resolved["case_id"] / season
         write_manifest(run_dir, resolved, season)
         prepare_work_root(resolved["work_root"])
