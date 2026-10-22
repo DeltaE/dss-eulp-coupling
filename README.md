@@ -173,6 +173,9 @@ python .\rev_spec_kvar_kw_ratio.py
 python .\generate_kvar_csvs.py
 Pop-Location
 
+# 7a. Profile bridge folders and the workspace copy of mixes_lhs.json
+python .\bridge_phase5c_to_phase7.py
+
 # 7. Circuit instantiation, OpenDSS runs, QA, aggregation
 Push-Location .\7_circuit_instantiation
 python .\instantiate_circuits_and_runs_APPLYFILTER.py

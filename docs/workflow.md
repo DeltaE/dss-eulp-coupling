@@ -28,97 +28,89 @@ dss-eulp-coupling/
 
 ## 3.2 Phase-by-Phase
 
-### Phase 1: Experimental Design (0_experimental_design)
-- Generate scenario dictionaries using DOE (LHS/Sobol). `N_CASES` controls scenario count.
-- **Key script:** `run_mix_generator.py`
-- **Outputs:** `mixes_lhs.json`, `mixes_sobol.json`
+`python run_case.py --case configs/cases/<case>.yaml --all --season <season>` runs the phases below. `phase_order` in `configs/defaults.yaml` sets the order:
 
-```bash
-cd 0_experimental_design
-python run_mix_generator.py
-```
+`pre`, `1`, `2`, `3`, `4`, `5a`, `5b`, `5d`, `5b_variants`, `5c`, `5c_variants`, `6`, `6_variants`, `7a`, `7b`, `7c`, `8`.
 
-### Phase 2: Circuit ↔ Building Matching (2_circuit_matching to 4_quota_assignment)
+`configs/phases.yaml` defines the steps of each phase. `run_case.py` sets `PIPELINE_WORK_ROOT` to `runs/<case>/<season>/workspace/`, written `<ws>` below. Every phase reads and writes under `<ws>`. `--all` refuses to start when `<ws>` already exists. Delete that folder to rerun the case-season. `--phase <id>` reruns one phase in the existing workspace.
 
-**Sequential scripts:**
-1. `copy_circuits.py` — Copy Smart-DS circuits to working dir  
-2. `circuit_make_daily_list_sets.py` — Extract daily load patterns  
-3. `review_parquet_matches.py` — Review available parquet files  
-4. `match_smartds_parquets_impl.py` — Match circuits to EULP profiles  
-5. `clean_up_bldgs_impl.py` — Filter/organize building data  
-6. `select_rep_family_v2.py` — Select representative buildings
+`--all` does not run `0_experimental_design`. Phase 7a copies the tracked `0_experimental_design/mixes_lhs.json` into the workspace.
 
-```bash
-cd ../2_circuit_matching
-python copy_circuits.py
-python circuit_make_daily_list_sets.py
-python review_parquet_matches.py
-cd ../3_tolerance_matching
-python match_smartds_parquets_impl.py
-cd ../4_quota_assignment
-python clean_up_bldgs_impl.py
-python select_rep_family_v2.py
-```
+### Phase pre: SMART-DS staging (0_download_smartds)
 
-### Phase 3: Data Acquisition (5a_eulp_downloads)
-Download EULP parquet files from OEDI (open access).
+- `stage_circuits_plain.py --registry-only` writes `<ws>/feeder_registry.json`.
+- `scan_feeders.py` writes `<ws>/parsed_loads.csv`.
+- `generate_loads_pivot.py` writes `<ws>/parsed_loads_SUMMARY.csv`.
 
-```bash
-cd ../5a_eulp_downloads
-python phase5a_download_homes.py
-python phase5a_download_commercial.py
-```
+### Phase 1: EULP metadata (1_data_provenance)
 
-### Phase 4: Profile Generation (5b_profile_generation, 5d_scenario_controls)
-Variants: **baseline** (`phase5b_peak.py`), **demand management** (`phase5b_variants_dm.py`), **uncontrolled** (`phase5b_variants_uncontrolled.py`), all in `5b_profile_generation`.
+Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTHONPATH=src`. It writes `residential_data_SELECT_STATES.csv`, `commercial_data_SELECT_STATES.csv`, `manifest.json` and `row_counts.csv` to `<ws>/1_data_provenance/outputs/pipeline_state/`. The manifest and the row counts give output paths relative to `runs/`.
 
-**Typical workflow:**
-```bash
-cd ../5b_profile_generation
-python scale_feeder_curves_impl.py
-python find_max_day_curve_impl.py
-cd ../5d_scenario_controls
-python plot_parquet_differences.py
-python get_scenario_csv_controls.py
-```
+### Phase 2: Circuit matching (2_circuit_matching)
 
-### Phase 5: Reactive Power Preparation (6_kvar_preparation)
-Run the longer job to build reactive power ratios (kVAr/kW).
+1. `copy_circuits.py` copies the SMART-DS feeders to `<ws>/2_circuit_matching/circuits_plain_format/` and rewrites `<ws>/feeder_registry.json`.
+2. `circuit_make_daily_list_sets.py <ws>/2_circuit_matching/circuits_plain_format` extracts the loadshape names of each circuit. Without the argument, the script reads `circuits_plain_format/` under the current folder.
+3. `review_parquet_matches.py` writes `review_parquet_matches.csv`.
 
-```bash
-cd ../6_kvar_preparation
-python rev_spec_kvar_kw_ratio.py   # ~579 minutes for full dataset
-```
+### Phase 3: Tolerance matching (3_tolerance_matching)
 
-### Phase 6: Circuit Instantiation & Simulation (7_circuit_instantiation)
-Create circuit instances, assign DERs, and run power flow simulations.
+`run_case.py` copies `review_parquet_matches.csv` from Phase 2 into `<ws>/3_tolerance_matching/`. `phase3_match.py` then runs `match_smartds_parquets_impl.py`.
 
-- **Main script:** `instantiate_circuits_and_runs_APPLYFILTER.py`
-- **Runner:** `power_flow_sim_daily_EV_STO_DG_deploy.py`
-- **Features:** EV assignments (controlled/uncontrolled), PV/storage placement, heat pump profiles (baseline/DM/uncontrolled)
+### Phase 4: Quota assignment (4_quota_assignment)
 
-```bash
-cd ../7_circuit_instantiation
-python instantiate_circuits_and_runs_APPLYFILTER.py
-python power_flow_sim_daily_EV_STO_DG_deploy.py
-```
+`phase4_cleanup.py` runs `clean_up_bldgs_impl.py`. `phase4_select.py` runs `select_rep_family_v2.py`. Phase 4 writes `<STATE>_final_residential.csv` and `<STATE>_final_commercial.csv`.
 
-### Phase 7: Results Analysis (8_results_analysis)
-Aggregate across scenarios, seasons, and DOE designs.
+### Phase 5a: EULP downloads (5a_eulp_downloads)
 
-```bash
-cd ../8_results_analysis
-python append_experiment_results.py
-```
+`run_case.py` copies the two Phase 4 final CSVs into `<ws>/5a_eulp_downloads/`. `phase5a_download_homes.py` and `phase5a_download_commercial.py` then download the EULP parquets from OEDI (open access) to the parquet data root.
+
+### Phases 5b, 5d and 5b_variants: profile generation
+
+- `5b` (`5b_profile_generation`): `run_case.py` copies the two Phase 4 final CSVs into `<ws>/5b_profile_generation/`. `phase5b_scale.py` runs `scale_feeder_curves_impl.py`. `phase5b_peak.py` runs `find_max_day_curve_impl.py`. Together they build the baseline profiles.
+- `5d` (`5d_scenario_controls`): `plot_parquet_differences.py` and then `get_scenario_csv_controls.py` select the controls for the demand management (DM) and uncontrolled variants.
+- `5b_variants` (`5b_profile_generation`): `phase5b_variants_dm.py` and `phase5b_variants_uncontrolled.py` build the DM and uncontrolled profiles.
+
+### Phases 5c and 5c_variants: CSV conversion (5c_csv_conversion)
+
+`5c` runs `parquet_to_csv.py` for the baseline profiles. `5c_variants` runs it with `--scenario dm` and then with `--scenario uncontrolled`.
+
+### Phases 6 and 6_variants: reactive power preparation (6_kvar_preparation)
+
+- `6` runs `save_needed_sd_parquets.py`, `rev_spec_kvar_kw_ratio.py` and `generate_kvar_csvs.py`.
+- `6_variants` runs `rev_spec_kvar_kw_ratio.py` and `generate_kvar_csvs.py` with `--scenario dm`, and then both again with `--scenario uncontrolled`.
+
+Both phases write `_kvar_` CSVs beside the `_kw_` CSVs.
+
+### Phases 7a, 7b and 7c: circuit instantiation and simulation (7_circuit_instantiation)
+
+- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies `0_experimental_design/mixes_lhs.json` byte for byte to `<ws>/7_circuit_instantiation/mixes_lhs.json`. It checks the feeder registry at `<ws>/feeder_registry.json`.
+- `7b` runs `instantiate_circuits_and_runs_APPLYFILTER.py`. It reads `<ws>/7_circuit_instantiation/mixes_lhs.json`. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
+- `7c` runs `run_all_deploys_v2.py --root <ws>/7_circuit_instantiation`. It runs the patched runner in each circuit folder and logs to `<ws>/7_circuit_instantiation/run_log.txt`. No phase runs the runner in the repository folder.
+
+### Phase 8: results analysis
+
+1. `aggregate_m1_m2_with_circuits.py` runs in `7_circuit_instantiation/`. It writes `aggregate_m1.csv`, `aggregate_m2.csv` and `circuit_summary.csv` to `<ws>/7_circuit_instantiation/`.
+2. `append_experiment_results.py` runs in `8_results_analysis/`. It reads `aggregate_m2.csv`, `circuit_summary.csv` and `heating_assignment__FULL.csv` from `<ws>/7_circuit_instantiation/`. It tags every row with the season, and with `design` set to the donor state. It writes `aggregate_m2_combined.csv`, `circuit_summary_combined.csv` and `heating_assignment__FULL_combined.csv` to `<ws>/8_results_analysis/`. It exits with an error when an input file is missing.
+
+Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combined.csv` from all eight case-seasons into `m2_all_cases_all_seasons.csv` in the runs root (`runs_root` in `configs/local.yaml`, `runs/` by default). `validate_2x2.py` checks that file and writes `peaks_per_combo.csv` to the runs root. `--all` runs neither script.
 
 ## 3.3 Configuration Highlights
 
-- **States:** NC, TX, CA (with circuit filtering for connection issues)
-- **Seasons:** Summer, Winter
-- **Scenario parameters:** EV 5–80%, storage 0–20%, PV 0–20%, heat pump shares (baseline/DM/uncontrolled)
-- **Storage control:** Peak shaving algorithm customizable (see `get_scenario_csv_controls.py` and instantiation scripts)
+- **Donor states:** NC and TX (`configs/donor_registry.yaml`).
+- **Topologies:** `NC_GSO_urban_uhs13_1247` and `TX_AUS_urban_p2uhs12_1247` (`configs/topology_registry.yaml`).
+- **Seasons:** summer and winter (`configs/defaults.yaml`).
+- **Circuit filtering:** Phase 7b skips the circuits listed in `skip_circuits` in `pipeline_config.yaml`. The list is empty, so `--all` skips no circuit.
+- **Scenario mixes:** `--all` uses the three fixed mixes in `0_experimental_design/mixes_lhs.json`. `run_mix_generator.py` in the same folder generates LHS and Sobol mixes, but `--all` does not run it.
 
-```{admonition} Tip — Storage Controller Defaults (example)
+| Mix | EV | Storage (3-phase loads) | PV (3-phase loads) | Heat pump shares (baseline / DM / uncontrolled) |
+| --- | --- | --- | --- | --- |
+| `fire_baseline` | 10% | 5% | 5% | 1.0 / 0.0 / 0.0 |
+| `fire_mixed` | 20% | 10% | 10% | 0.5 / 0.3 / 0.2 |
+| `fire_stress` | 30% | 15% | 15% | 0.2 / 0.2 / 0.6 |
+
+- **Storage control:** The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes and controls storage. Phase 7b picks the storage hosts and writes them as `storage_targets`.
+
+```{admonition} Tip: Storage Controller Defaults (example)
 :class: tip
 - Sizing vs. peak: 0.75×  
 - Duration: 4 h  
