@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-prepare_phase7_fire_test.py
+bridge_phase5c_to_phase7.py
 ---------------------------
 Creates everything needed to bridge Phase 5c/6 output → Phase 7 instantiation.
 
@@ -8,7 +8,7 @@ Run from Anaconda Prompt on Machine 3:
     cd /d D:\github\dss-eulp-coupling
     set PIPELINE_STATE=TX
     set PIPELINE_SEASON=summer
-    python prepare_phase7_fire_test.py
+    python bridge_phase5c_to_phase7.py
 
 What this script does:
   1. Builds profhp bridge directories (TX_4_profhp, TX_6_profhp_dm, TX_7_profhp_un)

@@ -112,7 +112,7 @@ pre:
 
 "7a":
   steps:
-    - cmd: "python prepare_phase7_fire_test.py"
+    - cmd: "python bridge_phase5c_to_phase7.py"
 
 "7b":
   steps:
