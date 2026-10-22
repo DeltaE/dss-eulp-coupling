@@ -8,7 +8,7 @@ seasons:
 # shoulder: [spring, fall]   # TBT
 
 # Deterministic instantiation phase order (the proven fire-test sequence).
-# --all runs pre to 8 for each selected season. It does not run Phase 0 (0_experimental_design). Phase 7a reuses the tracked mixes_lhs.json.
+# --all runs pre to 8 for each selected season. It does not run Phase 0 (0_experimental_design). Phase 7a copies the tracked mixes_lhs.json into the workspace.
 # Full deterministic chain including scenario variants (dm, uncontrolled).
 # Phases marked run_once in phases.yaml execute on the first season only.
 # Phase 6 kvar loadshapes land alongside the kW CSVs in 5c_csv_conversion;
