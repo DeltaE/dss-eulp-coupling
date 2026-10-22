@@ -800,7 +800,7 @@ for feeder in feeders:
 # ==== WRITE GLOBAL SUMMARY / FULL MAPS ====
 try:
     # 3a) Summary CSV
-    sum_path = BASE_DIR / "heating_assignment__SUMMARY.csv"
+    sum_path = Path(resolve_work_path("7_circuit_instantiation", "heating_assignment__SUMMARY.csv"))
     sum_fields = [
         "substation","feeder_name","circuit_folder","mix","season",
         "share_baseline","share_dm","share_un",
@@ -817,7 +817,7 @@ try:
 
     # 3b) Full mapping CSV (optional, can be large)
     if COLLECT_ASSIGN_FULL:
-        full_path = BASE_DIR / "heating_assignment__FULL.csv"
+        full_path = Path(resolve_work_path("7_circuit_instantiation", "heating_assignment__FULL.csv"))
         with open(full_path, "w", newline="", encoding="utf-8-sig") as f:
             w = csv.writer(f)
             w.writerow(["substation","feeder_name","circuit_folder","mix","season","daily_name","scenario"])
@@ -830,7 +830,7 @@ try:
     for sub, fed, cf, mix, season, dname, scen in ASSIGN_FULL_ROWS if COLLECT_ASSIGN_FULL else []:
         compact.setdefault(cf, {}).setdefault(mix, {})[dname] = scen
     if compact:
-        json_path = BASE_DIR / "heating_assignment__FULL.json"
+        json_path = Path(resolve_work_path("7_circuit_instantiation", "heating_assignment__FULL.json"))
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(compact, f, ensure_ascii=False, indent=2)
         print(f"[audit] Wrote JSON → {json_path.name}")
