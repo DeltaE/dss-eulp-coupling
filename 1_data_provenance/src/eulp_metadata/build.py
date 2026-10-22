@@ -21,6 +21,7 @@ from typing import Any, Iterable
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PROJECT_ROOT.parent
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "workflow.yaml"
+RUNS_ROOT = REPO_ROOT / "runs"  # run_case.py puts every workspace under <repo>/runs
 sys.path.insert(0, str(REPO_ROOT))
 from pipeline_utils import load_config as load_pipeline_config
 
@@ -211,6 +212,10 @@ def _display_path(p):
     try:
         return str(p.relative_to(PROJECT_ROOT))
     except ValueError:
+        pass
+    try:
+        return str(p.relative_to(RUNS_ROOT))
+    except ValueError:
         return str(p)
 
 
@@ -375,7 +380,6 @@ def build_cluster(config: dict[str, Any], cluster_name: str) -> dict[str, Any]:
     manifest = {
         "cluster": cluster_name,
         "mode": mode,
-        "created_at_utc": datetime.now(timezone.utc).isoformat(),
         "config": str(DEFAULT_CONFIG.relative_to(PROJECT_ROOT)),
         "states": cluster["states"],
         "summaries": {name: summary.to_dict() for name, summary in summaries.items()},
