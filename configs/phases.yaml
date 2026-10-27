@@ -1,44 +1,44 @@
 # Phase definitions for run_case.py. --all runs the phases in defaults.yaml phase_order, pre to 8, for each selected season. A failed phase ends that season.
-# Placeholders substituted from the resolved case: {smart_ds_root}, {max_feeders}, {state}, {work_root}.
+# Placeholders substituted from the resolved case: {python}, {smart_ds_root}, {max_feeders}, {state}, {work_root}.
 # Each step is either {cmd: "..."} (optional cwd:) or {copy: [src, dst]} (dst ending "/" = into dir).
-# 'verify' runs `python verify_fire_test.py --phase <id>` from repo root after the steps.
+# 'verify' runs `{python} verify_fire_test.py --phase <id>` from repo root after the steps.
 
 pre:
   steps:
-    - cmd: "python 0_download_smartds/stage_circuits_plain.py --smartds-root {smart_ds_root} --registry {work_root}/feeder_registry.json --target {work_root}/2_circuit_matching/circuits_plain_format --registry-only --max-feeders {max_feeders}"
-    - cmd: "python 0_download_smartds/scan_feeders.py --smartds-root {smart_ds_root} --max-feeders {max_feeders} --output {work_root}/parsed_loads.csv"
-    - cmd: "python 0_download_smartds/generate_loads_pivot.py --input {work_root}/parsed_loads.csv --output {work_root}/parsed_loads_SUMMARY.csv"
+    - cmd: "{python} 0_download_smartds/stage_circuits_plain.py --smartds-root {smart_ds_root} --registry {work_root}/feeder_registry.json --target {work_root}/2_circuit_matching/circuits_plain_format --registry-only --max-feeders {max_feeders}"
+    - cmd: "{python} 0_download_smartds/scan_feeders.py --smartds-root {smart_ds_root} --max-feeders {max_feeders} --output {work_root}/parsed_loads.csv"
+    - cmd: "{python} 0_download_smartds/generate_loads_pivot.py --input {work_root}/parsed_loads.csv --output {work_root}/parsed_loads_SUMMARY.csv"
   verify: pre
 
 "1":
   env: {PYTHONPATH: src}
   steps:
-    - cmd: "python -m eulp_metadata.build --cluster pipeline_state"
+    - cmd: "{python} -m eulp_metadata.build --cluster pipeline_state"
       cwd: 1_data_provenance
   verify: "1"
 
 "2":
   steps:
-    - cmd: "python copy_circuits.py"
+    - cmd: "{python} copy_circuits.py"
       cwd: 2_circuit_matching
-    - cmd: "python circuit_make_daily_list_sets.py {work_root}/2_circuit_matching/circuits_plain_format"
+    - cmd: "{python} circuit_make_daily_list_sets.py {work_root}/2_circuit_matching/circuits_plain_format"
       cwd: 2_circuit_matching
-    - cmd: "python review_parquet_matches.py"
+    - cmd: "{python} review_parquet_matches.py"
       cwd: 2_circuit_matching
   verify: "2"
 
 "3":
   steps:
     - copy: ["{work_root}/2_circuit_matching/review_parquet_matches.csv", "{work_root}/3_tolerance_matching/review_parquet_matches.csv"]
-    - cmd: "python phase3_match.py"
+    - cmd: "{python} phase3_match.py"
       cwd: 3_tolerance_matching
   verify: "3"
 
 "4":
   steps:
-    - cmd: "python phase4_cleanup.py"
+    - cmd: "{python} phase4_cleanup.py"
       cwd: 4_quota_assignment
-    - cmd: "python phase4_select.py"
+    - cmd: "{python} phase4_select.py"
       cwd: 4_quota_assignment
   verify: "4"
 
@@ -46,9 +46,9 @@ pre:
   steps:
     - copy: ["{work_root}/4_quota_assignment/{state}_final_residential.csv", "{work_root}/5a_eulp_downloads/"]
     - copy: ["{work_root}/4_quota_assignment/{state}_final_commercial.csv", "{work_root}/5a_eulp_downloads/"]
-    - cmd: "python phase5a_download_homes.py"
+    - cmd: "{python} phase5a_download_homes.py"
       cwd: 5a_eulp_downloads
-    - cmd: "python phase5a_download_commercial.py"
+    - cmd: "{python} phase5a_download_commercial.py"
       cwd: 5a_eulp_downloads
   verify: "5a"
 
@@ -56,77 +56,77 @@ pre:
   steps:
     - copy: ["{work_root}/4_quota_assignment/{state}_final_commercial.csv", "{work_root}/5b_profile_generation/"]
     - copy: ["{work_root}/4_quota_assignment/{state}_final_residential.csv", "{work_root}/5b_profile_generation/"]
-    - cmd: "python phase5b_scale.py"
+    - cmd: "{python} phase5b_scale.py"
       cwd: 5b_profile_generation
-    - cmd: "python phase5b_peak.py"
+    - cmd: "{python} phase5b_peak.py"
       cwd: 5b_profile_generation
   verify: "5b"
 
 "5d":
   steps:
-    - cmd: "python plot_parquet_differences.py"
+    - cmd: "{python} plot_parquet_differences.py"
       cwd: 5d_scenario_controls
-    - cmd: "python get_scenario_csv_controls.py"
+    - cmd: "{python} get_scenario_csv_controls.py"
       cwd: 5d_scenario_controls
   verify: "5d"
 
 "5b_variants":
   steps:
-    - cmd: "python phase5b_variants_dm.py"
+    - cmd: "{python} phase5b_variants_dm.py"
       cwd: 5b_profile_generation
-    - cmd: "python phase5b_variants_uncontrolled.py"
+    - cmd: "{python} phase5b_variants_uncontrolled.py"
       cwd: 5b_profile_generation
 
 "5c":
   steps:
-    - cmd: "python parquet_to_csv.py"
+    - cmd: "{python} parquet_to_csv.py"
       cwd: 5c_csv_conversion
   verify: "5c"
 
 "6":
   steps:
-    - cmd: "python save_needed_sd_parquets.py"
+    - cmd: "{python} save_needed_sd_parquets.py"
       cwd: 6_kvar_preparation
-    - cmd: "python rev_spec_kvar_kw_ratio.py"
+    - cmd: "{python} rev_spec_kvar_kw_ratio.py"
       cwd: 6_kvar_preparation
-    - cmd: "python generate_kvar_csvs.py"
+    - cmd: "{python} generate_kvar_csvs.py"
       cwd: 6_kvar_preparation
 
 "5c_variants":
   steps:
-    - cmd: "python parquet_to_csv.py --scenario dm"
+    - cmd: "{python} parquet_to_csv.py --scenario dm"
       cwd: 5c_csv_conversion
-    - cmd: "python parquet_to_csv.py --scenario uncontrolled"
+    - cmd: "{python} parquet_to_csv.py --scenario uncontrolled"
       cwd: 5c_csv_conversion
 
 "6_variants":
   steps:
-    - cmd: "python rev_spec_kvar_kw_ratio.py --scenario dm"
+    - cmd: "{python} rev_spec_kvar_kw_ratio.py --scenario dm"
       cwd: 6_kvar_preparation
-    - cmd: "python generate_kvar_csvs.py --scenario dm"
+    - cmd: "{python} generate_kvar_csvs.py --scenario dm"
       cwd: 6_kvar_preparation
-    - cmd: "python rev_spec_kvar_kw_ratio.py --scenario uncontrolled"
+    - cmd: "{python} rev_spec_kvar_kw_ratio.py --scenario uncontrolled"
       cwd: 6_kvar_preparation
-    - cmd: "python generate_kvar_csvs.py --scenario uncontrolled"
+    - cmd: "{python} generate_kvar_csvs.py --scenario uncontrolled"
       cwd: 6_kvar_preparation
 
 "7a":
   steps:
-    - cmd: "python bridge_phase5c_to_phase7.py"
+    - cmd: "{python} bridge_phase5c_to_phase7.py"
 
 "7b":
   steps:
-    - cmd: "python instantiate_circuits_and_runs_APPLYFILTER.py"
+    - cmd: "{python} instantiate_circuits_and_runs_APPLYFILTER.py"
       cwd: 7_circuit_instantiation
 
 "7c":
   steps:
-    - cmd: "python run_all_deploys_v2.py --root {work_root}/7_circuit_instantiation"
+    - cmd: "{python} run_all_deploys_v2.py --root {work_root}/7_circuit_instantiation"
       cwd: 7_circuit_instantiation
 
 "8":
   steps:
-    - cmd: "python aggregate_m1_m2_with_circuits.py"
+    - cmd: "{python} aggregate_m1_m2_with_circuits.py"
       cwd: 7_circuit_instantiation
-    - cmd: "python append_experiment_results.py"
+    - cmd: "{python} append_experiment_results.py"
       cwd: 8_results_analysis

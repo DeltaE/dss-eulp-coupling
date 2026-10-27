@@ -157,7 +157,8 @@ def build_env(resolved: dict, season: str) -> dict:
 
 
 def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
-    ctx = {"smart_ds_root": resolved["smart_ds_root"],
+    ctx = {"python": f'"{sys.executable}"',
+           "smart_ds_root": resolved["smart_ds_root"],
            "max_feeders": resolved["max_feeders"],
            "work_root": resolved["work_root"],
            "state": resolved["donor_state"]}
@@ -201,7 +202,7 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
     if verify:
         emit(f"  verify --phase {verify}")
     if verify and not dry_run:
-        rc = subprocess.run(f"python verify_fire_test.py --phase {verify}",
+        rc = subprocess.run(f"{ctx['python']} verify_fire_test.py --phase {verify}",
                             cwd=REPO_ROOT, env=env, shell=True).returncode
         if rc != 0:
             emit(f"  !! verify failed (exit {rc})")
