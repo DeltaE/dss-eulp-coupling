@@ -102,8 +102,6 @@ def copy_feeder(item: FeederCopy, *, dry_run: bool, overwrite: bool, registry_on
 
 def write_registry(path: Path, smartds_root: Path, target: Path, plan: list[FeederCopy], dry_run: bool) -> None:
     registry = {
-        "smart_ds_root": str(smartds_root),
-        "circuits_plain_format": str(target),
         "feeders": [
             {
                 "circuit_id": index,
