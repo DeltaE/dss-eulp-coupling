@@ -104,9 +104,9 @@ for folder_name in folder_list:
     _parse_name = folder_name[:-len(_scen_suffix)] if _scen_suffix else folder_name
     parts = _parse_name.split("_")
     if len(parts) < 3:
-        print(f"Skipping {folder_name} (unexpected format)")
+        print(f"Skipping {folder_name} (unexpected format)", file=sys.stderr)
         # continue
-        sys.exit()
+        sys.exit(1)
     
     state  = parts[0]
     season = parts[-1]
@@ -163,9 +163,9 @@ for folder_name in folder_list:
 
         match_rows = df_filtered[df_filtered["Parquet_File"] == parquet_file]
         if match_rows.empty:
-            print(f"   ⚠️ No match in CSV for {parquet_file}, skipping.")
+            print(f"   ⚠️ No match in CSV for {parquet_file}, skipping.", file=sys.stderr)
             # continue
-            sys.exit()
+            sys.exit(1)
         '''
 
         row = df_filtered.iloc[n]
@@ -198,9 +198,9 @@ for folder_name in folder_list:
             continue
 
         if "out.electricity.total.energy_consumption" not in df_parq.columns:
-            print(f"   ❌ Missing 'out.electricity.total.energy_consumption' in {parquet_file}, skipping.")
+            print(f"   ❌ Missing 'out.electricity.total.energy_consumption' in {parquet_file}, skipping.", file=sys.stderr)
             # continue
-            sys.exit()
+            sys.exit(1)
 
         df_parq["kw"] = df_parq["out.electricity.total.energy_consumption"] * 4.0
 

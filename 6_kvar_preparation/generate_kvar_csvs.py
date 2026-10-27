@@ -81,15 +81,15 @@ for folder_name in folder_list:
 
         # Retrieve ratio
         if parquet_name not in list(kvar_ratios.keys()):
-            print(f"⚠️ Missing ratio for {parquet_name}, skipping.")
-            sys.exit()
+            print(f"⚠️ Missing ratio for {parquet_name}, skipping.", file=sys.stderr)
+            sys.exit(1)
             # continue
 
         ratio_list = kvar_ratios[parquet_name][folder_name]
         ratio_arr = np.array(ratio_list)
         if len(ratio_arr) != 96 or len(kw_values) != 96:
-            print(f"⚠️ Length mismatch in {fname}, skipping.")
-            sys.exit()
+            print(f"⚠️ Length mismatch in {fname}, skipping.", file=sys.stderr)
+            sys.exit(1)
             # continue
 
         # Calculate kvar = kw * ratio

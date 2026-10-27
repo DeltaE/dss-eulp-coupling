@@ -31,8 +31,8 @@ circuits = [d for d in root.iterdir() if d.is_dir()]
 circuits.sort(key=lambda p: p.name.lower())
 
 if not circuits:
-    print("[WARN] No circuit subdirectories found.")
-    sys.exit(0)
+    print("[WARN] No circuit subdirectories found.", file=sys.stderr)
+    sys.exit(1)
 
 total = 0
 for cdir in circuits:

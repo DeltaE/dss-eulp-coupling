@@ -195,8 +195,8 @@ def modify_dss_files(file_path, timestep, profiles, BASE_MULTIPLIER,
     print('\n')
     print(profile_assignment_hp)
 
-    print('check')
-    sys.exit()
+    print('check', file=sys.stderr)
+    sys.exit(1)
     '''
 
     # print('list 1', len(ev_apply_list))
@@ -240,8 +240,8 @@ def modify_dss_files(file_path, timestep, profiles, BASE_MULTIPLIER,
                 if load_name in profiles:
                     pass
                 else:
-                    print(list(profiles.keys()))
-                sys.exit()
+                    print(list(profiles.keys()), file=sys.stderr)
+                sys.exit(1)
 
             # if rand_count_clean <= ev_lim:  # GRAB THE EV PROFILE
             if load_name_idx in ev_apply_list and '0.12' in line:
@@ -323,8 +323,8 @@ def modify_dss_files(file_path, timestep, profiles, BASE_MULTIPLIER,
             new_kw = (kw * multiplier)*BASE_MULTIPLIER + (ev_ind_kw * phase_mult) + (hp_ind_kw_net * phase_mult)
 
             if new_kw < 0:
-                print('A negative case occurred ', timestep)
-                sys.exit()
+                print('A negative case occurred ', timestep, file=sys.stderr)
+                sys.exit(1)
                 
                 'with backup addition after subtraction, 20% become negative'
                 'without backup, more than 50%'
@@ -334,9 +334,9 @@ def modify_dss_files(file_path, timestep, profiles, BASE_MULTIPLIER,
                 new_kw = (kw * multiplier)*BASE_MULTIPLIER + (ev_ind_kw * phase_mult) + (hp_ind_kw_net * phase_mult)
 
                 if new_kw < 0:
-                    print('A negative case occurred AFTER FIX', timestep)
+                    print('A negative case occurred AFTER FIX', timestep, file=sys.stderr)
                     # print(new_kw, kw, hp_ind_kw_subtract_base, hp_ind_kw_add_hp, hp_ind_kw_add_backup, 'check this please 2')
-                    sys.exit()
+                    sys.exit(1)
 
             new_kvar = kvar * multiplier * BASE_MULTIPLIER
 
@@ -380,9 +380,9 @@ def modify_dss_files(file_path, timestep, profiles, BASE_MULTIPLIER,
             
                 line = re.sub(r'irradiance=(.*?) ', f'irradiance={irradiance} ', line)
             
-                print(deepcopy(line))
+                print(deepcopy(line), file=sys.stderr)
 
-                sys.exit()
+                sys.exit(1)
 
             irradiance = profiles[pv_name].iloc[timestep-1][0]   
             if float(irradiance) == 0.0:

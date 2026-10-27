@@ -73,8 +73,8 @@ for folder_name, file_dict in folder_timestamps_raw.items():  # NEW
         some_list = list(file_dict.values())[0]  # Take any of the values, assuming all are the same  # NEW
         folder_timestamps[folder_name] = some_list  # NEW
     except Exception as e:
-        print(f"⚠️ Could not extract timestamps from {folder_name}: {e}")  # NEW
-        sys.exit()
+        print(f"⚠️ Could not extract timestamps from {folder_name}: {e}", file=sys.stderr)  # NEW
+        sys.exit(1)
         # continue  # NEW
 
 # 4) Prepare to store results
@@ -95,8 +95,8 @@ for folder_name, time_list in folder_timestamps.items():  # MODIFIED
         # sys.exit()
 
         if not os.path.exists(full_parquet_path):
-            print(f"⚠️ Missing {full_parquet_path}, skipping.")
-            sys.exit()
+            print(f"⚠️ Missing {full_parquet_path}, skipping.", file=sys.stderr)
+            sys.exit(1)
             # continue
 
         try:
@@ -108,20 +108,20 @@ for folder_name, time_list in folder_timestamps.items():  # MODIFIED
             # sys.exit()
 
         except Exception as e:
-            print(f"⚠️ Error reading {full_parquet_path}: {e}")
-            sys.exit()
+            print(f"⚠️ Error reading {full_parquet_path}: {e}", file=sys.stderr)
+            sys.exit(1)
             # continue
 
         # Optional debug check
         # print(df_orig.columns.tolist()); sys.exit()
 
         if REAL_COL not in df_orig.columns or REACTIVE_COL not in df_orig.columns:
-            print(f"⚠️ {REAL_COL} or {REACTIVE_COL} missing in {parquet_file}, skipping.")
-            sys.exit()
+            print(f"⚠️ {REAL_COL} or {REACTIVE_COL} missing in {parquet_file}, skipping.", file=sys.stderr)
+            sys.exit(1)
             # continue
         if "Time" not in df_orig.columns:
-            print(f"⚠️ 'timestamp' missing in {parquet_file}, skipping.")
-            sys.exit()
+            print(f"⚠️ 'timestamp' missing in {parquet_file}, skipping.", file=sys.stderr)
+            sys.exit(1)
             # continue
 
         # df_orig["Time"] = pd.to_datetime(df_orig["Time"])
@@ -156,8 +156,8 @@ for folder_name, time_list in folder_timestamps.items():  # MODIFIED
         n_missing = df_filtered[REAL_COL].isna().sum()
 
         if len(arr_ratio) != 96 or n_missing > 0:
-            print('⚠️ Something is odd!')
-            sys.exit()
+            print('⚠️ Something is odd!', file=sys.stderr)
+            sys.exit(1)
 
         if parquet_file not in kvar_ratios:
             kvar_ratios[parquet_file] = {}
@@ -169,8 +169,8 @@ for folder_name, time_list in folder_timestamps.items():  # MODIFIED
         #}
 
         if n_missing:
-            print(f"   ⚠️ {n_missing} timestamps missing in {parquet_file} for {folder_name}.")
-            sys.exit()
+            print(f"   ⚠️ {n_missing} timestamps missing in {parquet_file} for {folder_name}.", file=sys.stderr)
+            sys.exit(1)
 
 # 6) Store result
 with open(kvar_ratios_output, "wb") as f:
