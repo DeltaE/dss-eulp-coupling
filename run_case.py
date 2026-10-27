@@ -270,19 +270,25 @@ def main() -> None:
     print(f"  PIPELINE_PARQUET_ROOT={resolved['parquet_root']}")
     print(f"  PIPELINE_EULP_METADATA_ROOT={resolved['eulp_metadata_root']}")
 
+    workspaces = {season: (runs_root / resolved["case_id"] / season / "workspace").resolve()
+                  for season in seasons}
+    # --all checks every requested season before anything runs or is created.
+    existing = [ws for ws in workspaces.values() if ws.exists()] if args.all else []
+    if existing and args.dry_run:
+        for ws in existing:
+            print(f"  note: {ws.as_posix()} already exists; a run without --dry-run refuses it.")
+    elif existing:
+        sys.exit("These workspaces already exist:\n"
+                 + "".join(f"  {ws.as_posix()}\n" for ws in existing)
+                 + "A run always starts from an empty workspace.\n"
+                 "Delete those folders to rerun these case-seasons, or run a different case.")
+
     overall_ok = True
     done_once = set()
     for season in seasons:
-        work_root = (runs_root / resolved["case_id"] / season / "workspace").resolve()
+        work_root = workspaces[season]
         resolved["work_root"] = str(work_root)
         print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
-        if args.all and work_root.exists():
-            if args.dry_run:
-                print(f"  note: {work_root.as_posix()} already exists; a run without --dry-run refuses it.")
-            else:
-                sys.exit(f"{work_root.as_posix()} already exists. "
-                         f"A run always starts from an empty workspace.\n"
-                         f"Delete that folder to rerun this case-season, or run a different case.")
         run_dir = runs_root / resolved["case_id"] / season
         env = build_env(resolved, season)
         if args.dry_run:
