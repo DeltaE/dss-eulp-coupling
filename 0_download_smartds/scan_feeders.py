@@ -22,7 +22,7 @@ parser.add_argument("--output", default="parsed_loads.csv", help="Output CSV pat
 args = parser.parse_args()
 
 cfg = load_config()
-SMARTDS_ROOT = resolve_config_path(args.smartds_root or cfg.get("smart_ds_root", "../3_smartds"))
+SMARTDS_ROOT = resolve_config_path(args.smartds_root or cfg["smart_ds_root"])
 
 # Store extracted data
 data = []

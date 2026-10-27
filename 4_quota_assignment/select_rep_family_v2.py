@@ -42,10 +42,10 @@ START_PROCESS = time.time()
 cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
-DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+DOWNLOAD_DATE = cfg['eulp_download_date']
 FAMILY_STR = STATE
 STATE_STR = STATE
-RANDOM_SEED = int(cfg.get('random_seed', 42))
+RANDOM_SEED = int(cfg['random_seed'])
 
 # One RNG drives every random choice -> reproducible regardless of PYTHONHASHSEED.
 RNG = random.Random(RANDOM_SEED)

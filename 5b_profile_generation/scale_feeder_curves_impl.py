@@ -19,7 +19,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
-DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+DOWNLOAD_DATE = cfg['eulp_download_date']
 STR_STATE = STATE
 registry = load_feeder_registry()
 

@@ -17,10 +17,10 @@ from pipeline_utils import load_config, resolve_work_path
 
 START_TIME = time.time()
 
-# Resolve parquet root via load_config (reads pipeline_config.yaml + PIPELINE_PARQUET_ROOT env override)
+# Parquet root from PIPELINE_PARQUET_ROOT (set by run_case.py)
 cfg = load_config()
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-folder_path = cfg.get('parquet_data_root', '../parquet_data')
+folder_path = cfg['parquet_data_root']
 if not os.path.isabs(folder_path):
     folder_path = os.path.abspath(os.path.join(REPO_ROOT, folder_path))
 all_monthly_stats = []

@@ -28,7 +28,7 @@ STR_TITLE = STR_STATE
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
-PARQUET_DATA_ROOT = Path(cfg.get('parquet_data_root', '../parquet_data'))
+PARQUET_DATA_ROOT = Path(cfg['parquet_data_root'])
 if not PARQUET_DATA_ROOT.is_absolute():
     PARQUET_DATA_ROOT = (REPO_ROOT / PARQUET_DATA_ROOT).resolve()
 

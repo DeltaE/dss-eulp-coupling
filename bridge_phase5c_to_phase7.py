@@ -45,8 +45,8 @@ SEASON = cfg['season']
 CSV_SOURCE = Path(resolve_work_path("5c_csv_conversion"))
 PHASE7_DIR = REPO_ROOT / "7_circuit_instantiation"
 MIXES_DIR  = REPO_ROOT / "0_experimental_design"
-# Workspace registry: PIPELINE_FEEDER_REGISTRY_PATH (set by run_case.py), else <work_root>/feeder_registry.json
-REGISTRY_PATH = resolve_config_path(cfg.get("feeder_registry_path", os.path.join(cfg["work_root"], "feeder_registry.json")))
+# Workspace registry: PIPELINE_FEEDER_REGISTRY_PATH (set by run_case.py)
+REGISTRY_PATH = resolve_config_path(cfg["feeder_registry_path"])
 
 # profhp directory mapping:
 #   scenario suffix in 5c folder name  →  profhp root directory name

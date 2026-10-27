@@ -19,10 +19,10 @@ from pipeline_utils import load_config, resolve_work_path
 cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
-DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+DOWNLOAD_DATE = cfg['eulp_download_date']
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, '..'))
-PARQUET_DATA_ROOT = cfg.get('parquet_data_root', '../parquet_data')
+PARQUET_DATA_ROOT = cfg['parquet_data_root']
 if not os.path.isabs(PARQUET_DATA_ROOT):
     PARQUET_DATA_ROOT = os.path.abspath(os.path.join(REPO_ROOT, PARQUET_DATA_ROOT))
 

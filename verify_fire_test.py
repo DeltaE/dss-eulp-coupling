@@ -2,8 +2,8 @@
 """
 verify_fire_test.py — Per-phase verification for dss-eulp-coupling pipeline
 
-Reads configuration from pipeline_config.yaml (via pipeline_utils.load_config())
-with fallback to PIPELINE_* environment variables.
+Reads configuration through pipeline_utils.load_config(). run_case.py sets the
+run values as PIPELINE_* environment variables.
 
 Usage:
     python verify_fire_test.py --phase pre
@@ -23,37 +23,23 @@ import pandas as pd
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# Configuration — prefer pipeline_config.yaml, env var fallback
+# Configuration — pipeline_utils.load_config(), run values from run_case.py
 # ═══════════════════════════════════════════════════════════════════════════
 
 def _load_pipeline_config():
     """
-    Load pipeline configuration.
-
-    Priority (pipeline_utils.load_config already merges env overrides):
-      1. pipeline_config.yaml values
-      2. PIPELINE_* env var overrides (handled inside load_config)
-    If yaml or import fails entirely, fall back to pure env vars.
+    Load pipeline configuration through pipeline_utils.load_config.
+    Reading a run value whose PIPELINE_* variable is unset exits 1.
     """
-    try:
-        from pipeline_utils import load_config
-        cfg = load_config()
-    except Exception as e:
-        print(f"  [WARN] Could not load pipeline_config.yaml: {e}")
-        print(f"         Falling back to environment variables.\n")
-        cfg = {}
+    from pipeline_utils import load_config
+    cfg = load_config()
 
-    state = cfg.get("state", os.environ.get("PIPELINE_STATE", "TX"))
-    season = cfg.get("season", os.environ.get("PIPELINE_SEASON", "summer"))
+    state = cfg["state"]
+    season = cfg["season"]
 
-    # EULP download parquet root — try config keys, then env var, then default.
+    # EULP download parquet root.
     # Note: smart_ds_parquet_root is a DIFFERENT path (Phase 2 matching source).
-    parquet_root = (
-        cfg.get("parquet_data_root")
-        or cfg.get("eulp_parquet_root")
-        or os.environ.get("PIPELINE_PARQUET_ROOT")
-        or r"D:\lvg\parquet_data"
-    )
+    parquet_root = cfg["parquet_data_root"]
 
     work_root = (
         cfg.get("work_root")
@@ -264,7 +250,7 @@ def verify_phase5a():
     if not os.path.isdir(PARQUET_ROOT):
         check(
             f"Parquet root exists: {PARQUET_ROOT}", False,
-            "Set parquet_data_root in pipeline_config.yaml",
+            "run_case.py sets PIPELINE_PARQUET_ROOT from the topology registry",
         )
         return
 

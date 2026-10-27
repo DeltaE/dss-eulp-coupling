@@ -72,7 +72,7 @@ def _stable_seed_offset(key: str) -> int:
 
 BOOL_PASS_ON_EXISTING_FOLDER = False  # True → skip if exists; False → delete/replace
 
-SMARTDS_ROOT = resolve_config_path(cfg.get('smart_ds_root', '../3_smartds'))
+SMARTDS_ROOT = resolve_config_path(cfg['smart_ds_root'])
 HP_BASELINE_ROOT = Path(resolve_work_path("7_circuit_instantiation", STATE + '_4_profhp'))
 HP_DM_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_6_profhp_dm'))
 HP_UN_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_7_profhp_un'))
