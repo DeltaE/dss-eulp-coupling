@@ -88,6 +88,11 @@ class _DirectEngine:
     def __init__(self):
         import opendssdirect as dss_module
         self._dss = dss_module
+        # Classic OpenDSS (the COM engine) reports a script error and keeps
+        # running the rest of the script; DSS C-API aborts at the first error by
+        # default. The deploy's PVSystems reference an undefined XYCurve "myEff",
+        # which COM tolerates, so match COM here.
+        dss_module.Error.EarlyAbort(False)
         self.Text = _DirectText(dss_module)
         self.ActiveCircuit = _DirectCircuit(dss_module)
 
