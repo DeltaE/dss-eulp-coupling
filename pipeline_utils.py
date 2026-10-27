@@ -20,6 +20,7 @@ RUN_VALUES = {
     "max_feeders": "PIPELINE_MAX_FEEDERS",
     "feeder_registry_path": "PIPELINE_FEEDER_REGISTRY_PATH",
     "eulp_download_date": "PIPELINE_EULP_DOWNLOAD_DATE",
+    "mixes_file": "PIPELINE_MIXES_FILE",
 }
 
 

@@ -103,6 +103,12 @@ def resolve_case(case_path: Path) -> dict:
     if topo.get("circuit_folder"):
         smart_ds_root = smart_ds_root / topo["circuit_folder"]
     smart_ds_root = smart_ds_root.as_posix()
+    mixes_file = defaults.get("mixes_file")
+    if not mixes_file:
+        sys.exit("defaults.yaml must define mixes_file.")
+    mixes_file = Path(mixes_file)
+    if not mixes_file.is_absolute():
+        mixes_file = REPO_ROOT / mixes_file
 
     # Donor parquet pool is the deterministic sibling of the opendss tree:
     #   <dataset>/<morphology>/base_timeseries/opendss  ->  <dataset>/<morphology>/parquet_data
@@ -124,6 +130,7 @@ def resolve_case(case_path: Path) -> dict:
         "smart_ds_root": smart_ds_root,
         "parquet_root": parquet_root,
         "eulp_metadata_root": eulp_metadata_root,
+        "mixes_file": mixes_file.resolve().as_posix(),
         "circuit_folder": topo.get("circuit_folder"),
         "donor_state": donor["donor_state"],
         "max_feeders": case.get("execution", {}).get("max_feeders", "null"),
@@ -153,6 +160,7 @@ def build_env(resolved: dict, season: str) -> dict:
     env["PIPELINE_SMART_DS_PARQUET_ROOT"] = resolved["parquet_root"]   # SMART-DS load parquets, Phase 6
     env["PIPELINE_EULP_METADATA_ROOT"] = resolved["eulp_metadata_root"]  # EULP metadata CSVs, Phase 1
     env["PIPELINE_EULP_DOWNLOAD_DATE"] = str(resolved["eulp_download_date"])  # donor registry
+    env["PIPELINE_MIXES_FILE"] = resolved["mixes_file"]  # mixes_file in defaults.yaml, Phase 7a
     return env
 
 

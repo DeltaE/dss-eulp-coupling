@@ -15,6 +15,9 @@ seasons:
 # intermediate pkls land in 6_kvar_preparation. See docs/instantiation_management.md.
 phase_order: [pre, "1", "2", "3", "4", "5a", "5b", "5d", "5b_variants", "5c", "5c_variants", "6", "6_variants", "7a", "7b", "7c", "8"]
 
+# Mixes file that Phase 7a copies into the workspace (repo-relative or absolute).
+mixes_file: 0_experimental_design/mixes_lhs.json
+
 # Environment applied to every phase.
 base_env:
   PYTHONIOENCODING: "utf-8"

@@ -2,23 +2,19 @@
 """
 bridge_phase5c_to_phase7.py
 ---------------------------
-Creates everything needed to bridge Phase 5c/6 output → Phase 7 instantiation.
+Phase 7a. Bridges Phase 5c/6 output to Phase 7 instantiation.
 
-Run from Anaconda Prompt on Machine 3:
-    cd /d D:\github\dss-eulp-coupling
-    set PIPELINE_STATE=TX
-    set PIPELINE_SEASON=summer
-    python bridge_phase5c_to_phase7.py
+run_case.py runs it with the PIPELINE_* variables set.
 
 What this script does:
-  1. Builds profhp bridge directories (TX_4_profhp, TX_6_profhp_dm, TX_7_profhp_un)
+  1. Builds profhp bridge directories (<STATE>_4_profhp, <STATE>_6_profhp_dm, <STATE>_7_profhp_un)
      by copying CSVs from 5c_csv_conversion into the structure Phase 7 expects.
-  2. Generates a minimal mixes_lhs.json in 0_experimental_design/ for fire testing
-     if it is missing, and copies it to <workspace>/7_circuit_instantiation/.
+  2. Copies the mixes file named by PIPELINE_MIXES_FILE (mixes_file in configs/defaults.yaml)
+     byte for byte to <workspace>/7_circuit_instantiation/. Exits 1 if that file is missing.
   3. Checks for data_ev/ and warns if missing (cannot auto-generate).
-  4. Writes a summary of what was done.
+  4. Prints a pre-flight summary.
 
-Safe to run multiple times — overwrites profhp copies and reuses existing mixes unless --regenerate is passed.
+Safe to run multiple times: it overwrites the profhp copies and the workspace mixes copy.
 """
 
 import os
@@ -27,11 +23,6 @@ import json
 import shutil
 from pathlib import Path
 from datetime import datetime
-import argparse
-
-parser = argparse.ArgumentParser()
-parser.add_argument("--regenerate", action="store_true")
-args = parser.parse_args()
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pipeline_utils import load_config, resolve_config_path, resolve_work_path
@@ -44,7 +35,6 @@ SEASON = cfg['season']
 
 CSV_SOURCE = Path(resolve_work_path("5c_csv_conversion"))
 PHASE7_DIR = REPO_ROOT / "7_circuit_instantiation"
-MIXES_DIR  = REPO_ROOT / "0_experimental_design"
 # Workspace registry: PIPELINE_FEEDER_REGISTRY_PATH (set by run_case.py)
 REGISTRY_PATH = resolve_config_path(cfg["feeder_registry_path"])
 
@@ -166,62 +156,16 @@ for suffix, profhp_name in SCENARIO_MAP.items():
     else:
         print(f"  {profhp_name}/daily_csvs/ → NOT FOUND")
 
-# ── STEP 2: GENERATE MINIMAL MIXES FILE ────────────────────────────
-header("STEP 2: Generate fire test mixes_lhs.json")
+# ── STEP 2: COPY THE MIXES FILE ─────────────────────────────────────
+header("STEP 2: Copy the mixes file")
 
-MIXES_PATH = MIXES_DIR / "mixes_lhs.json"
+MIXES_PATH = Path(cfg["mixes_file"])
+if not MIXES_PATH.is_file():
+    print(f"  FATAL: mixes file not found: {MIXES_PATH}", file=sys.stderr)
+    sys.exit(1)
 
-# Fire test mixes: 3 scenarios to test different heating share combinations
-# and DER penetration levels. Minimal but covers key code paths.
-fire_test_mixes = {
-    "fire_baseline": {
-        "shares": {"baseline": 1.0, "dm": 0.0, "un": 0.0},
-        "heating_seed": 555,
-        "ev_perc": 0.10,
-        "ev_lvl2_perc": 0.80,
-        "ev_seed": 555,
-        "storage_perc_3ph": 0.05,
-        "storage_seed": 555,
-        "pv_perc_3ph": 0.05,
-        "pv_seed": 555,
-        "disjoint_sets": True,
-        "ev_split": {"controlled": 0.50, "uncontrolled": 0.50}
-    },
-    "fire_mixed": {
-        "shares": {"baseline": 0.50, "dm": 0.30, "un": 0.20},
-        "heating_seed": 555,
-        "ev_perc": 0.20,
-        "ev_lvl2_perc": 0.80,
-        "ev_seed": 555,
-        "storage_perc_3ph": 0.10,
-        "storage_seed": 555,
-        "pv_perc_3ph": 0.10,
-        "pv_seed": 555,
-        "disjoint_sets": True,
-        "ev_split": {"controlled": 0.60, "uncontrolled": 0.40}
-    },
-    "fire_stress": {
-        "shares": {"baseline": 0.20, "dm": 0.20, "un": 0.60},
-        "heating_seed": 555,
-        "ev_perc": 0.30,
-        "ev_lvl2_perc": 0.90,
-        "ev_seed": 555,
-        "storage_perc_3ph": 0.15,
-        "storage_seed": 555,
-        "pv_perc_3ph": 0.15,
-        "pv_seed": 555,
-        "disjoint_sets": False,
-        "ev_split": {"controlled": 0.40, "uncontrolled": 0.60}
-    },
-}
-
-if MIXES_PATH.exists() and not args.regenerate:
-    print(f"Using existing {MIXES_PATH}")
-else:
-    MIXES_DIR.mkdir(parents=True, exist_ok=True)
-    with MIXES_PATH.open("w", encoding="utf-8") as f:
-        json.dump(fire_test_mixes, f, indent=2)
-    print(f"  ✅ Wrote {MIXES_PATH}")
+with MIXES_PATH.open("r", encoding="utf-8") as f:
+    mixes = json.load(f)
 
 # 7b reads the mixes from the workspace; copy the file byte for byte
 WORK_MIXES_PATH = Path(resolve_work_path("7_circuit_instantiation", "mixes_lhs.json"))
@@ -229,8 +173,7 @@ WORK_MIXES_PATH.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(MIXES_PATH, WORK_MIXES_PATH)
 print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
 
-print(f"  Mixes defined: {list(fire_test_mixes.keys())}")
-print(f"  → {len(fire_test_mixes)} mixes × 2 feeders = {len(fire_test_mixes) * 2} circuit folders expected")
+print(f"  Mixes defined: {list(mixes.keys())}")
 
 # Show what the instantiation will produce
 print(f"\n  Expected circuit folders after instantiation:")
@@ -241,7 +184,7 @@ try:
     for entry in reg["feeders"]:
         sub = entry["substation"]
         cid = entry["circuit_id"]
-        for mix_name in fire_test_mixes:
+        for mix_name in mixes:
             folder = f"{sub}_circuit_{cid}_{mix_name}"
             print(f"    {folder}/")
 except Exception:
@@ -275,28 +218,6 @@ else:
     print("    You can re-enable once you bring the files over.")
     print()
 
-    # Also search globally for data_ev
-    print("  Searching for data_ev anywhere under D:\\github\\...")
-    found_any = False
-    search_root = Path(r"D:\github")
-    if search_root.is_dir():
-        for d in search_root.rglob("data_ev"):
-            if d.is_dir() and (d / "without_daily_plug_in_factor").is_dir():
-                n_items = sum(1 for _ in d.rglob("*") if _.is_file())
-                print(f"  FOUND: {d} ({n_items} files)")
-                found_any = True
-    if not found_any:
-        print("  Not found under D:\\github\\")
-
-    # Search Dropbox too
-    for dropbox_root in [Path(r"C:\Users\lfv1\Dropbox"), Path(r"D:\Dropbox")]:
-        if dropbox_root.is_dir():
-            print(f"  Searching {dropbox_root} (top-level only)...")
-            for d in dropbox_root.iterdir():
-                if d.is_dir() and d.name == "data_ev":
-                    print(f"  FOUND: {d}")
-                    found_any = True
-
 # ── STEP 4: PRE-FLIGHT SUMMARY ─────────────────────────────────────
 header("STEP 4: Pre-flight summary")
 
@@ -304,12 +225,11 @@ checks = {
     f"profhp bridge ({SCENARIO_MAP['']})":              (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP[""])) / "daily_csvs").is_dir(),
     f"profhp bridge ({SCENARIO_MAP['_dm']})":           (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_dm"])) / "daily_csvs").is_dir(),
     f"profhp bridge ({SCENARIO_MAP['_uncontrolled']})": (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_uncontrolled"])) / "daily_csvs").is_dir(),
-    "mixes_lhs.json":                 MIXES_PATH.is_file(),
+    "mixes file":                     MIXES_PATH.is_file(),
     "feeder_registry.json":           REGISTRY_PATH.is_file(),
     "pipeline_config.yaml":           (REPO_ROOT / "pipeline_config.yaml").is_file(),
     "data_ev/":                        data_ev_target.is_dir(),
     "SMART-DS root":                   Path(os.environ.get("PIPELINE_SMART_DS_ROOT", "")).is_dir(),
-    "OpenDSS COM":                     True,  # already verified
 }
 
 all_ok = True
@@ -321,13 +241,6 @@ for label, ok in checks.items():
 
 if all_ok:
     print(f"\n  🎉 ALL CHECKS PASS — ready to run Phase 7!")
-    print(f"\n  Next commands:")
-    print(f"    cd /d {PHASE7_DIR}")
-    print(f"    set PIPELINE_STATE={STATE}")
-    print(f"    set PIPELINE_SEASON={SEASON}")
-    print(f"    set PIPELINE_SMART_DS_ROOT=D:\\lvg\\GSO\\rural\\base_timeseries\\opendss")
-    print(f"    set PIPELINE_MAX_FEEDERS=2")
-    print(f"    python instantiate_circuits_and_runs_APPLYFILTER.py")
 else:
     print(f"\n  ⚠️  Some checks failed — resolve before running Phase 7")
     if not data_ev_target.is_dir():
