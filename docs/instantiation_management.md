@@ -81,7 +81,7 @@ Each run writes `runs/<case_id>/<season>/`:
 
 - **TX topology** - `TX_pending` is a placeholder. Extract a real TX SMART-DS circuit, fill its
   paths, set `status: ready`. `TX__TX` and `TX__NC` launch only then.
-- **Phase 6 (kvar)** - `6_kvar_preparation` (`generate_kvar_csvs.py`, `rev_spec_kvar_kw_ratio.py`,
+- **Phase 6 (kvar)** - `6_kvar_preparation` (`generate_kvar_csvs.py`, `compute_kvar_kw_ratios.py`,
   `save_needed_sd_parquets.py`) was not in the documented fire-test sequence and is not yet wired
   into `phases.yaml`. Add it once the command order is confirmed.
 - **Season re-runs** - `--all` re-runs season-independent phases (pre-5a) once per season, and

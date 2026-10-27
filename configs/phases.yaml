@@ -1,7 +1,7 @@
 # Phase definitions for run_case.py. --all runs the phases in defaults.yaml phase_order, pre to 8, for each selected season. A failed phase ends that season.
 # Placeholders substituted from the resolved case: {python}, {smart_ds_root}, {max_feeders}, {state}, {work_root}.
 # Each step is either {cmd: "..."} (optional cwd:) or {copy: [src, dst]} (dst ending "/" = into dir).
-# 'verify' runs `{python} verify_fire_test.py --phase <id>` from repo root after the steps.
+# 'verify' runs `{python} verify_phase.py --phase <id>` from repo root after the steps.
 
 pre:
   steps:
@@ -46,7 +46,7 @@ pre:
   steps:
     - copy: ["{work_root}/4_quota_assignment/{state}_final_residential.csv", "{work_root}/5a_eulp_downloads/"]
     - copy: ["{work_root}/4_quota_assignment/{state}_final_commercial.csv", "{work_root}/5a_eulp_downloads/"]
-    - cmd: "{python} phase5a_download_homes.py"
+    - cmd: "{python} phase5a_download_residential.py"
       cwd: 5a_eulp_downloads
     - cmd: "{python} phase5a_download_commercial.py"
       cwd: 5a_eulp_downloads
@@ -62,7 +62,7 @@ pre:
 
 "5d":
   steps:
-    - cmd: "{python} plot_parquet_differences.py"
+    - cmd: "{python} combine_scenarios.py"
       cwd: 5d_scenario_controls
     - cmd: "{python} get_scenario_csv_controls.py"
       cwd: 5d_scenario_controls
@@ -85,7 +85,7 @@ pre:
   steps:
     - cmd: "{python} save_needed_sd_parquets.py"
       cwd: 6_kvar_preparation
-    - cmd: "{python} rev_spec_kvar_kw_ratio.py"
+    - cmd: "{python} compute_kvar_kw_ratios.py"
       cwd: 6_kvar_preparation
     - cmd: "{python} generate_kvar_csvs.py"
       cwd: 6_kvar_preparation
@@ -99,11 +99,11 @@ pre:
 
 "6_variants":
   steps:
-    - cmd: "{python} rev_spec_kvar_kw_ratio.py --scenario dm"
+    - cmd: "{python} compute_kvar_kw_ratios.py --scenario dm"
       cwd: 6_kvar_preparation
     - cmd: "{python} generate_kvar_csvs.py --scenario dm"
       cwd: 6_kvar_preparation
-    - cmd: "{python} rev_spec_kvar_kw_ratio.py --scenario uncontrolled"
+    - cmd: "{python} compute_kvar_kw_ratios.py --scenario uncontrolled"
       cwd: 6_kvar_preparation
     - cmd: "{python} generate_kvar_csvs.py --scenario uncontrolled"
       cwd: 6_kvar_preparation
@@ -114,12 +114,12 @@ pre:
 
 "7b":
   steps:
-    - cmd: "{python} instantiate_circuits_and_runs_APPLYFILTER.py"
+    - cmd: "{python} instantiate_circuits.py"
       cwd: 7_circuit_instantiation
 
 "7c":
   steps:
-    - cmd: "{python} run_all_deploys_v2.py --root {work_root}/7_circuit_instantiation"
+    - cmd: "{python} run_circuits.py --root {work_root}/7_circuit_instantiation"
       cwd: 7_circuit_instantiation
 
 "8":

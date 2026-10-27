@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 """
-verify_fire_test.py — Per-phase verification for dss-eulp-coupling pipeline
+verify_phase.py — Per-phase verification for dss-eulp-coupling pipeline
 
 Reads configuration through pipeline_utils.load_config(). run_case.py sets the
 run values as PIPELINE_* environment variables.
 
 Usage:
-    python verify_fire_test.py --phase pre
-    python verify_fire_test.py --phase 5c
-    python verify_fire_test.py --phase 5c --scenario dm
-    python verify_fire_test.py --all
-    python verify_fire_test.py --all --scenario dm
+    python verify_phase.py --phase pre
+    python verify_phase.py --phase 5c
+    python verify_phase.py --phase 5c --scenario dm
+    python verify_phase.py --all
+    python verify_phase.py --all --scenario dm
 """
 
 import argparse
@@ -502,7 +502,7 @@ def main():
     # ── Anchor all relative paths to the workspace root ──
     os.chdir(WORK_ROOT)
 
-    print(f"\n  verify_fire_test.py")
+    print(f"\n  verify_phase.py")
     print(f"  Config: State={STATE}  Season={SEASON}  Scenario={SCENARIO}")
     print(f"  Parquet root: {PARQUET_ROOT}")
     print(f"  Work root:    {os.getcwd()}")

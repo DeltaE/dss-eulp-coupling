@@ -210,7 +210,7 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
     if verify:
         emit(f"  verify --phase {verify}")
     if verify and not dry_run:
-        rc = subprocess.run(f"{ctx['python']} verify_fire_test.py --phase {verify}",
+        rc = subprocess.run(f"{ctx['python']} verify_phase.py --phase {verify}",
                             cwd=REPO_ROOT, env=env, shell=True).returncode
         if rc != 0:
             emit(f"  !! verify failed (exit {rc})")
@@ -243,7 +243,7 @@ def prepare_work_root(work_root: str) -> None:
         "4_quota_assignment",
         "5b_profile_generation/daily_parquets",
         "5c_csv_conversion",
-        "5d_scenario_controls/plot_parquet_differences",
+        "5d_scenario_controls/combine_scenarios",
         "5d_scenario_controls/get_scenario_csv_controls",
         "6_kvar_preparation",
         "7_circuit_instantiation",

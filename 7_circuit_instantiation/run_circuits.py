@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-run_prepared_circuits.py  —  simple, procedural batch runner
+run_circuits.py  —  simple, procedural batch runner
 - Finds prepared circuit folders (name contains "_circuit_") that contain the deploy script
 - Skips the repo root (".") even if it has the deploy script
 - Runs sequentially and streams output into this console

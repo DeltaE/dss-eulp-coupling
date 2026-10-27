@@ -27,7 +27,7 @@ os.makedirs(output_folder, exist_ok=True)
 
 # Load scenario summary
 scenario_file = resolve_work_path(
-    "5d_scenario_controls", "plot_parquet_differences", "combined_scenarios.csv"
+    "5d_scenario_controls", "combine_scenarios", "combined_scenarios.csv"
 )
 if not os.path.exists(scenario_file):
     print(f"❌ Scenario file not found: {scenario_file}", file=sys.stderr)
