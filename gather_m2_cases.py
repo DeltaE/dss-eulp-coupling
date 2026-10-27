@@ -4,7 +4,7 @@ gather_m2_cases.py  (v2 — per-season workspace layout)
 Stack per-case per-season aggregate_m2_combined.csv files into ONE tidy CSV.
 
 New layout (after per-season workspace fix):
-    runs/{case}/{season}/workspace/8_results_analysis/aggregate_m2_combined.csv
+    <runs_root>/{case}/{season}/workspace/8_results_analysis/aggregate_m2_combined.csv
 
 Drop this in the repo root and run:
     python gather_m2_cases.py
@@ -27,7 +27,6 @@ CASES = [
 SEASONS = ["summer", "winter"]
 
 REPO_ROOT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent
-RUNS_DIR = REPO_ROOT / "runs"
 REL_CSV = Path("workspace") / "8_results_analysis" / "aggregate_m2_combined.csv"
 
 # runs root: runs_root in configs/local.yaml (repo-relative or absolute), as in run_case.py
@@ -47,7 +46,7 @@ col_sets = {}
 
 for case in CASES:
     for season in SEASONS:
-        csv_path = RUNS_DIR / case / season / REL_CSV
+        csv_path = RUNS_ROOT / case / season / REL_CSV
         if not csv_path.exists():
             print(f"[SKIP] {case} x {season}: {csv_path}")
             continue

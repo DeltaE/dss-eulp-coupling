@@ -7,9 +7,11 @@ so generation does not rerun assignment or depend on temporary console logs.
 """
 import argparse
 import ast
+import sys
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 from pipeline_utils import resolve_work_path
 
@@ -28,13 +30,13 @@ def case_counts(runs_root, case, season):
         ("commercial", "com", "in.comstock_building_type"),
         ("residential", "res", "in.geometry_building_type_acs"),
     ]:
-        metadata = pd.read_csv(resolve_work_path(
-            str(workspace), "1_data_provenance", "outputs", "pipeline_state",
-            f"{sector}_data_SELECT_STATES.csv"))
-        matches = pd.read_csv(resolve_work_path(
-            str(workspace), "3_tolerance_matching", f"df_{prefix}_matches_out_{state}.csv"))
-        final = pd.read_csv(resolve_work_path(
-            str(workspace), "4_quota_assignment", f"{state}_final_{sector}.csv"))
+        metadata = pd.read_csv(
+            workspace / "1_data_provenance" / "outputs" / "pipeline_state"
+            / f"{sector}_data_SELECT_STATES.csv")
+        matches = pd.read_csv(
+            workspace / "3_tolerance_matching" / f"df_{prefix}_matches_out_{state}.csv")
+        final = pd.read_csv(
+            workspace / "4_quota_assignment" / f"{state}_final_{sector}.csv")
         building_lists = matches["Matched_Buildings"].map(ast.literal_eval)
         matched_ids = set().union(*building_lists)
         chosen = final.groupby(type_col)["Chosen_Parquet"].nunique()
@@ -47,12 +49,24 @@ def case_counts(runs_root, case, season):
     return counts
 
 
+def default_runs_root():
+    """runs_root in configs/local.yaml (repo-relative or absolute), as in run_case.py."""
+    repo_root = Path(__file__).resolve().parent
+    local_yaml = repo_root / "configs" / "local.yaml"
+    if not local_yaml.exists():
+        sys.exit(f"Missing {local_yaml}. Copy configs/local.yaml.example to configs/local.yaml.")
+    with open(local_yaml, encoding="utf-8") as fh:
+        runs_root = Path((yaml.safe_load(fh) or {}).get("runs_root", "runs"))
+    if not runs_root.is_absolute():
+        runs_root = repo_root / runs_root
+    return runs_root
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runs-root", type=Path,
-                        default=Path(__file__).resolve().parent / "runs")
+    parser.add_argument("--runs-root", type=Path, default=None)
     args = parser.parse_args()
-    runs_root = args.runs_root.resolve()
+    runs_root = (args.runs_root or default_runs_root()).resolve()
     rows = []
     for case in CASES:
         summer = case_counts(runs_root, case, "summer")

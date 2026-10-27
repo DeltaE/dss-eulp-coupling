@@ -41,11 +41,7 @@ def _load_pipeline_config():
     # Note: smart_ds_parquet_root is a DIFFERENT path (Phase 2 matching source).
     parquet_root = cfg["parquet_data_root"]
 
-    work_root = (
-        cfg.get("work_root")
-        or os.environ.get("PIPELINE_WORK_ROOT")
-        or "."
-    )
+    work_root = cfg["work_root"]
 
     return {
         "state": state,
@@ -504,8 +500,7 @@ def main():
     SCENARIO = args.scenario
 
     # ── Anchor all relative paths to the workspace root ──
-    if WORK_ROOT and WORK_ROOT != ".":
-        os.chdir(WORK_ROOT)
+    os.chdir(WORK_ROOT)
 
     print(f"\n  verify_fire_test.py")
     print(f"  Config: State={STATE}  Season={SEASON}  Scenario={SCENARIO}")

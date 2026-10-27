@@ -142,6 +142,7 @@ def build_env(resolved: dict, season: str) -> dict:
     env["PIPELINE_STATE"] = resolved["donor_state"]            # donor side
     env["PIPELINE_SEASON"] = season
     env["PIPELINE_WORK_ROOT"] = work_root
+    env["PIPELINE_RUNS_ROOT"] = resolved["runs_root"]
     env["PIPELINE_SMART_DS_ROOT"] = resolved["smart_ds_root"]  # topology side (opendss)
     env["PIPELINE_MAX_FEEDERS"] = str(resolved["max_feeders"])
     env["PIPELINE_FEEDER_REGISTRY_PATH"] = os.path.join(work_root, "feeder_registry.json")
@@ -259,6 +260,8 @@ def main() -> None:
     runs_root = Path(resolved["local"].get("runs_root", "runs"))
     if not runs_root.is_absolute():
         runs_root = REPO_ROOT / runs_root
+    runs_root = runs_root.resolve()
+    resolved["runs_root"] = runs_root.as_posix()
     print(f"Case {resolved['case_id']}: topology={resolved['topology_id']} "
           f"donor={resolved['donor_state']} seasons={seasons}")
     print(f"  PIPELINE_SMART_DS_ROOT={resolved['smart_ds_root']}")
@@ -268,11 +271,11 @@ def main() -> None:
     overall_ok = True
     done_once = set()
     for season in seasons:
-        work_root = (REPO_ROOT / "runs" / resolved["case_id"] / season / "workspace").resolve()
+        work_root = (runs_root / resolved["case_id"] / season / "workspace").resolve()
         resolved["work_root"] = str(work_root)
         print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
         if args.all and work_root.exists():
-            sys.exit(f"runs/{resolved['case_id']}/{season}/workspace already exists. "
+            sys.exit(f"{work_root.as_posix()} already exists. "
                      f"A run always starts from an empty workspace.\n"
                      f"Delete that folder to rerun this case-season, or run a different case.")
         run_dir = runs_root / resolved["case_id"] / season

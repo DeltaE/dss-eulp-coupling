@@ -13,6 +13,7 @@ RUN_VALUES = {
     "state": "PIPELINE_STATE",
     "season": "PIPELINE_SEASON",
     "work_root": "PIPELINE_WORK_ROOT",
+    "runs_root": "PIPELINE_RUNS_ROOT",
     "smart_ds_root": "PIPELINE_SMART_DS_ROOT",
     "smart_ds_parquet_root": "PIPELINE_SMART_DS_PARQUET_ROOT",
     "parquet_data_root": "PIPELINE_PARQUET_ROOT",
@@ -49,9 +50,11 @@ def resolve_config_path(path_value):
 
 
 def resolve_work_path(*parts):
-    """Join parts under the active work_root (PIPELINE_WORK_ROOT, default REPO_ROOT).
+    """Join parts under the active work_root (PIPELINE_WORK_ROOT).
     Returns an absolute path string. Creates nothing."""
-    work_root = os.environ.get("PIPELINE_WORK_ROOT", REPO_ROOT)
+    work_root = os.environ.get("PIPELINE_WORK_ROOT")
+    if not work_root:
+        missing_run_value("work_root")
     return os.path.join(work_root, *parts)
 
 
@@ -72,20 +75,12 @@ def load_config(config_path=None):
 
 def load_feeder_registry(config_path=None):
     cfg = load_config(config_path)
-    configured_path = cfg.get("feeder_registry_path", "feeder_registry.json")
-    candidates = [resolve_config_path(configured_path)]
+    registry_path = resolve_config_path(cfg["feeder_registry_path"])
+    if registry_path.exists():
+        with registry_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
 
-    default_path = REPO_ROOT / "feeder_registry.json"
-    if default_path not in candidates:
-        candidates.append(default_path)
-
-    for registry_path in candidates:
-        if registry_path.exists():
-            with registry_path.open("r", encoding="utf-8") as f:
-                return json.load(f)
-
-    searched = ", ".join(str(p) for p in candidates)
     raise FileNotFoundError(
         "feeder_registry.json not found. Run phase 2 "
-        f"(copy_circuits.py) first. Searched: {searched}"
+        f"(copy_circuits.py) first. Searched: {registry_path}"
     )

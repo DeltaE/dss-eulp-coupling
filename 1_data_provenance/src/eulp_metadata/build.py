@@ -22,7 +22,6 @@ import yaml
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = PROJECT_ROOT.parent
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "workflow.yaml"
-RUNS_ROOT = REPO_ROOT / "runs"  # run_case.py puts every workspace under <repo>/runs
 sys.path.insert(0, str(REPO_ROOT))
 from pipeline_utils import load_config as load_pipeline_config
 
@@ -87,8 +86,13 @@ def cluster_output_dir(config: dict[str, Any], cluster_name: str) -> Path:
     outputs = Path(config["paths"]["outputs"])
     if outputs.is_absolute():
         return outputs / cluster_name
-    base = Path(os.environ.get("PIPELINE_WORK_ROOT", REPO_ROOT))
+    base = Path(load_pipeline_config()["work_root"])
     return base / PROJECT_ROOT.name / outputs / cluster_name
+
+
+def runs_root() -> Path:
+    # run_case.py puts every workspace under runs_root and passes it as PIPELINE_RUNS_ROOT
+    return Path(load_pipeline_config()["runs_root"])
 
 
 def _display_path(p):
@@ -97,7 +101,7 @@ def _display_path(p):
     except ValueError:
         pass
     try:
-        return p.relative_to(RUNS_ROOT).as_posix()
+        return p.relative_to(runs_root()).as_posix()
     except ValueError:
         return p.as_posix()
 
