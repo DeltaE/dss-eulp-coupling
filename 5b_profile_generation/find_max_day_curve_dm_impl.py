@@ -80,8 +80,8 @@ for feeder in df_summary_result["Feeder"].unique():
         # Is it specifically a directory?
         print(p.is_dir())
 
-        print('Check path')
-        sys.exit()
+        print('Check path', file=sys.stderr)
+        sys.exit(1)
         '''
 
         try:

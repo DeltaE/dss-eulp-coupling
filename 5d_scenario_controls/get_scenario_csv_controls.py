@@ -30,8 +30,8 @@ scenario_file = resolve_work_path(
     "5d_scenario_controls", "plot_parquet_differences", "combined_scenarios.csv"
 )
 if not os.path.exists(scenario_file):
-    print(f"❌ Scenario file not found: {scenario_file}")
-    sys.exit()
+    print(f"❌ Scenario file not found: {scenario_file}", file=sys.stderr)
+    sys.exit(1)
 
 df_scenarios = pd.read_csv(scenario_file)
 
@@ -54,8 +54,8 @@ base_files = [
 for base in base_files:
     input_path = resolve_work_path("5b_profile_generation", f"{base}.csv")
     if not os.path.exists(input_path):
-        print(f"❌ File not found: {input_path}")
-        sys.exit()
+        print(f"❌ File not found: {input_path}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"✅ Processing: {input_path}")
     df = pd.read_csv(input_path)
@@ -63,15 +63,15 @@ for base in base_files:
     df_dm = df.copy()
 
     if "Parquet_File" not in df.columns or "Parquet_Folder" not in df.columns:
-        print(f"⚠️  Missing required columns in {input_path}")
-        sys.exit()
+        print(f"⚠️  Missing required columns in {input_path}", file=sys.stderr)
+        sys.exit(1)
 
     for i in df.index:
         folder = df.at[i, "Parquet_Folder"]
         original_pqt = df.at[i, "Parquet_File"]
         if "-" not in str(original_pqt):
-            print(f"⚠️ Invalid Parquet_File format at row {i}: {original_pqt}")
-            sys.exit()
+            print(f"⚠️ Invalid Parquet_File format at row {i}: {original_pqt}", file=sys.stderr)
+            sys.exit(1)
         building_id = str(original_pqt).split("-")[0]
 
         key = (folder, building_id)
@@ -80,8 +80,8 @@ for base in base_files:
             df_un.at[i, "Parquet_File"] = f"{building_id}-{un_id}.parquet"
             df_dm.at[i, "Parquet_File"] = f"{building_id}-{dm_id}.parquet"
         else:
-            print(f"❌ Building ID {building_id} in folder {folder} not found in scenarios")
-            sys.exit()
+            print(f"❌ Building ID {building_id} in folder {folder} not found in scenarios", file=sys.stderr)
+            sys.exit(1)
 
     # Save to output folder
     un_out = os.path.join(output_folder, f"{base}_uncontrolled.csv")

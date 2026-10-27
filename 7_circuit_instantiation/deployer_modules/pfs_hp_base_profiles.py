@@ -70,8 +70,8 @@ def generate_heatpump_profiles(LOAD_NUMBER, HP_PERC, MONTH, DAY, TEMP_RANGE_MIN,
     df_filtered_times = list(set(df_filtered['Hour of Timestamp'].tolist()))
     df_filtered_times.sort()
     if df_filtered_times != [i for i in range(0, 24)]:
-        print('Error exists in selection of temperature ranges')
-        sys.exit()
+        print('Error exists in selection of temperature ranges', file=sys.stderr)
+        sys.exit(1)
 
     # Group by 'Heat Pump' and filter
     filtered_groups = df_filtered.groupby('Heat Pump').filter(
@@ -80,8 +80,8 @@ def generate_heatpump_profiles(LOAD_NUMBER, HP_PERC, MONTH, DAY, TEMP_RANGE_MIN,
 
     # Check if the resulting DataFrame is empty
     if filtered_groups.empty:
-        print('No rows found with all required hours for each Heat Pump value')
-        sys.exit()
+        print('No rows found with all required hours for each Heat Pump value', file=sys.stderr)
+        sys.exit(1)
 
     # Set the random seed for reproducibility
     initial_seed = 42

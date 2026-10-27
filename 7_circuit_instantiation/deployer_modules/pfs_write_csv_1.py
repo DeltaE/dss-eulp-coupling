@@ -71,8 +71,8 @@ def write_simulation_results_to_csv(
                     this_rating = '-'
                     this_apparent_power = '+'
                 else:
-                    print('Element Not defined', an_element)
-                    sys.exit()
+                    print('Element Not defined', an_element, file=sys.stderr)
+                    sys.exit(1)
                 get_tuple = grab_power_data[an_element]
 
                 tuple_size = len(get_tuple)
@@ -83,8 +83,8 @@ def write_simulation_results_to_csv(
                     element_detail = 'Single-phase'
                     writer.writerow([timeslice, timestamp.strftime('%H:%M')] + list(get_tuple[:4]) + [0, 0] + [an_element, element_type, element_detail, this_rating, this_apparent_power, '-', '-'] + empt_volt_list)
                 else:
-                    print('Element Detail Not defined', tuple_size)
-                    sys.exit()
+                    print('Element Detail Not defined', tuple_size, file=sys.stderr)
+                    sys.exit(1)
 
                 # Take advantage of this loop to invert the elements
                 if an_element not in element_list:
@@ -114,8 +114,8 @@ def write_simulation_results_to_csv(
                     this_volt_condition_list_2 = ['']*3
                     this_volt_condition_list_3 = ['']*3
                 else:
-                    print('Line type is not defined!')
-                    sys.exit()
+                    print('Line type is not defined!', file=sys.stderr)
+                    sys.exit(1)
 
                 this_volt_condition_list_all = \
                     this_volt_condition_list_1 + this_volt_condition_list_2 + \
@@ -147,8 +147,8 @@ def write_simulation_results_to_csv(
                     this_rating = '-'
                     this_apparent_power = '+'
                 else:
-                    print('Element Not defined', an_element)
-                    sys.exit()
+                    print('Element Not defined', an_element, file=sys.stderr)
+                    sys.exit(1)
                 get_tuple = grab_power_data[an_element]
     
                 tuple_size = len(get_tuple)
@@ -159,8 +159,8 @@ def write_simulation_results_to_csv(
                     element_detail = 'Single-phase'
                     writer.writerow(['-', '-'] + list(get_tuple[:4]) + [0, 0] + [an_element, element_type, element_detail, this_rating, this_apparent_power, counter_normal, '-'] + empt_volt_list)
                 else:
-                    print('Element Detail Not defined', tuple_size)
-                    sys.exit()
+                    print('Element Detail Not defined', tuple_size, file=sys.stderr)
+                    sys.exit(1)
 
             counter_normal += 1
 
@@ -181,8 +181,8 @@ def write_simulation_results_to_csv(
                 elif (tuple_size == 12 and 'Transformer' in an_element):
                     power_list.append(list(loc_powers[:6])[0] + list(loc_powers[:6])[2])
                 else:
-                    print('Element Detail Not defined (0)', tuple_size)
-                    sys.exit()
+                    print('Element Detail Not defined (0)', tuple_size, file=sys.stderr)
+                    sys.exit(1)
             power_list_sorted = deepcopy(power_list)
             power_list_sorted.sort(reverse=True)
             power_list_sorted_oi = [power_list.index(i) + 1 for i in power_list_sorted]
@@ -198,8 +198,8 @@ def write_simulation_results_to_csv(
                     this_rating = '-'
                     this_apparent_power = '+'
                 else:
-                    print('Element Not defined', an_element)
-                    sys.exit()
+                    print('Element Not defined', an_element, file=sys.stderr)
+                    sys.exit(1)
                 get_tuple = dict_temp_power_data_per_element[an_element][index]
 
                 tuple_size = len(get_tuple)
@@ -210,8 +210,8 @@ def write_simulation_results_to_csv(
                     element_detail = 'Single-phase'
                     writer.writerow(['-', '-'] + list(get_tuple[:4]) + [0, 0] + [an_element, element_type, element_detail, this_rating, this_apparent_power, '-', counter_normal_inner] + empt_volt_list)
                 else:
-                    print('Element Detail Not defined', tuple_size)
-                    sys.exit()
+                    print('Element Detail Not defined', tuple_size, file=sys.stderr)
+                    sys.exit(1)
 
                 counter_normal_inner += 1
 
