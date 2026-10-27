@@ -370,9 +370,8 @@ def assert_monitor_exports(master_path, monitor_names, search_dir):
     after Compile/Solve, rather than silently trusting the export happened.
 
     OpenDSS writes these to '<CircuitName>_Mon_<monitorname>_1.csv' under
-    DataPath (== search_dir here, since DataPath defaults to CWD and the
-    launcher runs this script with cwd=dst_folder) -- verified empirically
-    against a real solve on this machine, not assumed from documentation.
+    DataPath. Compile "<path>/Master.dss" moves DataPath to the folder of
+    Master.dss (ModifiedCircuitData/), so search_dir is that folder.
     """
     if not monitor_names:
         return
@@ -760,7 +759,7 @@ if COMPILE_CIRCUIT and master_dss_path:
 
     # Master.dss's own embedded "Solve"/"Export Monitors" lines run as part of
     # the Compile above; don't just trust that -- confirm the CSVs landed.
-    assert_monitor_exports(master_dss_path, monitor_names, CURRENT_DIR)
+    assert_monitor_exports(master_dss_path, monitor_names, os.path.dirname(master_dss_path))
 else:
     converged = None  # circuit was never compiled/solved
 
