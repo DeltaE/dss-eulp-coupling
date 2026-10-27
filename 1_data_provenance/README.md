@@ -1,38 +1,52 @@
-﻿# EULP Metadata Reproduction
+﻿# Phase 1: EULP metadata
 
-This project is a copy-only clean workspace created from an existing local NREL/OEDI EULP metadata workflow.
+Phase 1 builds the statewide building metadata tables that Phases 3 and 4 read.
+It runs one cluster, `pipeline_state`. The code builds that cluster for the donor
+state of the case, so it holds one state: NC or TX.
 
-Source copied from:
+## Inputs
+
+Phase 1 reads four CSV files under `eulp_metadata_root` in `configs/local.yaml`:
 
 ```
-C:\Users\luisf\Dropbox\1_RESEARCH\1_FOCUS_PhD\6_Paper_3_Expander\workflow_download_metadata
+Metadata_NC_Residential/NC_baseline_metadata_and_annual_results.csv
+Metadata_NC_Commercial/NC_baseline_metadata_and_annual_results.csv
+Metadata_TX_Residential/TX_baseline_metadata_and_annual_results.csv
+Metadata_TX_Commercial/TX_baseline_metadata_and_annual_results.csv
 ```
 
-The source folder was treated as read-only. Large local data are kept under `data_raw/` and `data_derived/historical/`, both gitignored.
+A run reads the residential and commercial pair of its donor state. README.md,
+section "Prerequisites for a cold clone", gives the source of each file.
 
-## Reproduction CLI
+`config/workflow.yaml` names the folder pattern for each dataset and the columns
+that Phase 1 keeps.
 
-The generalized workflow is configured in one file: `config/workflow.yaml`.
+## How it runs
 
-Examples:
+`run_case.py` runs Phase 1. It sets `PIPELINE_EULP_METADATA_ROOT` from
+`eulp_metadata_root` and runs, from this folder with `PYTHONPATH=src`:
 
-```powershell
-$env:PYTHONPATH = "src"
-python -m eulp_metadata.build --list-clusters
-python -m eulp_metadata.build --cluster paper3_baseline --check-inputs
-python -m eulp_metadata.build --cluster paper3_baseline --dry-run
-python -m eulp_metadata.build --cluster paper3_baseline --validate
-python -m eulp_metadata.build --cluster canadian_proxy --validate
+```
+python -m eulp_metadata.build --cluster pipeline_state
 ```
 
-If the local `python` launcher is unavailable, the same commands work through `uv`:
+Without `PIPELINE_EULP_METADATA_ROOT`, the command exits 1 and names
+`eulp_metadata_root`.
 
-```powershell
-$env:UV_CACHE_DIR = ".uv-cache"
-$env:PYTHONPATH = "src"
-uv run --no-project python -m eulp_metadata.build --cluster paper3_baseline --validate
-```
+These flags remain:
 
-Generated CSVs, `manifest.json`, `row_counts.csv`, and validation reports are written under `outputs/<cluster_name>/`.
+- `--check-inputs` reports whether the input CSVs exist. It exits 1 when one is
+  missing.
+- `--dry-run` prints the plan and writes nothing.
+- `--list-clusters` prints the cluster names.
+- `--config` selects another workflow YAML file.
 
-The workflow is cache-first: downloaded metadata CSVs under `data_raw/` are reused by default because downloading them is slow. The recovered download-stage entries in `config/workflow.yaml` are fallback/provenance instructions for rebuilding missing cached source folders.
+## Outputs
+
+Phase 1 writes four files to
+`<workspace>/1_data_provenance/outputs/pipeline_state/`:
+
+- `residential_data_SELECT_STATES.csv`
+- `commercial_data_SELECT_STATES.csv`
+- `manifest.json`: the plan, the inputs and a summary of each table.
+- `row_counts.csv`: rows and columns of each table.
