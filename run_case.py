@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as _dt
+import io
 import json
 import os
 import shutil
@@ -197,8 +198,9 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
                     return False
 
     verify = phase_def.get("verify")
-    if verify and not dry_run:
+    if verify:
         emit(f"  verify --phase {verify}")
+    if verify and not dry_run:
         rc = subprocess.run(f"python verify_fire_test.py --phase {verify}",
                             cwd=REPO_ROOT, env=env, shell=True).returncode
         if rc != 0:
@@ -275,17 +277,27 @@ def main() -> None:
         resolved["work_root"] = str(work_root)
         print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
         if args.all and work_root.exists():
-            sys.exit(f"{work_root.as_posix()} already exists. "
-                     f"A run always starts from an empty workspace.\n"
-                     f"Delete that folder to rerun this case-season, or run a different case.")
+            if args.dry_run:
+                print(f"  note: {work_root.as_posix()} already exists; a run without --dry-run refuses it.")
+            else:
+                sys.exit(f"{work_root.as_posix()} already exists. "
+                         f"A run always starts from an empty workspace.\n"
+                         f"Delete that folder to rerun this case-season, or run a different case.")
         run_dir = runs_root / resolved["case_id"] / season
-        write_manifest(run_dir, resolved, season)
-        prepare_work_root(resolved["work_root"])
+        env = build_env(resolved, season)
+        if args.dry_run:
+            # A dry run writes nothing: no records, no workspace, no log.
+            for key in sorted(k for k in env if k.startswith("PIPELINE_")):
+                print(f"  {key}={env[key]}")
+            log_file = io.StringIO()
+        else:
+            write_manifest(run_dir, resolved, season)
+            prepare_work_root(resolved["work_root"])
+            log_file = open(run_dir / "run_log.txt", "a", encoding="utf-8")
         status = {}
-        with open(run_dir / "run_log.txt", "a", encoding="utf-8") as log:
+        with log_file as log:
             log.write(f"\n##### run {_dt.datetime.now().isoformat(timespec='seconds')} "
                       f"season={season} phases={phase_ids} dry_run={args.dry_run}\n")
-            env = build_env(resolved, season)
             for pid in phase_ids:
                 if pid not in phases:
                     log.write(f"  (no definition for phase {pid}, skipping)\n")
@@ -301,6 +313,9 @@ def main() -> None:
                 if not ok:
                     overall_ok = False
                     break
+        if args.dry_run:
+            print(f"[{season}] dry run: nothing written")
+            continue
         with open(run_dir / "phase_status.json", "w", encoding="utf-8") as fh:
             json.dump(status, fh, indent=2)
         print(f"[{season}] status: {status}  ->  {run_dir}")
