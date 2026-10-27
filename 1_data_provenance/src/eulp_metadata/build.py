@@ -93,13 +93,13 @@ def cluster_output_dir(config: dict[str, Any], cluster_name: str) -> Path:
 
 def _display_path(p):
     try:
-        return str(p.relative_to(PROJECT_ROOT))
+        return p.relative_to(PROJECT_ROOT).as_posix()
     except ValueError:
         pass
     try:
-        return str(p.relative_to(RUNS_ROOT))
+        return p.relative_to(RUNS_ROOT).as_posix()
     except ValueError:
-        return str(p)
+        return p.as_posix()
 
 
 def get_cluster(config: dict[str, Any], name: str) -> dict[str, Any]:
@@ -240,7 +240,7 @@ def build_cluster(config: dict[str, Any], cluster_name: str) -> dict[str, Any]:
     manifest = {
         "cluster": cluster_name,
         "mode": mode,
-        "config": str(DEFAULT_CONFIG.relative_to(PROJECT_ROOT)),
+        "config": DEFAULT_CONFIG.relative_to(PROJECT_ROOT).as_posix(),
         "states": cluster["states"],
         "summaries": {name: summary.to_dict() for name, summary in summaries.items()},
         "plan": plan_cluster(config, cluster_name),
