@@ -21,10 +21,10 @@ START_PROCESS = time.time()
 cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
-DOWNLOAD_DATE = cfg.get('eulp_download_date', '20250330')
+DOWNLOAD_DATE = cfg['eulp_download_date']
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
-PARQUET_DATA_ROOT = Path(cfg.get('parquet_data_root', '../parquet_data'))
+PARQUET_DATA_ROOT = Path(cfg['parquet_data_root'])
 if not PARQUET_DATA_ROOT.is_absolute():
     PARQUET_DATA_ROOT = (REPO_ROOT / PARQUET_DATA_ROOT).resolve()
 

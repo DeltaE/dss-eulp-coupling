@@ -50,15 +50,13 @@ except Exception:
 # ============================ CONFIG ============================
 
 cfg = load_config()
-STATE = cfg['state']
-SEASON = cfg['season']
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 # >>>>>>>>>>>>>>>>>>>>> EDIT THIS PLACEHOLDER <<<<<<<<<<<<<<<<<<<<
 N_CASES      = 1  # <-- PLACEHOLDER. Number of variable scenarios (1..N). "0" stays fixed.
 
 BASE_SEED    = 123          # reproducibility for sampling engines
-SEED0_FIXED  = int(cfg.get('random_seed', 555))          # seed for case "0"
+SEED0_FIXED  = int(cfg['random_seed'])          # seed for case "0"
 SEED_STEP    = 222          # seeds follow 555, 777, 999, ... (seed = SEED0_FIXED + SEED_STEP*case_id)
 
 # Output files

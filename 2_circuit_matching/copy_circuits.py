@@ -23,10 +23,10 @@ except NameError:
 
 cfg = load_config()
 STATE = cfg["state"]
-SMARTDS_ROOT = resolve_config_path(cfg.get("smart_ds_root", "../3_smartds"))
+SMARTDS_ROOT = resolve_config_path(cfg["smart_ds_root"])
 CIRCUITS_PLAIN_DIR = Path(resolve_work_path("2_circuit_matching", "circuits_plain_format"))
 CIRCUITS_PLAIN_DIR.mkdir(parents=True, exist_ok=True)
-REGISTRY_PATH = resolve_config_path(cfg.get("feeder_registry_path", "feeder_registry.json"))
+REGISTRY_PATH = resolve_config_path(cfg["feeder_registry_path"])
 
 MAX_FEEDERS = cfg.get("max_feeders")
 if MAX_FEEDERS is not None:

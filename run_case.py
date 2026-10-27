@@ -150,6 +150,7 @@ def build_env(resolved: dict, season: str) -> dict:
     env["PIPELINE_PARQUET_ROOT"] = resolved["parquet_root"]            # donor pool, Phase 2
     env["PIPELINE_SMART_DS_PARQUET_ROOT"] = resolved["parquet_root"]   # SMART-DS load parquets, Phase 6
     env["PIPELINE_EULP_METADATA_ROOT"] = resolved["eulp_metadata_root"]  # EULP metadata CSVs, Phase 1
+    env["PIPELINE_EULP_DOWNLOAD_DATE"] = str(resolved["eulp_download_date"])  # donor registry
     return env
 
 

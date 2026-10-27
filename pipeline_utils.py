@@ -1,11 +1,44 @@
 import json
 import os
+import sys
 from pathlib import Path
 
 import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parent
+
+# Run values come only from the PIPELINE_* variables that run_case.py sets.
+RUN_VALUES = {
+    "state": "PIPELINE_STATE",
+    "season": "PIPELINE_SEASON",
+    "work_root": "PIPELINE_WORK_ROOT",
+    "smart_ds_root": "PIPELINE_SMART_DS_ROOT",
+    "smart_ds_parquet_root": "PIPELINE_SMART_DS_PARQUET_ROOT",
+    "parquet_data_root": "PIPELINE_PARQUET_ROOT",
+    "max_feeders": "PIPELINE_MAX_FEEDERS",
+    "feeder_registry_path": "PIPELINE_FEEDER_REGISTRY_PATH",
+    "eulp_download_date": "PIPELINE_EULP_DOWNLOAD_DATE",
+}
+
+
+def missing_run_value(key):
+    sys.exit(f"{key} is not set: {RUN_VALUES[key]} is missing. "
+             f"Run the pipeline through run_case.py.")
+
+
+class PipelineConfig(dict):
+    """Config dict. Reading a run value whose PIPELINE_* variable is unset exits 1."""
+
+    def __missing__(self, key):
+        if key in RUN_VALUES:
+            missing_run_value(key)
+        raise KeyError(key)
+
+    def get(self, key, default=None):
+        if key in RUN_VALUES and key not in self:
+            missing_run_value(key)
+        return super().get(key, default)
 
 
 def resolve_config_path(path_value):
@@ -26,21 +59,13 @@ def load_config(config_path=None):
     if config_path is None:
         config_path = REPO_ROOT / "pipeline_config.yaml"
     with open(config_path) as f:
-        cfg = yaml.safe_load(f) or {}
+        cfg = PipelineConfig(yaml.safe_load(f) or {})
 
-    cfg["work_root"] = os.environ.get("PIPELINE_WORK_ROOT", REPO_ROOT)
-    cfg["state"] = os.environ.get("PIPELINE_STATE", cfg["state"])
-    cfg["season"] = os.environ.get("PIPELINE_SEASON", cfg.get("season", "summer"))
-    if os.environ.get("PIPELINE_SMART_DS_ROOT"):
-        cfg["smart_ds_root"] = os.environ["PIPELINE_SMART_DS_ROOT"]
-    if os.environ.get("PIPELINE_SMART_DS_PARQUET_ROOT"):
-        cfg["smart_ds_parquet_root"] = os.environ["PIPELINE_SMART_DS_PARQUET_ROOT"]
-    if os.environ.get("PIPELINE_PARQUET_ROOT"):
-        cfg["parquet_data_root"] = os.environ["PIPELINE_PARQUET_ROOT"]
-    if os.environ.get("PIPELINE_FEEDER_REGISTRY_PATH"):
-        cfg["feeder_registry_path"] = os.environ["PIPELINE_FEEDER_REGISTRY_PATH"]
-    if os.environ.get("PIPELINE_MAX_FEEDERS"):
-        max_feeders = os.environ["PIPELINE_MAX_FEEDERS"]
+    for key, var in RUN_VALUES.items():
+        if os.environ.get(var):
+            cfg[key] = os.environ[var]
+    if "max_feeders" in cfg:
+        max_feeders = cfg["max_feeders"]
         cfg["max_feeders"] = None if max_feeders.lower() in {"none", "null"} else int(max_feeders)
     return cfg
 
