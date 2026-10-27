@@ -5,26 +5,14 @@ Load Profiles (EULP) for distribution system planning under uncertainty.
 
 ## Configuration
 
-Edit `pipeline_config.yaml` at the repository root before running the pipeline:
+Each value has one owner:
 
-```yaml
-state: "NC"
-season: "summer"
-smart_ds_root: "../3_smartds"
-smart_ds_parquet_root: "3b_smartds_eulp_match/parquet_data"
-parquet_data_root: "../parquet_data"
-eulp_download_date: "20250330"
-random_seed: 555
-```
+- `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root` and `runs_root`. Copy it from `configs/local.yaml.example`.
+- A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
+- `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits` and `quota`.
 
-`PIPELINE_STATE`, `PIPELINE_SEASON`, and path overrides replace the YAML values
-when set:
-
-```powershell
-$env:PIPELINE_STATE = "TX"
-$env:PIPELINE_SEASON = "summer"
-$env:PIPELINE_SMART_DS_PARQUET_ROOT = "D:\path\to\smartds\parquet_data"
-```
+`run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
 The primary runnable scripts are state-agnostic.
 
@@ -33,7 +21,7 @@ The primary runnable scripts are state-agnostic.
 | Phase | Folder | Purpose |
 | --- | --- | --- |
 | pre | `0_download_smartds/` | Download SMART-DS feeders from OEDI and stage plain OpenDSS circuits |
-| 0 | `0_experimental_design/` | Generate `mixes_lhs.json` for circuit instantiation |
+| 0 | `0_experimental_design/` | Hold the fixed mixes (`mixes_fixed.json`); generate LHS and Sobol mixes (`mixes_lhs.json`, `mixes_sobol.json`) outside the repository |
 | 1 | `1_data_provenance/` | Build state-specific EULP metadata CSVs |
 | 2 | `2_circuit_matching/` | Flatten SMART-DS feeders and review parquet matches |
 | 3 | `3_tolerance_matching/` | Match feeder peaks to EULP buildings |
@@ -49,7 +37,7 @@ The primary runnable scripts are state-agnostic.
 ## Prerequisites
 
 - Python 3.9+ with `pip install -r requirements.txt`.
-- SMART-DS feeder data from OEDI, with `smart_ds_root` pointing to the extracted feeder root.
+- SMART-DS feeder data from OEDI, with `smart_ds_base` in `configs/local.yaml` pointing to the data root.
 - OEDI / NREL EULP metadata and profile access. The download scripts use public OEDI S3 endpoints.
 - Enough local disk for parquet and CSV profile data.
 - Windows + OpenDSS installed for phase 7 (`comtypes` uses the OpenDSS COM interface).
@@ -92,107 +80,60 @@ python run_case.py --case configs/cases/TX_AUS_urban__NC.yaml --all --season win
 python run_case.py --case configs/cases/TX_AUS_urban__TX.yaml --all --season winter
 ```
 
+Each run writes its workspace to `<runs_root>/<case>/<season>/workspace/`. `--all` refuses to start when the workspace of any requested season already exists. `--dry-run` prints the resolved variables and every command, and writes nothing.
+
 ### Reproduction record
 
 Verified on 2026-09-21. A fresh clone at `61461cd` reproduced all eight case-seasons on Windows, with Python 3.11.7 and OpenDSS 9.8.0.1 through the COM interface. The comparison covered 110,268 output files. All matched byte for byte. Eight `row_counts.csv` files are excluded because they record absolute paths. `validation_summary.csv` is no longer produced.
 
 ## Run Sequence
 
-Run these from the repository root unless the command uses `Push-Location`.
+`run_case.py` runs every phase with the `PIPELINE_*` variables set. To run one phase by hand, run it through `run_case.py` from the repository root. `--phase <id>` runs that phase in the existing workspace:
 
 ```powershell
-# Optional pre-stage. Download SMART-DS and stage flat feeder folders.
-python .\0_download_smartds\download_smartds.py `
-  --regions GSO `
-  --subregions rural `
-  --scenarios base_timeseries `
-  --only-opendss
-python .\0_download_smartds\stage_circuits_plain.py `
-  --smartds-root .\0_download_smartds\data_raw\smartds `
-  --target .\ab_3b\circuits_plain_format `
-  --registry .\feeder_registry.json
-
-# 0. Experimental design
-python .\0_experimental_design\run_mix_generator.py
-
-# 1. State metadata from pipeline_config.yaml
-Push-Location .\1_data_provenance
-$env:PYTHONPATH = "src"
-$env:PIPELINE_EULP_METADATA_ROOT = "D:/lvg/eulp_metadata"  # eulp_metadata_root in configs/local.yaml
-python -m eulp_metadata.build --cluster pipeline_state
-Pop-Location
-
-# 2. Circuit matching
-Push-Location .\2_circuit_matching
-python .\copy_circuits.py
-python .\circuit_make_daily_list_sets.py
-python .\review_parquet_matches.py
-Pop-Location
-
-# 3. Tolerance matching
-Push-Location .\3_tolerance_matching
-python .\phase3_match.py
-Pop-Location
-
-# 4. Quota assignment
-Push-Location .\4_quota_assignment
-python .\phase4_cleanup.py
-python .\phase4_select.py
-Pop-Location
-
-# 5a. Download EULP parquets
-Push-Location .\5a_eulp_downloads
-python .\phase5a_download_residential.py
-python .\phase5a_download_commercial.py
-Pop-Location
-
-# 5b. Baseline profiles
-Push-Location .\5b_profile_generation
-python .\phase5b_scale.py
-python .\phase5b_peak.py
-Pop-Location
-
-# 5d. Scenario controls for DM/uncontrolled variants
-Push-Location .\5d_scenario_controls
-python .\combine_scenarios.py
-python .\get_scenario_csv_controls.py
-Pop-Location
-
-# 5b. DM and uncontrolled peak-day variants
-Push-Location .\5b_profile_generation
-python .\phase5b_variants_dm.py
-python .\phase5b_variants_uncontrolled.py
-Pop-Location
-
-# 5c. CSV conversion
-Push-Location .\5c_csv_conversion
-python .\parquet_to_csv.py
-Pop-Location
-
-# 6. Kvar preparation
-Push-Location .\6_kvar_preparation
-python .\save_needed_sd_parquets.py
-python .\compute_kvar_kw_ratios.py
-python .\generate_kvar_csvs.py
-Pop-Location
-
-# 7a. Profile bridge folders and the workspace copy of the mixes file (mixes.json)
-python .\bridge_phase5c_to_phase7.py
-
-# 7. Circuit instantiation, OpenDSS runs, QA, aggregation
-Push-Location .\7_circuit_instantiation
-python .\instantiate_circuits.py
-python .\run_circuits.py
-python .\aggregate_m1_m2_with_circuits.py
-Pop-Location
-
-# 8. Results analysis
-Push-Location .\8_results_analysis
-python .\append_experiment_results.py
-python .\append_xlrm_long_format.py
-python .\figure_generation_methodsx_v3.py
-Pop-Location
+python run_case.py --case <case> --phase <id> --season <season>
 ```
+
+`--all` runs these phases in this order:
+
+```powershell
+python run_case.py --case <case> --phase pre --season <season>          # SMART-DS registry and load scan
+python run_case.py --case <case> --phase 1 --season <season>            # EULP metadata
+python run_case.py --case <case> --phase 2 --season <season>            # circuit matching
+python run_case.py --case <case> --phase 3 --season <season>            # tolerance matching
+python run_case.py --case <case> --phase 4 --season <season>            # quota assignment
+python run_case.py --case <case> --phase 5a --season <season>           # EULP parquet downloads
+python run_case.py --case <case> --phase 5b --season <season>           # baseline profiles
+python run_case.py --case <case> --phase 5d --season <season>           # scenario controls (combine_scenarios.py)
+python run_case.py --case <case> --phase 5b_variants --season <season>  # DM and uncontrolled profiles
+python run_case.py --case <case> --phase 5c --season <season>           # CSV conversion
+python run_case.py --case <case> --phase 5c_variants --season <season>  # CSV conversion, DM and uncontrolled
+python run_case.py --case <case> --phase 6 --season <season>            # kvar preparation
+python run_case.py --case <case> --phase 6_variants --season <season>   # kvar preparation, DM and uncontrolled
+python run_case.py --case <case> --phase 7a --season <season>           # profile bridge and mixes.json
+python run_case.py --case <case> --phase 7b --season <season>           # circuit instantiation
+python run_case.py --case <case> --phase 7c --season <season>           # OpenDSS runs
+python run_case.py --case <case> --phase 8 --season <season>            # aggregation and results
+```
+
+`configs/phases.yaml` lists the scripts of each phase. Each phase reads the outputs of the phases before it, so a hand run starts with `pre` in an empty workspace.
+
+These steps are outside the phases:
+
+```powershell
+# Download SMART-DS from OEDI into <smart_ds_base>/<region>/<subregion>/.
+python .\0_download_smartds\download_smartds.py `
+  --regions GSO AUS `
+  --subregions urban-suburban P2U `
+  --scenarios base_timeseries `
+  --only-opendss `
+  --output-dir <smart_ds_base>
+
+# Generate LHS and Sobol mixes into <runs_root>/0_experimental_design/, or into the --out folder.
+python .\0_experimental_design\run_mix_generator.py --out <folder>
+```
+
+`run_mix_generator.py` writes nothing inside the repository. `--all` does not use its output: Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names.
 
 ## Key Handoffs
 
@@ -202,7 +143,7 @@ Pop-Location
 | `{STATE}_required_parquets_per_feeder_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5b_profile_generation/phase5b_variants_dm.py` |
 | `{STATE}_parquet_and_bldgs_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5c_csv_conversion/parquet_to_csv.py` |
 | `profiles_use_bench/` | `7_circuit_instantiation/instantiate_circuits.py` | `7_circuit_instantiation/power_flow_sim_daily_EV_STO_DG_deploy.py` |
-| `mixes_fixed.json` | `0_experimental_design/run_mix_generator.py` | `7_circuit_instantiation/instantiate_circuits.py` |
+| `0_experimental_design/mixes_fixed.json` (three hand-set mixes, tracked) | Set by hand, not by `run_mix_generator.py` | `bridge_phase5c_to_phase7.py` (Phase 7a) copies it to `<ws>/7_circuit_instantiation/mixes.json`, which `7_circuit_instantiation/instantiate_circuits.py` reads |
 
 ## Citation
 

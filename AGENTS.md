@@ -28,8 +28,9 @@ python run_case.py --case configs/cases/<case>.yaml --all --season <summer|winte
 ```
 
 Cases: `NC_GSO_urban__NC`, `NC_GSO_urban__TX`, `TX_AUS_urban__NC`,
-`TX_AUS_urban__TX`. Outputs go to `runs/<case>/<season>/workspace/`.
-`runs/` is generated and untracked.
+`TX_AUS_urban__TX`. Outputs go to `<runs_root>/<case>/<season>/workspace/`,
+with `runs_root` from `configs/local.yaml` (`runs` by default). `runs/` is
+generated and untracked.
 
 ## Layout
 
@@ -51,12 +52,13 @@ outside the repository.
   unrequested refactoring.
 - No hash or checksum verification in pipeline code.
 - No new tracked files unless the task asks for them.
-- Never delete. Move to an archive outside the repository and record the
-  move.
+- Never delete. Tracked files removed from `main` stay on the branch
+  `archive/pre-v1.0.0` and in history. Untracked files move to the archive
+  outside the repository, and the summary records the move.
 - Never push. Never rewrite history on `main`: commit SHAs are cited in
   `README.md` and in the manuscript.
 - Pipeline outputs belong under the case-season workspace. Nothing is
-  written to the repository root.
+  written inside the repository.
 - Do not commit generated data: Parquet, spreadsheets, Tableau workbooks,
   large CSVs.
 - Before removing a file, confirm nothing reads it: check

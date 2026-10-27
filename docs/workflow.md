@@ -32,9 +32,9 @@ dss-eulp-coupling/
 
 `pre`, `1`, `2`, `3`, `4`, `5a`, `5b`, `5d`, `5b_variants`, `5c`, `5c_variants`, `6`, `6_variants`, `7a`, `7b`, `7c`, `8`.
 
-`configs/phases.yaml` defines the steps of each phase. `run_case.py` sets `PIPELINE_WORK_ROOT` to `runs/<case>/<season>/workspace/`, written `<ws>` below. Every phase reads and writes under `<ws>`. `--all` refuses to start when `<ws>` already exists. Delete that folder to rerun the case-season. `--phase <id>` reruns one phase in the existing workspace.
+`configs/phases.yaml` defines the steps of each phase. `run_case.py` sets `PIPELINE_WORK_ROOT` to `<runs_root>/<case>/<season>/workspace/`, written `<ws>` below. `runs_root` comes from `configs/local.yaml` and is `runs` by default. Every phase reads and writes under `<ws>`. Before anything runs, `--all` checks the workspace of every requested season and refuses to start when any exists. Delete those folders to rerun the case-seasons. `--phase <id>` reruns one phase in the existing workspace. `--dry-run` prints the resolved variables and every command, and writes nothing.
 
-`--all` does not run `0_experimental_design`. Phase 7a copies the tracked `0_experimental_design/mixes_fixed.json` into the workspace.
+`--all` does not run `0_experimental_design`. Phase 7a copies the mixes file that `mixes_file` in `configs/defaults.yaml` names, the tracked `0_experimental_design/mixes_fixed.json`, into the workspace. `run_mix_generator.py --out <folder>` writes LHS and Sobol mixes to that folder, by default `<runs_root>/0_experimental_design/`.
 
 ### Phase pre: SMART-DS staging (0_download_smartds)
 
@@ -44,7 +44,7 @@ dss-eulp-coupling/
 
 ### Phase 1: EULP metadata (1_data_provenance)
 
-Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTHONPATH=src`. Its inputs are four EULP baseline metadata CSVs under `eulp_metadata_root`: `Metadata_<ST>_Residential/<ST>_baseline_metadata_and_annual_results.csv` and `Metadata_<ST>_Commercial/<ST>_baseline_metadata_and_annual_results.csv`, for ST = NC and TX. A run reads the pair for its donor state. The residential files come from the OEDI ResStock TMY3 release 2 and the commercial files from the OEDI ComStock AMY2018 release 1, both in the 2024 End-Use Load Profiles collection. `README.md`, section "Prerequisites for a cold clone", gives the direct URLs. Phase 1 writes `residential_data_SELECT_STATES.csv`, `commercial_data_SELECT_STATES.csv`, `manifest.json` and `row_counts.csv` to `<ws>/1_data_provenance/outputs/pipeline_state/`. The manifest and the row counts give output paths relative to `runs/`.
+Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTHONPATH=src`. Its inputs are four EULP baseline metadata CSVs under `eulp_metadata_root`: `Metadata_<ST>_Residential/<ST>_baseline_metadata_and_annual_results.csv` and `Metadata_<ST>_Commercial/<ST>_baseline_metadata_and_annual_results.csv`, for ST = NC and TX. A run reads the pair for its donor state. The residential files come from the OEDI ResStock TMY3 release 2 and the commercial files from the OEDI ComStock AMY2018 release 1, both in the 2024 End-Use Load Profiles collection. `README.md`, section "Prerequisites for a cold clone", gives the direct URLs. Phase 1 writes `residential_data_SELECT_STATES.csv`, `commercial_data_SELECT_STATES.csv`, `manifest.json` and `row_counts.csv` to `<ws>/1_data_provenance/outputs/pipeline_state/`. The manifest and the row counts give output paths relative to the runs root, with forward slashes.
 
 ### Phase 2: Circuit matching (2_circuit_matching)
 
@@ -66,8 +66,8 @@ Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTH
 
 ### Phases 5b, 5d and 5b_variants: profile generation
 
-- `5b` (`5b_profile_generation`): `run_case.py` copies the two Phase 4 final CSVs into `<ws>/5b_profile_generation/`. `phase5b_scale.py` runs `scale_feeder_curves_impl.py`. `phase5b_peak.py` runs `find_max_day_curve_impl.py`. Together they build the baseline profiles.
-- `5d` (`5d_scenario_controls`): `combine_scenarios.py` and then `get_scenario_csv_controls.py` select the controls for the demand management (DM) and uncontrolled variants.
+- `5b` (`5b_profile_generation`): `phase5b_scale.py` runs `scale_feeder_curves_impl.py`. It reads the two Phase 4 final CSVs from `<ws>/4_quota_assignment/`. `phase5b_peak.py` runs `find_max_day_curve_impl.py`. Together they build the baseline profiles.
+- `5d` (`5d_scenario_controls`): `combine_scenarios.py` writes `<ws>/5d_scenario_controls/combine_scenarios/combined_scenarios.csv`. `get_scenario_csv_controls.py` then reads it and selects the controls for the demand management (DM) and uncontrolled variants.
 - `5b_variants` (`5b_profile_generation`): `phase5b_variants_dm.py` and `phase5b_variants_uncontrolled.py` build the DM and uncontrolled profiles.
 
 ### Phases 5c and 5c_variants: CSV conversion (5c_csv_conversion)
@@ -83,7 +83,7 @@ Both phases write `_kvar_` CSVs beside the `_kw_` CSVs.
 
 ### Phases 7a, 7b and 7c: circuit instantiation and simulation (7_circuit_instantiation)
 
-- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies `0_experimental_design/mixes_fixed.json` byte for byte to `<ws>/7_circuit_instantiation/mixes.json`. It checks the feeder registry at `<ws>/feeder_registry.json`.
+- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.json`) byte for byte to `<ws>/7_circuit_instantiation/mixes.json`, and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
 - `7b` runs `instantiate_circuits.py`. It reads `<ws>/7_circuit_instantiation/mixes.json`. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
 - `7c` runs `run_circuits.py --root <ws>/7_circuit_instantiation`. It runs the patched runner in each circuit folder and logs to `<ws>/7_circuit_instantiation/run_log.txt`. No phase runs the runner in the repository folder.
 
@@ -92,7 +92,7 @@ Both phases write `_kvar_` CSVs beside the `_kw_` CSVs.
 1. `aggregate_m1_m2_with_circuits.py` runs in `7_circuit_instantiation/`. It writes `aggregate_m1.csv`, `aggregate_m2.csv` and `circuit_summary.csv` to `<ws>/7_circuit_instantiation/`.
 2. `append_experiment_results.py` runs in `8_results_analysis/`. It reads `aggregate_m2.csv`, `circuit_summary.csv` and `heating_assignment__FULL.csv` from `<ws>/7_circuit_instantiation/`. It tags every row with the season, and with `design` set to the donor state. It writes `aggregate_m2_combined.csv`, `circuit_summary_combined.csv` and `heating_assignment__FULL_combined.csv` to `<ws>/8_results_analysis/`. It exits with an error when an input file is missing.
 
-Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combined.csv` from all eight case-seasons into `m2_all_cases_all_seasons.csv` in the runs root (`runs_root` in `configs/local.yaml`, `runs/` by default). `validate_2x2.py` checks that file and writes `peaks_per_combo.csv` to the runs root. `--all` runs neither script.
+Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combined.csv` from all eight case-seasons into `m2_all_cases_all_seasons.csv` in the runs root (`runs_root` in `configs/local.yaml`, `runs/` by default). `gather_m2_cases.py` reads the workspaces under the runs root. `validate_2x2.py` checks that file. It exits 1 when it finds fewer than 12 `circuit_folder` values, before it writes anything. Otherwise it writes `peaks_per_combo.csv` to the runs root. `--all` runs neither script.
 
 ## 3.3 Configuration Highlights
 
@@ -100,7 +100,7 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 - **Topologies:** `NC_GSO_urban_uhs13_1247` and `TX_AUS_urban_p2uhs12_1247` (`configs/topology_registry.yaml`).
 - **Seasons:** summer and winter (`configs/defaults.yaml`).
 - **Circuit filtering:** Phase 7b skips the circuits listed in `skip_circuits` in `pipeline_config.yaml`. The list is empty, so `--all` skips no circuit.
-- **Scenario mixes:** `--all` uses the three fixed mixes in `0_experimental_design/mixes_fixed.json`. `run_mix_generator.py` in the same folder generates LHS and Sobol mixes, but `--all` does not run it.
+- **Scenario mixes:** `--all` uses the three fixed mixes in `0_experimental_design/mixes_fixed.json`, the file that `mixes_file` in `configs/defaults.yaml` names. `run_mix_generator.py` in the same folder generates LHS and Sobol mixes outside the repository, but `--all` does not run it.
 
 | Mix | EV | Storage (3-phase loads) | PV (3-phase loads) | Heat pump shares (baseline / DM / uncontrolled) |
 | --- | --- | --- | --- | --- |
@@ -128,26 +128,32 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 
 ### Configuration
 
-`run_case.py` sets `PIPELINE_*` environment variables. Each one overrides the matching key in `pipeline_config.yaml`.
+`run_case.py` sets `PIPELINE_*` environment variables. The scripts read the run values only from these variables. A script that reads a run value whose variable is not set exits 1 and names the variable.
 
 | Variable | Meaning |
 | --- | --- |
-| `PIPELINE_STATE` | Two-letter code of the donor state. It sets state-specific metadata, file names and folder prefixes. |
-| `PIPELINE_SMART_DS_ROOT` | Root of the SMART-DS OpenDSS feeder folders. The feeder registry stores paths relative to this root. |
+| `PIPELINE_STATE` | Two-letter code of the donor state, from `donor_state` in `configs/donor_registry.yaml`. It sets state-specific metadata, file names and folder prefixes. |
+| `PIPELINE_SEASON` | `summer` or `winter`, from `--season` or `seasons` in `configs/defaults.yaml`. |
+| `PIPELINE_WORK_ROOT` | The workspace, `<runs_root>/<case>/<season>/workspace`. |
+| `PIPELINE_RUNS_ROOT` | `runs_root` from `configs/local.yaml`, absolute, with forward slashes. Phase 1 writes its output paths relative to it. |
+| `PIPELINE_SMART_DS_ROOT` | Root of the SMART-DS OpenDSS feeder folders: `smart_ds_base` from `configs/local.yaml`, then `smart_ds_relpath` and `circuit_folder` from `configs/topology_registry.yaml`. The feeder registry stores paths relative to this root. |
 | `PIPELINE_FEEDER_REGISTRY_PATH` | Path of the feeder registry. `run_case.py` sets it to `feeder_registry.json` in the workspace. |
-| `PIPELINE_MAX_FEEDERS` | Feeder limit for fire tests. The value `none` or `null` removes the limit. |
-| `PIPELINE_SMART_DS_PARQUET_ROOT` | Original SMART-DS load parquets with kW and kvar. Phase 6 reads them. |
-| `PIPELINE_EULP_METADATA_ROOT` | Folder of the four EULP baseline metadata CSVs, from `eulp_metadata_root` in `configs/local.yaml`. Phase 1 reads them. It overrides `paths.data_raw` in `1_data_provenance/config/workflow.yaml`. |
+| `PIPELINE_MAX_FEEDERS` | Feeder limit, from `execution.max_feeders` in the case file. The value `none` or `null` removes the limit. |
+| `PIPELINE_PARQUET_ROOT` | EULP parquet pool of the topology: the `parquet_data` folder beside its OpenDSS tree under `smart_ds_base`, or `parquet_relpath` in `configs/topology_registry.yaml`. Phases 2, 5a, 5b, 5d and 5b_variants use it. |
+| `PIPELINE_SMART_DS_PARQUET_ROOT` | Original SMART-DS load parquets with kW and kvar, the same folder as `PIPELINE_PARQUET_ROOT`. Phase 6 reads them. |
+| `PIPELINE_EULP_METADATA_ROOT` | Folder of the four EULP baseline metadata CSVs, from `eulp_metadata_root` in `configs/local.yaml`. Phase 1 reads them. |
+| `PIPELINE_EULP_DOWNLOAD_DATE` | Date stamp in the EULP download folder names, from `eulp_download_date` of the donor in `configs/donor_registry.yaml`. |
+| `PIPELINE_MIXES_FILE` | Mixes file that Phase 7a copies, from `mixes_file` in `configs/defaults.yaml`, absolute, with forward slashes. |
 
-These keys still come from `pipeline_config.yaml`:
+`pipeline_config.yaml` holds only the method parameters:
 
-- `eulp_download_date` is the date stamp in the EULP download folder names.
-- `random_seed` seeds representative building selection in Phase 4.
+- `random_seed` seeds representative building selection in Phase 4 and case `0` of `run_mix_generator.py`.
 - `skip_circuits` lists numeric `circuit_id` values that Phase 7 skips.
+- `quota` sets the Phase 4 quota rules.
 
 ### Phase outputs
 
-Outputs land in `runs/<case>/<season>/workspace/`. Phase 5a writes its EULP parquets to the parquet data root.
+Outputs land in `<runs_root>/<case>/<season>/workspace/`. Phase 5a writes its EULP parquets to the parquet data root.
 
 | Phase | Scripts | Outputs |
 | --- | --- | --- |
