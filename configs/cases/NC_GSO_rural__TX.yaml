@@ -1,0 +1,5 @@
+case_id: NC_GSO_rural__TX        # the already-proven generalization case
+topology_id: NC_GSO_rural_uhs0_1247
+donor_id: TX
+execution:
+  max_feeders: 2

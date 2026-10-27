@@ -1,0 +1,38 @@
+# Extraction log — 2026-03-17 22:43:36
+# Source: C:\Users\luisfernando\Desktop\phd_workspace\j-uncertainty-grid-modernisation
+# Dest:   C:\Users\luisfernando\Desktop\phd_workspace\dss-eulp-coupling
+
+COPIED   dss_xlrm/0_code_xlrm/run_mix_generator.py → 1_experimental_design/run_mix_generator.py
+COPIED   dss_xlrm/1b_smartds_eulp_match/copy_circuits.py → 2_circuit_matching/copy_circuits.py
+COPIED   dss_xlrm/1b_smartds_eulp_match/circuit_make_daily_list_sets.py → 2_circuit_matching/circuit_make_daily_list_sets.py
+COPIED   dss_xlrm/1b_smartds_eulp_match/review_parquet_matches.py → 2_circuit_matching/review_parquet_matches.py
+COPIED   dss_xlrm/1b_smartds_eulp_match/README.txt → 2_circuit_matching/README.txt
+COPIED   dss_xlrm/1b_smartds_eulp_match/match_smartds_parquets_NC.py → 3_tolerance_matching/match_smartds_parquets_NC.py
+COPIED   dss_xlrm/1b_smartds_eulp_match/clean_up_bldgs_NC.py → 4_quota_assignment/clean_up_bldgs_NC.py
+COPIED   dss_xlrm/1b_smartds_eulp_match/select_rep_family_NC.py → 4_quota_assignment/select_rep_family_NC.py
+COPIED   dss_xlrm/1c_eulp_downloads/download_parquets_homes_NC.py → 5a_eulp_downloads/download_parquets_homes_NC.py
+COPIED   dss_xlrm/1c_eulp_downloads/download_parquets_homes_NC_redo.py → 5a_eulp_downloads/download_parquets_homes_NC_redo.py
+COPIED   dss_xlrm/1c_eulp_downloads/download_parquets_commercial_NC.py → 5a_eulp_downloads/download_parquets_commercial_NC.py
+COPIED   dss_xlrm/1c_eulp_downloads/download_parquets_commercial_NC_redo.py → 5a_eulp_downloads/download_parquets_commercial_NC_redo.py
+COPIED   dss_xlrm/1c_eulp_downloads/pds_database_address.txt → 5a_eulp_downloads/pds_database_address.txt
+COPIED   dss_xlrm/1c_eulp_downloads/README.txt → 5a_eulp_downloads/README.txt
+COPIED   dss_xlrm/4_profiles_heat_pumps_dm/find_max_day_curve_NC_dm.py → 5b_profile_generation/find_max_day_curve_NC_dm.py
+COPIED   dss_xlrm/4_profiles_heat_pumps_dm/daily_csvs/parquet_to_csv.py → 5c_csv_conversion/parquet_to_csv.py
+COPIED   dss_xlrm/3_kvar_kw_prep/rev_spec_kvar_kw_ratio.py → 6_kvar_preparation/rev_spec_kvar_kw_ratio.py
+COPIED   dss_xlrm/4_profiles_heat_pumps_dm/daily_csvs/generate_kvar_csvs.py → 6_kvar_preparation/generate_kvar_csvs.py
+COPIED   dss_xlrm/3_kvar_kw_prep/README.txt → 6_kvar_preparation/README.txt
+COPIED   dss_xlrm/6_instantiate_circuits_summer_lhs/uhs0_1247_circuit_1_0/power_flow_sim_daily_EV_STO_DG_deploy.py → 7_circuit_instantiation/power_flow_sim_daily_EV_STO_DG_deploy.py
+COPIED   docs/index.md → docs/index.md
+COPIED   docs/intro.md → docs/intro.md
+COPIED   docs/install.md → docs/install.md
+COPIED   docs/workflow.md → docs/workflow.md
+COPIED   docs/outputs.md → docs/outputs.md
+COPIED   docs/examples.md → docs/examples.md
+COPIED   docs/troubleshooting.md → docs/troubleshooting.md
+COPIED   docs/glossary.md → docs/glossary.md
+COPIED   docs/api.md → docs/api.md
+COPIED   docs/conf.py → docs/conf.py
+COPIED   docs/requirements.txt → docs/requirements.txt
+COPIED   .readthedocs.yaml → .readthedocs.yaml
+COPIED   .gitignore → .gitignore
+CREATED  README.md
