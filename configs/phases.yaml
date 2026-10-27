@@ -54,8 +54,6 @@ pre:
 
 "5b":
   steps:
-    - copy: ["{work_root}/4_quota_assignment/{state}_final_commercial.csv", "{work_root}/5b_profile_generation/"]
-    - copy: ["{work_root}/4_quota_assignment/{state}_final_residential.csv", "{work_root}/5b_profile_generation/"]
     - cmd: "{python} phase5b_scale.py"
       cwd: 5b_profile_generation
     - cmd: "{python} phase5b_peak.py"
