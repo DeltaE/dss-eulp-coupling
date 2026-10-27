@@ -44,7 +44,7 @@ dss-eulp-coupling/
 
 ### Phase 1: EULP metadata (1_data_provenance)
 
-Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTHONPATH=src`. It writes `residential_data_SELECT_STATES.csv`, `commercial_data_SELECT_STATES.csv`, `manifest.json` and `row_counts.csv` to `<ws>/1_data_provenance/outputs/pipeline_state/`. The manifest and the row counts give output paths relative to `runs/`.
+Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTHONPATH=src`. Its inputs are four EULP baseline metadata CSVs under `eulp_metadata_root`: `Metadata_<ST>_Residential/<ST>_baseline_metadata_and_annual_results.csv` and `Metadata_<ST>_Commercial/<ST>_baseline_metadata_and_annual_results.csv`, for ST = NC and TX. A run reads the pair for its donor state. The residential files come from the OEDI ResStock TMY3 release 2 and the commercial files from the OEDI ComStock AMY2018 release 1, both in the 2024 End-Use Load Profiles collection. `README.md`, section "Prerequisites for a cold clone", gives the direct URLs. Phase 1 writes `residential_data_SELECT_STATES.csv`, `commercial_data_SELECT_STATES.csv`, `manifest.json` and `row_counts.csv` to `<ws>/1_data_provenance/outputs/pipeline_state/`. The manifest and the row counts give output paths relative to `runs/`.
 
 ### Phase 2: Circuit matching (2_circuit_matching)
 
@@ -124,7 +124,7 @@ This section describes what `python run_case.py --case <case> --all` runs. `conf
 
 ### Setup
 
-Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths, including the SMART-DS data root.
+Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths: `smart_ds_base` for the SMART-DS data root and `eulp_metadata_root` for the EULP metadata data root. Both are required.
 
 ### Configuration
 
@@ -137,6 +137,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 | `PIPELINE_FEEDER_REGISTRY_PATH` | Path of the feeder registry. `run_case.py` sets it to `feeder_registry.json` in the workspace. |
 | `PIPELINE_MAX_FEEDERS` | Feeder limit for fire tests. The value `none` or `null` removes the limit. |
 | `PIPELINE_SMART_DS_PARQUET_ROOT` | Original SMART-DS load parquets with kW and kvar. Phase 6 reads them. |
+| `PIPELINE_EULP_METADATA_ROOT` | Folder of the four EULP baseline metadata CSVs, from `eulp_metadata_root` in `configs/local.yaml`. Phase 1 reads them. It overrides `paths.data_raw` in `1_data_provenance/config/workflow.yaml`. |
 
 These keys still come from `pipeline_config.yaml`:
 

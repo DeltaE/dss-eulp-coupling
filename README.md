@@ -56,26 +56,28 @@ The primary runnable scripts are state-agnostic.
 
 ## Prerequisites for a cold clone
 
-Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths, including the SMART-DS data root.
+Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths: `smart_ds_base` for the SMART-DS data root and `eulp_metadata_root` for the EULP metadata data root.
 
-The pipeline resolves two SMART-DS topologies under that root. Each provides a `base_timeseries/opendss/<feeder>` tree and a co-located `parquet_data` pool:
+The pipeline resolves two SMART-DS topologies under `smart_ds_base`. Each provides a `base_timeseries/opendss/<feeder>` tree and a co-located `parquet_data` pool:
 
 - `GSO/urban-suburban/` (feeder `uhs13_1247`)
 - `AUS/P2U/` (feeder `p2uhs12_1247`)
 
-Place the four EULP baseline metadata CSVs at these paths:
+Place the four EULP baseline metadata CSVs at these paths under `eulp_metadata_root`:
 
-- `1_data_provenance/data_raw/Metadata_NC_Residential/NC_baseline_metadata_and_annual_results.csv`
-- `1_data_provenance/data_raw/Metadata_NC_Commercial/NC_baseline_metadata_and_annual_results.csv`
-- `1_data_provenance/data_raw/Metadata_TX_Residential/TX_baseline_metadata_and_annual_results.csv`
-- `1_data_provenance/data_raw/Metadata_TX_Commercial/TX_baseline_metadata_and_annual_results.csv`
+- `Metadata_NC_Residential/NC_baseline_metadata_and_annual_results.csv`
+- `Metadata_NC_Commercial/NC_baseline_metadata_and_annual_results.csv`
+- `Metadata_TX_Residential/TX_baseline_metadata_and_annual_results.csv`
+- `Metadata_TX_Commercial/TX_baseline_metadata_and_annual_results.csv`
 
-Each CSV comes from its OEDI collection:
+Keep the file names exactly as downloaded, because Phase 1 writes them into its outputs.
 
-- NC residential: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fresstock_tmy3_release_2%2Fmetadata_and_annual_results%2Fby_state%2Fstate%3DNC%2Fcsv%2F
-- NC commercial: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fcomstock_amy2018_release_1%2Fmetadata_and_annual_results%2Fby_state%2Fstate%3DNC%2Fcsv%2F
-- TX residential: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fresstock_tmy3_release_2%2Fmetadata_and_annual_results%2Fby_state%2Fstate%3DTX%2Fcsv%2F
-- TX commercial: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F2024%2Fcomstock_amy2018_release_1%2Fmetadata_and_annual_results%2Fby_state%2Fstate%3DTX%2Fcsv%2F
+Each CSV downloads directly from OEDI. Each URL returns the exact bytes the pipeline uses:
+
+- NC residential: https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/resstock_tmy3_release_2/metadata_and_annual_results/by_state/state=NC/csv/NC_baseline_metadata_and_annual_results.csv
+- NC commercial: https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/comstock_amy2018_release_1/metadata_and_annual_results/by_state/state=NC/csv/NC_baseline_metadata_and_annual_results.csv
+- TX residential: https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/resstock_tmy3_release_2/metadata_and_annual_results/by_state/state=TX/csv/TX_baseline_metadata_and_annual_results.csv
+- TX commercial: https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/comstock_amy2018_release_1/metadata_and_annual_results/by_state/state=TX/csv/TX_baseline_metadata_and_annual_results.csv
 
 Run these eight commands from the repository root:
 
@@ -116,6 +118,7 @@ python .\0_experimental_design\run_mix_generator.py
 # 1. State metadata from pipeline_config.yaml
 Push-Location .\1_data_provenance
 $env:PYTHONPATH = "src"
+$env:PIPELINE_EULP_METADATA_ROOT = "D:/lvg/eulp_metadata"  # eulp_metadata_root in configs/local.yaml
 python -m eulp_metadata.build --cluster pipeline_state
 Pop-Location
 
