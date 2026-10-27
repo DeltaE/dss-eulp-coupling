@@ -264,7 +264,7 @@ def planned_files_for_dataset(
                     {
                         "state": state,
                         "group": group_name,
-                        "folder": str(folder.relative_to(PROJECT_ROOT)),
+                        "folder": folder.relative_to(data_raw).as_posix(),
                         "exists": False,
                         "file": None,
                     }
@@ -276,9 +276,9 @@ def planned_files_for_dataset(
                         {
                             "state": state,
                             "group": group_name,
-                            "folder": str(folder.relative_to(PROJECT_ROOT)),
+                            "folder": folder.relative_to(data_raw).as_posix(),
                             "exists": True,
-                            "file": str(csv_path.relative_to(PROJECT_ROOT)),
+                            "file": csv_path.relative_to(data_raw).as_posix(),
                         }
                     )
     return files
@@ -418,10 +418,11 @@ def write_folder_append_dataset(
     summary = CsvSummary(path=_display_path(output_path))
     writer: csv.DictWriter[str] | None = None
     selected_columns: list[str] | None = None
+    data_raw = project_path(config, "data_raw")
 
     with output_path.open("w", newline="", encoding="utf-8") as out_handle:
         for item in planned:
-            input_path = PROJECT_ROOT / item["file"]
+            input_path = data_raw / item["file"]
             with input_path.open("r", newline="", encoding="utf-8-sig") as in_handle:
                 reader = csv.DictReader(in_handle)
                 if reader.fieldnames is None:
@@ -648,6 +649,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     config = load_workflow(Path(args.config))
+    # run_case.py passes the EULP metadata data root from configs/local.yaml.
+    eulp_metadata_root = os.environ.get("PIPELINE_EULP_METADATA_ROOT")
+    if eulp_metadata_root:
+        config["paths"]["data_raw"] = eulp_metadata_root
     inject_pipeline_state_cluster(config)
 
     if args.list_clusters:

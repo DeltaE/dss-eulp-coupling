@@ -91,6 +91,12 @@ def resolve_case(case_path: Path) -> dict:
     smart_ds_base = local.get("smart_ds_base")
     if not smart_ds_base:
         sys.exit("local.yaml must define smart_ds_base.")
+    eulp_metadata_root = local.get("eulp_metadata_root")
+    if not eulp_metadata_root:
+        sys.exit("local.yaml must define eulp_metadata_root.")
+    if not Path(eulp_metadata_root).is_dir():
+        sys.exit(f"eulp_metadata_root folder does not exist: {eulp_metadata_root}")
+    eulp_metadata_root = Path(eulp_metadata_root).as_posix()
     topo_relpath = Path(topo["smart_ds_relpath"])
     smart_ds_root = Path(smart_ds_base) / topo_relpath
     if topo.get("circuit_folder"):
@@ -116,6 +122,7 @@ def resolve_case(case_path: Path) -> dict:
         "donor_id": donor_id,
         "smart_ds_root": smart_ds_root,
         "parquet_root": parquet_root,
+        "eulp_metadata_root": eulp_metadata_root,
         "circuit_folder": topo.get("circuit_folder"),
         "donor_state": donor["donor_state"],
         "max_feeders": case.get("execution", {}).get("max_feeders", "null"),
@@ -142,6 +149,7 @@ def build_env(resolved: dict, season: str) -> dict:
     # co-located datasets; threaded explicitly so the architectural split is preserved.
     env["PIPELINE_PARQUET_ROOT"] = resolved["parquet_root"]            # donor pool, Phase 2
     env["PIPELINE_SMART_DS_PARQUET_ROOT"] = resolved["parquet_root"]   # SMART-DS load parquets, Phase 6
+    env["PIPELINE_EULP_METADATA_ROOT"] = resolved["eulp_metadata_root"]  # EULP metadata CSVs, Phase 1
     return env
 
 
@@ -254,6 +262,7 @@ def main() -> None:
           f"donor={resolved['donor_state']} seasons={seasons}")
     print(f"  PIPELINE_SMART_DS_ROOT={resolved['smart_ds_root']}")
     print(f"  PIPELINE_PARQUET_ROOT={resolved['parquet_root']}")
+    print(f"  PIPELINE_EULP_METADATA_ROOT={resolved['eulp_metadata_root']}")
 
     overall_ok = True
     done_once = set()
