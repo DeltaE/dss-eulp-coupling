@@ -8,7 +8,7 @@ paths:
 download_stage:
   status: recovered_from_legacy_scripts
   policy: cache_first_fallback_only
-  note: Local reproduction reads the copied CSVs in data_raw. Redownloading is a slow fallback used only when cached source folders are missing or need to be rebuilt.
+  note: A run reads the CSVs from the data root that run_case.py passes in as PIPELINE_EULP_METADATA_ROOT (eulp_metadata_root in configs/local.yaml). Redownloading is a slow fallback used only when cached source folders are missing or need to be rebuilt.
   recovered_from:
     - scripts_legacy/download_residential_metadata.py
     - scripts_legacy/download_residential_metadata_2.py

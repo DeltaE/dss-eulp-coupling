@@ -3,6 +3,8 @@
 
 # Machine 3 (srye-deltae-05) example:
 smart_ds_base: "D:/lvg"     # topology smart_ds_root = smart_ds_base / topology.smart_ds_relpath
+# Holds Metadata_<ST>_Residential/ and Metadata_<ST>_Commercial/<ST>_baseline_metadata_and_annual_results.csv, ST = NC, TX.
+eulp_metadata_root: "D:/lvg/eulp_metadata"
 runs_root: "runs"           # per-case provenance output (repo-relative or absolute)
 
 # Optional overrides (leave commented to use pipeline_config.yaml defaults):
