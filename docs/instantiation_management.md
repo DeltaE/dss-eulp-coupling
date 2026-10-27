@@ -34,13 +34,14 @@ for that machine. The same case YAML then runs unchanged on every machine.
 
 ## Running a case
 
-    python run_case.py --case configs/cases/NC_GSO_rural__TX.yaml --all
-    python run_case.py --case configs/cases/NC_GSO_rural__TX.yaml --phase pre
-    python run_case.py --case configs/cases/NC_GSO_rural__TX.yaml --all --dry-run   # preview only
-    python run_case.py --case configs/cases/NC_GSO_rural__TX.yaml --all --season summer
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --phase pre
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --dry-run   # preview only
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --season summer
 
-`--all` runs the deterministic phase order from `defaults.yaml`. `--dry-run` prints every
-command/copy without executing. Provenance is written to `runs/<case_id>/<season>/`.
+`--all` runs the deterministic phase order from `defaults.yaml`. `--dry-run` prints the
+resolved variables and every command and copy, and writes nothing. Provenance is written to
+`<runs_root>/<case_id>/<season>/`, with `runs_root` from `configs/local.yaml`.
 
 ## Adding a new topology
 
@@ -72,7 +73,7 @@ are deliberately downstream.
 
 ## Provenance
 
-Each run writes `runs/<case_id>/<season>/`:
+Each run writes `<runs_root>/<case_id>/<season>/`:
 - `resolved_case.yaml` - topology, donor, season, `eulp_download_date`, git branch+commit, timestamp.
 - `run_log.txt` - every command/copy executed.
 - `phase_status.json` - per-phase ok/failed.
@@ -81,9 +82,6 @@ Each run writes `runs/<case_id>/<season>/`:
 
 - **TX topology** - `TX_pending` is a placeholder. Extract a real TX SMART-DS circuit, fill its
   paths, set `status: ready`. `TX__TX` and `TX__NC` launch only then.
-- **Phase 6 (kvar)** - `6_kvar_preparation` (`generate_kvar_csvs.py`, `compute_kvar_kw_ratios.py`,
-  `save_needed_sd_parquets.py`) was not in the documented fire-test sequence and is not yet wired
-  into `phases.yaml`. Add it once the command order is confirmed.
 - **Season re-runs** - `--all` re-runs season-independent phases (pre-5a) once per season, and
   re-running Phase 2 may duplicate ModifiedCircuitData EV loads until a cleanup guard exists. Use
   `--season` to run one at a time meanwhile.
