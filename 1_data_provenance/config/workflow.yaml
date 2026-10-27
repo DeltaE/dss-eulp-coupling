@@ -1,65 +1,19 @@
 version: 1
 
 paths:
-  data_raw: data_raw
-  historical_data: data_derived/historical
   outputs: outputs
-
-download_stage:
-  status: recovered_from_legacy_scripts
-  policy: cache_first_fallback_only
-  note: A run reads the CSVs from the data root that run_case.py passes in as PIPELINE_EULP_METADATA_ROOT (eulp_metadata_root in configs/local.yaml). Redownloading is a slow fallback used only when cached source folders are missing or need to be rebuilt.
-  recovered_from:
-    - scripts_legacy/download_residential_metadata.py
-    - scripts_legacy/download_residential_metadata_2.py
-    - scripts_legacy/download_commercial_metadata.py
-    - scripts_legacy/download_commercial_metadata_19_20.py
-    - scripts_legacy/pds_database_address.txt
-  viewer_base_url: https://data.openei.org/s3_viewer?bucket=oedi-data-lake&prefix=nrel-pds-building-stock%2Fend-use-load-profiles-for-us-building-stock%2F
-  query_year: 2024
-  metadata_path: metadata_and_annual_results/by_state
-  recovered_downloads:
-    residential_tmy3:
-      release: resstock_tmy3_release_2
-      folder_group: residential_tmy3
-      legacy_script: scripts_legacy/download_residential_metadata.py
-      upgrades: [baseline, upgrade01, upgrade02, upgrade03, upgrade04]
-    residential_amy2018:
-      release: resstock_amy2018_release_2
-      folder_group: residential_amy2018
-      legacy_script: scripts_legacy/download_residential_metadata_2.py
-      upgrades: [baseline, upgrade01, upgrade02, upgrade03, upgrade04]
-    commercial_amy2018:
-      release: comstock_amy2018_release_1
-      folder_group: commercial_amy2018
-      legacy_script: scripts_legacy/download_commercial_metadata.py
-      upgrades: [baseline, upgrade01, upgrade02, upgrade03, upgrade08, upgrade09]
-    commercial_amy2018_late_upgrades:
-      release: comstock_amy2018_release_1
-      folder_group: commercial_amy2018_late_upgrades
-      legacy_script: scripts_legacy/download_commercial_metadata_19_20.py
-      upgrades: [upgrade19, upgrade20]
 
 folder_groups:
   residential_tmy3:
     dataset: residential
     folder_pattern: Metadata_{state}_Residential
     release: resstock_tmy3_release_2
-  residential_amy2018:
-    dataset: residential
-    folder_pattern: Metadata_{state}_Residential_2
-    release: resstock_amy2018_release_2
   commercial_amy2018:
     dataset: commercial
     folder_pattern: Metadata_{state}_Commercial
     release: comstock_amy2018_release_1
-  commercial_amy2018_late_upgrades:
-    dataset: commercial
-    folder_pattern: Metadata_{state}_Commercial_2
-    release: comstock_amy2018_release_1
 
 columns:
-  baseline_from_folders_order: source_csv
   commercial_append_csvs_script_v2:
     - bldg_id
     - upgrade
@@ -225,32 +179,3 @@ columns:
     - out.load.heating.energy_delivered.kbtu
     - out.load.heating.peak.kbtu_hr
     - out.load.hot_water.energy_delivered.kbtu
-  compatibility:
-    append_csvs_script_py_residential_uses_same_set_except:
-      - in.vacancy_status
-      - in.geometry_building_type_acs
-      - in.representative_income
-      - in.battery
-      - in.bedrooms
-
-clusters:
-  paper3_baseline:
-    states: [MI, MT, VT, WA]
-    mode: baseline_from_folders
-    residential_folder_groups: [residential_tmy3]
-    commercial_folder_groups: [commercial_amy2018]
-    residential_upgrades: [baseline]
-    commercial_upgrades: [baseline]
-    output_residential: residential_data_SELECT_STATES_MI_MT_VT_WA.csv
-    output_commercial: commercial_data_SELECT_STATES_MI_MT_VT_WA.csv
-    validation_historical_residential: residential_data_SELECT_STATES_MI_MT_VT_WA.csv
-    validation_historical_commercial: commercial_data_SELECT_STATES_MI_MT_VT_WA.csv
-  canadian_proxy:
-    states: [MI, VT, WA, MT, MN]
-    mode: historical_slice
-    historical_residential: residential_data.csv
-    historical_commercial: commercial_data.csv
-    output_residential: residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv
-    output_commercial: commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv
-    validation_historical_residential: residential_data_SELECT_STATES_MI_VT_WA_MT_MN.csv
-    validation_historical_commercial: commercial_data_SELECT_STATES_MI_VT_WA_MT_MN.csv
