@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-select_rep_family_v2.py  —  Dynamic, data-driven representative-building selection.
+select_representatives_impl.py  —  Dynamic, data-driven representative-building selection.
 
 Refactor of select_rep_family_NC.py. Same inputs / outputs / invariants, but the two
 hardcoded structures (per-type integer quotas and the fixed priority order) are now

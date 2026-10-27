@@ -679,7 +679,7 @@ print("[OK] Finished single-scenario deploy.")
 print(f"Time taken: {time.time() - START_TIME:.2f} s")
 if converged is not True:
     # A non-convergent solve still writes Monitor CSVs (garbage data), and
-    # run_all_deploys_v2.py scores any rc==0 as a pass - without this the
+    # run_circuits.py scores any rc==0 as a pass - without this the
     # batch runner has no way to see the solve failed.
     if converged is None:
         print("[FAIL] circuit never solved - exiting non-zero.")

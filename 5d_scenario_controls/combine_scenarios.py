@@ -29,7 +29,7 @@ if not PARQUET_DATA_ROOT.is_absolute():
     PARQUET_DATA_ROOT = (REPO_ROOT / PARQUET_DATA_ROOT).resolve()
 
 # Create output folder if it doesn't exist
-output_folder = resolve_work_path("5d_scenario_controls", "plot_parquet_differences")
+output_folder = resolve_work_path("5d_scenario_controls", "combine_scenarios")
 os.makedirs(output_folder, exist_ok=True)
 
 # Define which scenario IDs are baseline, uncontrolled, demand_mgmt for each building type

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-instantiate_circuits_and_runs.py  (procedural; mixes with EV split)
--------------------------------------------------------------------
+instantiate_circuits.py  (procedural; mixes with EV split)
+---------------------------------------------------------
 - Discovers feeders from feeder_registry.json
 - For each feeder × mix:
     * Copies feeder into <substation>_circuit_<idx>_<mix_name>/
@@ -13,7 +13,7 @@ instantiate_circuits_and_runs.py  (procedural; mixes with EV split)
     * Writes scenario_assignments.json:
          - ev_loads_uncontrolled, ev_loads_controlled, ev_split
          - storage_targets, pv_targets, disjoint_sets, season, etc.
-    * Patches runner and (optionally) runs it.
+    * Patches the runner. Phase 7c (run_circuits.py) runs it.
 
 Keeps the procedural style and your working behaviors.
 """
@@ -97,7 +97,7 @@ DEFAULT_DISJOINT  = True
 EV_SPLIT_CTL_DEFAULT = float(os.environ.get('EV_SPLIT_CONTROLLED', '0.5'))  # 0..1
 
 # Path to your DOE-generated mixes file
-MIXES_FILE = Path(resolve_work_path("7_circuit_instantiation", "mixes_lhs.json"))   # copied there by Phase 7a
+MIXES_FILE = Path(resolve_work_path("7_circuit_instantiation", "mixes.json"))   # copied there by Phase 7a
 
 with MIXES_FILE.open("r", encoding="utf-8") as f:
     MIXES = json.load(f)

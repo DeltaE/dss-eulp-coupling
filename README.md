@@ -142,7 +142,7 @@ Pop-Location
 
 # 5a. Download EULP parquets
 Push-Location .\5a_eulp_downloads
-python .\phase5a_download_homes.py
+python .\phase5a_download_residential.py
 python .\phase5a_download_commercial.py
 Pop-Location
 
@@ -154,7 +154,7 @@ Pop-Location
 
 # 5d. Scenario controls for DM/uncontrolled variants
 Push-Location .\5d_scenario_controls
-python .\plot_parquet_differences.py
+python .\combine_scenarios.py
 python .\get_scenario_csv_controls.py
 Pop-Location
 
@@ -172,17 +172,17 @@ Pop-Location
 # 6. Kvar preparation
 Push-Location .\6_kvar_preparation
 python .\save_needed_sd_parquets.py
-python .\rev_spec_kvar_kw_ratio.py
+python .\compute_kvar_kw_ratios.py
 python .\generate_kvar_csvs.py
 Pop-Location
 
-# 7a. Profile bridge folders and the workspace copy of mixes_lhs.json
+# 7a. Profile bridge folders and the workspace copy of the mixes file (mixes.json)
 python .\bridge_phase5c_to_phase7.py
 
 # 7. Circuit instantiation, OpenDSS runs, QA, aggregation
 Push-Location .\7_circuit_instantiation
-python .\instantiate_circuits_and_runs_APPLYFILTER.py
-python .\run_all_deploys_v2.py
+python .\instantiate_circuits.py
+python .\run_circuits.py
 python .\aggregate_m1_m2_with_circuits.py
 Pop-Location
 
@@ -201,8 +201,8 @@ Pop-Location
 | `commercial_data_SELECT_STATES.csv`, `residential_data_SELECT_STATES.csv` | `1_data_provenance` cluster `pipeline_state` | `3_tolerance_matching/phase3_match.py` |
 | `{STATE}_required_parquets_per_feeder_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5b_profile_generation/phase5b_variants_dm.py` |
 | `{STATE}_parquet_and_bldgs_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5c_csv_conversion/parquet_to_csv.py` |
-| `profiles_use_bench/` | `7_circuit_instantiation/instantiate_circuits_and_runs_APPLYFILTER.py` | `7_circuit_instantiation/power_flow_sim_daily_EV_STO_DG_deploy.py` |
-| `mixes_lhs.json` | `0_experimental_design/run_mix_generator.py` | `7_circuit_instantiation/instantiate_circuits_and_runs_APPLYFILTER.py` |
+| `profiles_use_bench/` | `7_circuit_instantiation/instantiate_circuits.py` | `7_circuit_instantiation/power_flow_sim_daily_EV_STO_DG_deploy.py` |
+| `mixes_fixed.json` | `0_experimental_design/run_mix_generator.py` | `7_circuit_instantiation/instantiate_circuits.py` |
 
 ## Citation
 

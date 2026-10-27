@@ -168,7 +168,7 @@ with MIXES_PATH.open("r", encoding="utf-8") as f:
     mixes = json.load(f)
 
 # 7b reads the mixes from the workspace; copy the file byte for byte
-WORK_MIXES_PATH = Path(resolve_work_path("7_circuit_instantiation", "mixes_lhs.json"))
+WORK_MIXES_PATH = Path(resolve_work_path("7_circuit_instantiation", "mixes.json"))
 WORK_MIXES_PATH.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(MIXES_PATH, WORK_MIXES_PATH)
 print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
