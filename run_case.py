@@ -13,10 +13,10 @@ It sets the PIPELINE_* environment variables the existing scripts already read
 (see pipeline_utils.py) and shells out to them. No core pipeline code is modified.
 
 Usage:
-    python run_case.py --case configs/cases/NC_GSO_rural__TX.yaml --all
-    python run_case.py --case configs/cases/NC_GSO_rural__TX.yaml --phase pre
-    python run_case.py --case configs/cases/NC_GSO_rural__TX.yaml --phase 5c --season summer
-    python run_case.py --case configs/cases/NC_GSO_rural__TX.yaml --all --dry-run
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --phase pre
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --phase 5c --season summer
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --dry-run
 """
 from __future__ import annotations
 
@@ -293,7 +293,6 @@ def main() -> None:
                  "Delete those folders to rerun these case-seasons, or run a different case.")
 
     overall_ok = True
-    done_once = set()
     for season in seasons:
         work_root = workspaces[season]
         resolved["work_root"] = str(work_root)
@@ -318,13 +317,8 @@ def main() -> None:
                     log.write(f"  (no definition for phase {pid}, skipping)\n")
                     status[pid] = "undefined"
                     continue
-                if phases[pid].get("run_once") and pid in done_once:
-                    status[pid] = "skipped (run_once)"
-                    continue
                 ok = run_phase(pid, phases[pid], resolved, season, env, log, args.dry_run)
                 status[pid] = "ok" if ok else "failed"
-                if ok and phases[pid].get("run_once"):
-                    done_once.add(pid)
                 if not ok:
                     overall_ok = False
                     break

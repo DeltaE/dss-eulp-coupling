@@ -18,7 +18,7 @@ instantiate_circuits_and_runs.py  (procedural; mixes with EV split)
 Keeps the procedural style and your working behaviors.
 """
 
-import os, re, sys, time, json, pickle, shutil, subprocess, csv, hashlib
+import os, re, sys, time, json, pickle, shutil, csv, hashlib
 from copy import deepcopy
 from pathlib import Path
 from typing import Optional, Iterable
@@ -90,9 +90,6 @@ if MAX_FEEDERS is not None:
 # Defaults (used when a mix omits them)
 DEFAULT_LVL2_PERC = 0.80
 DEFAULT_DISJOINT  = True
-
-# If True, launch the runner after preparing each circuit
-RUN_AFTER_PREP = False # True
 
 # State/Season used to build bucket name: "<STATE>_<circuit_n>_<SEASON>"
 
@@ -790,10 +787,6 @@ for feeder in feeders:
 
         runner_path.write_text(txt, encoding='utf-8')
         print("  • Patched runner (EV % + circuit_name)")
-
-        if RUN_AFTER_PREP:
-            print(f"  🚀 Running {RUNNER_BASENAME} in {dst_folder_name} ...")
-            subprocess.run(['python', RUNNER_BASENAME], cwd=str(dst_folder))
 
     circuit_counter += 1
 
