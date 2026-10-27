@@ -348,6 +348,8 @@ def main():
     peaks = build_peaks(data)
 
     n_cf = sec1_structural(df, data, summ, peaks)
+    if n_cf < EXPECT_CIRCUIT_FOLDERS:
+        sys.exit(f"circuit_folder values: found {n_cf} of {EXPECT_CIRCUIT_FOLDERS}")
     sec2_per_case(peaks)
     sec3_donor(peaks)
     sec4_topology(peaks)
@@ -360,9 +362,6 @@ def main():
     peaks_path = RUNS_ROOT / "peaks_per_combo.csv"
     peaks.drop(columns=["sc_rank"]).to_csv(peaks_path, index=False)
     print(f"\n[written] {peaks_path}  (48 rows, one per simulation combo)")
-
-    if n_cf < EXPECT_CIRCUIT_FOLDERS:
-        sys.exit(f"circuit_folder values: found {n_cf} of {EXPECT_CIRCUIT_FOLDERS}")
 
 
 if __name__ == "__main__":
