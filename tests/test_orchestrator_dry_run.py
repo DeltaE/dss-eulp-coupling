@@ -13,9 +13,12 @@ Or under pytest: pytest tests/test_orchestrator_dry_run.py
 """
 import glob
 import os
+import re
 import shlex
 import subprocess
 import sys
+import tempfile
+from pathlib import Path
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CASES = sorted(glob.glob(os.path.join(REPO_ROOT, "configs", "cases", "*.yaml")))
@@ -23,18 +26,22 @@ CASES = sorted(glob.glob(os.path.join(REPO_ROOT, "configs", "cases", "*.yaml")))
 
 def _ensure_local_yaml():
     """run_case.py refuses to run without configs/local.yaml (gitignored,
-    per-machine). Create a throwaway copy of the example if none exists yet
-    -- dry-run mode never touches the paths inside it, so the example's
-    placeholder Windows path is fine here."""
+    per-machine). Create a throwaway copy of the example if none exists yet.
+    run_case.py also refuses an eulp_metadata_root that is not an existing
+    folder, so the copy points it at an empty temporary folder; dry-run mode
+    touches no other path inside it."""
     local_path = os.path.join(REPO_ROOT, "configs", "local.yaml")
     example_path = os.path.join(REPO_ROOT, "configs", "local.yaml.example")
     if os.path.exists(local_path):
-        return local_path, False
+        return local_path, None
     with open(example_path, encoding="utf-8") as f:
         content = f.read()
+    metadata_dir = tempfile.mkdtemp()
+    content = re.sub(r"(?m)^eulp_metadata_root:.*$",
+                     f'eulp_metadata_root: "{Path(metadata_dir).as_posix()}"', content)
     with open(local_path, "w", encoding="utf-8") as f:
         f.write(content)
-    return local_path, True
+    return local_path, metadata_dir
 
 
 def test_case_files_exist():
@@ -42,7 +49,7 @@ def test_case_files_exist():
 
 
 def test_every_case_dry_runs_to_well_formed_posix_commands():
-    local_path, created = _ensure_local_yaml()
+    local_path, metadata_dir = _ensure_local_yaml()
     try:
         for case_path in CASES:
             proc = subprocess.run(
@@ -65,8 +72,9 @@ def test_every_case_dry_runs_to_well_formed_posix_commands():
                     f"got {tokens[0]!r} in: {ln!r}"
                 )
     finally:
-        if created:
+        if metadata_dir:
             os.remove(local_path)
+            os.rmdir(metadata_dir)
 
 
 if __name__ == "__main__":
