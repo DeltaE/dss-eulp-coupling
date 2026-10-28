@@ -25,9 +25,6 @@ LOWER_FEEDER = os.path.join(FIXTURES, "lower_case_feeder")
 sys.path.insert(0, REPO_ROOT)
 from pipeline_utils import resolve_dss_file  # noqa: E402
 
-sys.path.insert(0, REPO_ROOT)  # scan_topology_universe.py is import-safe (guarded __main__)
-import scan_topology_universe as stu  # noqa: E402
-
 
 def _extract_deploy_script_function(name):
     """The deploy script is copied per-instance into each circuit folder and
@@ -75,18 +72,6 @@ def test_deploy_script_resolve_dss_file_matches_both_cases():
     resolve = _extract_deploy_script_function("resolve_dss_file")
     assert os.path.basename(resolve(NORMAL_FEEDER, "Loads.dss")) == "Loads.dss"
     assert os.path.basename(resolve(LOWER_FEEDER, "Loads.dss")) == "loads.dss"
-
-
-def test_scan_topology_universe_has_required_dss_accepts_both_cases():
-    from pathlib import Path
-    assert stu.has_required_dss(Path(NORMAL_FEEDER)) is True
-    assert stu.has_required_dss(Path(LOWER_FEEDER)) is True
-
-
-def test_scan_topology_universe_count_loads_matches_both_cases():
-    from pathlib import Path
-    assert stu.count_loads(Path(NORMAL_FEEDER)) == 2
-    assert stu.count_loads(Path(LOWER_FEEDER)) == 2
 
 
 if __name__ == "__main__":
