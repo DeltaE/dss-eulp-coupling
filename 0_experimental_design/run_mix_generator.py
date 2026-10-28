@@ -352,7 +352,7 @@ if __name__ == "__main__":
     case_ids = list(range(1, N_CASES + 1))
 
     print(f"[Config] N_CASES={N_CASES} (case '0' is fixed).")
-    print(f"[Timing hint] ~230 s/scenario → ≈ {int((N_CASES+1)*2*230/60)} minutes for both methods incl. case 0.")
+    print(f"[Timing hint] ~230 s/scenario -> ~ {int((N_CASES+1)*2*230/60)} minutes for both methods incl. case 0.")
 
     # -------- LHS --------
     print(f"[LHS] n={len(case_ids)}, d={d}")
@@ -403,15 +403,15 @@ if __name__ == "__main__":
     print(f" -> wrote {OUT_SUMMARY} {df_summary.shape}")
 
     # ------------------------ PLOTS (optional) -------------------
-    print("[Plots] generating side-by-side unit-cube projections…")
+    print("[Plots] generating side-by-side unit-cube projections...")
     _plot_unitcube_side_by_side(U_lhs, U_sobol, FIG_UNITCUBE, max_pairs=3)
     print(f" -> wrote {FIG_UNITCUBE}")
 
-    print("[Plots] generating overlay of EV vs PV fractions…")
+    print("[Plots] generating overlay of EV vs PV fractions...")
     _plot_overlay_ev_vs_pv(df_lhs, df_sob, FIG_OVERLAY)
     print(f" -> wrote {FIG_OVERLAY}")
 
-    print("[Plots] generating parameter histograms…")
+    print("[Plots] generating parameter histograms...")
     _param_vars = [
         "shares_baseline",
         "shares_dm",
