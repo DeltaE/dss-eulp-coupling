@@ -6,7 +6,7 @@ Cheap canary against the worst Linux-port failure mode: someone runs the
 pipeline under system Python (3.8.10 here) with whatever numpy/pandas/scipy/
 pyarrow that interpreter happens to have, gets a result, and never notices it
 doesn't match the validated Windows baseline. Asserts Python 3.11.x and the
-exact pinned versions from requirements.txt / PROMPT_Linux_Port_v2.md SS0.
+exact pinned versions from requirements.txt.
 
 Run directly (no pytest needed): python tests/test_environment_pins.py
 Or under pytest: pytest tests/test_environment_pins.py

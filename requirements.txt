@@ -3,7 +3,7 @@
 # results). Every version below is pinned deliberately, not just the ones that
 # can move numbers (numpy/pandas/scipy/pyarrow) -- pinning the rest is free and
 # removes variables. Do not upgrade/downgrade without re-validating outputs
-# against the Windows baseline (see PROMPT_Linux_Port_v2.md SS0).
+# against the Windows baseline.
 # Install with: pip install -r requirements.txt
 
 # --- Core data handling ---
@@ -25,10 +25,7 @@ matplotlib==3.8.0
 requests==2.31.0
 urllib3==2.0.7
 
-# --- Optional: only needed for the original (non-_redo) Phase 5a download
-# scripts, which phases.yaml never invokes -- the _redo variants use `requests`
-# only. Kept installed by default per prior guidance; safe to drop if you
-# never run the non-_redo scripts directly.
+# --- Optional: no tracked script imports selenium.
 selenium
 
 # --- Phase 7: OpenDSS engine access ---
