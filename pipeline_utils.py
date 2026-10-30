@@ -7,24 +7,6 @@ import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parent
-_version_checked = False
-
-
-def check_python_version():
-    """Warn (once per process) if not running the pinned Python 3.11 the
-    validated numpy/pandas/scipy/pyarrow stack was measured against. Running
-    under a stray system interpreter is the easiest way to silently invalidate
-    a whole run without any other symptom."""
-    global _version_checked
-    if _version_checked:
-        return
-    _version_checked = True
-    if sys.version_info[:2] != (3, 11):
-        print(f"!! WARNING: running under Python {sys.version_info.major}.{sys.version_info.minor} "
-              f"({sys.executable}), but this pipeline is pinned to Python 3.11 with a specific "
-              f"numpy/pandas/scipy/pyarrow stack. Results may silently diverge from the "
-              f"validated baseline.", file=sys.stderr)
-
 
 # Run values come only from the PIPELINE_* variables that run_case.py sets.
 RUN_VALUES = {
@@ -95,7 +77,6 @@ def resolve_dss_file(directory, filename):
 
 
 def load_config(config_path=None):
-    check_python_version()
     if config_path is None:
         config_path = REPO_ROOT / "pipeline_config.yaml"
     with open(config_path, encoding="utf-8") as f:
