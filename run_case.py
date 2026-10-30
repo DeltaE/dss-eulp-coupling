@@ -266,14 +266,6 @@ def prepare_work_root(work_root: str) -> None:
         os.makedirs(os.path.join(work_root, rel_path), exist_ok=True)
 
 
-def _check_python_version() -> None:
-    if sys.version_info[:2] != (3, 11):
-        print(f"!! WARNING: running under Python {sys.version_info.major}.{sys.version_info.minor} "
-              f"({sys.executable}), but this pipeline is pinned to Python 3.11 with a specific "
-              f"numpy/pandas/scipy/pyarrow stack. Results may silently diverge from the "
-              f"validated baseline.", file=sys.stderr)
-
-
 def _check_no_spaces_in_posix_paths(resolved: dict) -> None:
     """On POSIX, phase 'cmd' strings are split with shlex.split() after
     template substitution (see run_phase()) instead of going through a shell.
@@ -300,7 +292,6 @@ def _check_no_spaces_in_posix_paths(resolved: dict) -> None:
 
 
 def main() -> None:
-    _check_python_version()
     ap = argparse.ArgumentParser(description="Run a topology x donor instantiation case.")
     ap.add_argument("--case", required=True, type=Path)
     grp = ap.add_mutually_exclusive_group(required=True)
