@@ -16,8 +16,8 @@ Inputs
   ev_loads_controlled (or ev_loads, split in half when both are empty),
   storage_targets, pv_targets, season.
 - <circuit>/data_ev/: EV charging profiles (see pfs_ev_base_profiles).
-- ../profiles_use_bench/<circuit>/<daily>.csv: one-column kW profiles, read relative
-  to the working directory, used for storage and PV sizing.
+- <circuit>/../profiles_use_bench/<circuit>/<daily>.csv: one-column kW profiles, used
+  for storage and PV sizing.
 - der_sizing in pipeline_config.yaml: storage and PV ratios and minimums.
 - Environment: SC_KW_TARGET_FACTOR (0.8), SC_KW_TARGET_LOW (0.0), SC_RESERVE_PCT (20).
 
@@ -91,7 +91,6 @@ EV_ERROR_TOL         = 1e-6
 
 # Storage sizing vs load peak (ratios and minimums: der_sizing in pipeline_config.yaml)
 STORAGE_PF           = 0.90
-STORAGE_RESERVE_PCT  = 20
 STORAGE_EFF_CHG      = 95.0
 STORAGE_EFF_DCH      = 95.0
 
@@ -183,7 +182,7 @@ PV_MIN_KW            = der_sizing("pv_min_kw")
 # -----------------------
 START_TIME     = time.time()
 CIRCUIT_FOLDER = os.path.basename(CURRENT_DIR)
-PROFILES_PATH  = os.path.join('..', 'profiles_use_bench', CIRCUIT_FOLDER)
+PROFILES_PATH  = os.path.join(CURRENT_DIR, '..', 'profiles_use_bench', CIRCUIT_FOLDER)
 OUT_DIR        = os.path.join(CURRENT_DIR, "ModifiedCircuitData")
 
 # A second run in the same folder would read its own results and append the EV loads again.
@@ -456,11 +455,10 @@ def peak_kw_for_load(full_name):
     Return the peak kW used to size storage or PV on load full_name.
 
     1. For each daily loadshape of the load's base name (full_name without its _<n>
-       suffix), in sorted order: if ../profiles_use_bench/<circuit>/<shape>.csv exists
-       (relative to the working directory), return the maximum of its first column
-       (read with header=None). Read errors are ignored and the next shape is tried.
+       suffix), in sorted order: if <circuit>/../profiles_use_bench/<circuit>/<shape>.csv
+       exists, return the maximum of its first column (read with header=None). Read errors are ignored and the next shape is tried.
     2. Else, the kW= value of the first line of <feeder>/Loads_original.dss that
-       contains "New Load.<full_name>" (a substring match); the name is added to
+       contains "New Load.<full_name>" followed by white space; the name is added to
        PEAK_FROM_ORIGINAL_KW, which the script counts.
     3. Else, print [FAIL] and exit 1.
     """
@@ -475,7 +473,7 @@ def peak_kw_for_load(full_name):
                 pass
     if os.path.exists(PATH_LOADS_DSS_ORIG):
         for line in read_lines(PATH_LOADS_DSS_ORIG):
-            if f"New Load.{full_name}" in line:
+            if re.search(rf"New Load\.{re.escape(full_name)}\s", line):
                 m_kw = re.search(r"\bkW=([0-9\.Ee+-]+)", line)
                 if m_kw:
                     v = try_float(m_kw.group(1), None)

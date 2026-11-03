@@ -774,10 +774,6 @@ for feeder in feeders:
         if 'import json' not in txt:
             txt = txt.replace('import sys', 'import sys\nimport json')
 
-        # Patch EV percentages textually (best-effort)
-        txt = re.sub(r"(ev_perc\s*=\s*)([0-9]*\.?[0-9]+)",          rf"\g<1>{ev_perc}", txt)
-        txt = re.sub(r"(lvl2_charger_perc\s*=\s*)([0-9]*\.?[0-9]+)", rf"\g<1>{ev_lvl2}", txt)
-
         # Ensure circuit_name
         if "circuit_name = " in txt:
             txt = re.sub(r"circuit_name\s*=\s*['\"].*?['\"]", f"circuit_name = '{dst_folder_name}'", txt)
@@ -791,7 +787,7 @@ for feeder in feeders:
         )
 
         runner_path.write_text(txt, encoding='utf-8')
-        print("  • Patched runner (EV % + circuit_name)")
+        print("  • Patched runner (circuit_name + deployer_modules path)")
 
     circuit_counter += 1
 
