@@ -10,7 +10,7 @@ Each value has one owner:
 - `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root` and `runs_root`. Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
-- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits` and `quota`.
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release` and `der_sizing`.
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
@@ -31,8 +31,8 @@ The primary runnable scripts are state-agnostic.
 | 5c | `5c_csv_conversion/` | Convert daily parquet slices to OpenDSS CSV loadshapes |
 | 5d | `5d_scenario_controls/` | Split baseline profile mappings into DM/uncontrolled controls |
 | 6 | `6_kvar_preparation/` | Prepare kvar ratios and kvar CSV loadshapes |
-| 7 | `7_circuit_instantiation/` | Instantiate circuits, run OpenDSS batches, QA, and aggregate |
-| 8 | `8_results_analysis/` | Append experiment outputs and generate analysis figures |
+| 7 | `7_circuit_instantiation/` | Instantiate circuits and run OpenDSS batches |
+| 8 | `8_results_analysis/` | Aggregate monitor outputs, append experiment outputs and generate analysis figures |
 
 ## Prerequisites
 
@@ -79,6 +79,18 @@ python run_case.py --case configs/cases/NC_GSO_urban__TX.yaml --all --season win
 python run_case.py --case configs/cases/TX_AUS_urban__NC.yaml --all --season winter
 python run_case.py --case configs/cases/TX_AUS_urban__TX.yaml --all --season winter
 ```
+
+Then run these three scripts from the repository root:
+
+```powershell
+python gather_m2_cases.py
+python validate_2x2.py
+python gen_results_table.py
+```
+
+- `gather_m2_cases.py` stacks the eight `aggregate_m2_combined.csv` files into `<runs_root>/m2_all_cases_all_seasons.csv`.
+- `validate_2x2.py` prints the cross-case checks on that file and writes `<runs_root>/peaks_per_combo.csv`.
+- `gen_results_table.py` writes Table 2 as `table2.csv` and `table2.md` to `<runs_root>/`.
 
 Each run writes its workspace to `<runs_root>/<case>/<season>/workspace/`. `--all` refuses to start when the workspace of any requested season already exists. `--dry-run` prints the resolved variables and every command, and writes nothing.
 
@@ -134,6 +146,14 @@ python .\0_experimental_design\run_mix_generator.py --out <folder>
 ```
 
 `run_mix_generator.py` writes nothing inside the repository. `--all` does not use its output: Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names.
+
+## Known limitations
+
+- The simulation horizon is one day of 96 fifteen-minute steps. The deploy script, the `pfs_*` modules and the max-day script keep their names until the horizon becomes configurable.
+- Homes use EULP ResStock profiles on TMY3 weather. Commercial buildings use EULP ComStock profiles on 2018 weather, and SMART-DS solar data is for 2018.
+- The EV charging profiles in `7_circuit_instantiation/data_ev/` are an illustrative home Level 2 shape. Their origin is not documented in the repository.
+- Storage and PV sizes follow assumed ratios and minimums. See `der_sizing` in `pipeline_config.yaml`.
+- The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
 
 ## Key Handoffs
 
