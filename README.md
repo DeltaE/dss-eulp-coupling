@@ -36,7 +36,7 @@ The primary runnable scripts are state-agnostic.
 
 ## Prerequisites
 
-- Python 3.9+ with `pip install -r requirements.txt`.
+- Python 3.11 with `pip install -r requirements.txt`.
 - SMART-DS feeder data from OEDI, with `smart_ds_base` in `configs/local.yaml` pointing to the data root.
 - OEDI / NREL EULP metadata and profile access. The download scripts use public OEDI S3 endpoints.
 - Enough local disk for parquet and CSV profile data.

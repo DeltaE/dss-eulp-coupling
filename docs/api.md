@@ -17,10 +17,5 @@ If your modules are importable (e.g., your repo is a package or you add the repo
 
 ## 7.2 CLI / Script Docs
 
-If you prefer documenting scripts by hand, create subpages like:
-
-- `scripts/run_mix_generator.md`
-- `scripts/match_smartds_parquets_impl.md`
-- `scripts/instantiate_circuits.md`
-
-Each page should include **Purpose**, **Inputs**, **Outputs**, **Key Flags/Parameters**, and **Examples**.
+The scripts carry their own module docstrings. `docs/workflow.md` lists which script each
+phase runs. There are no per-script pages under `docs/scripts/`.

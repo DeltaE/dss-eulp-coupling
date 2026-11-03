@@ -12,7 +12,7 @@ scenario mixes or the LHS - those are downstream (see *Out of scope*).
 - **Donor** - which state's EULP profiles are assigned to that topology. Listed in
   `configs/donor_registry.yaml`. Sets `PIPELINE_STATE`.
 
-A case is therefore `topology x donor`, e.g. `NC_GSO_rural__TX` = NC circuit, TX load profiles.
+A case is therefore `topology x donor`, e.g. `NC_GSO_urban__TX` = NC circuit, TX load profiles.
 
 ## Seasons
 
@@ -80,8 +80,6 @@ Each run writes `<runs_root>/<case_id>/<season>/`:
 
 ## Pending
 
-- **TX topology** - `TX_pending` is a placeholder. Extract a real TX SMART-DS circuit, fill its
-  paths, set `status: ready`. `TX__TX` and `TX__NC` launch only then.
-- **Season re-runs** - `--all` re-runs season-independent phases (pre-5a) once per season, and
-  re-running Phase 2 may duplicate ModifiedCircuitData EV loads until a cleanup guard exists. Use
-  `--season` to run one at a time meanwhile.
+- **Season re-runs** - `--all` re-runs season-independent phases (pre-5a) once per season.
+  The Phase 7 deploy script refuses a circuit folder whose `ModifiedCircuitData/` already holds
+  files, so EV loads are never appended twice.
