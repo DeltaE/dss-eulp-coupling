@@ -12,11 +12,6 @@ from pathlib import Path
 from typing import Optional
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SMARTDS_ROOT = REPO_ROOT / "0_download_smartds" / "data_raw" / "smartds"
-DEFAULT_TARGET = REPO_ROOT / "ab_3b" / "circuits_plain_format"
-DEFAULT_REGISTRY = REPO_ROOT / "feeder_registry.json"
-
 
 @dataclass(frozen=True)
 class FeederCopy:
@@ -100,7 +95,7 @@ def copy_feeder(item: FeederCopy, *, dry_run: bool, overwrite: bool, registry_on
     shutil.copytree(item.source, item.destination)
 
 
-def write_registry(path: Path, smartds_root: Path, target: Path, plan: list[FeederCopy], dry_run: bool) -> None:
+def write_registry(path: Path, plan: list[FeederCopy], dry_run: bool) -> None:
     registry = {
         "feeders": [
             {
@@ -133,9 +128,12 @@ def write_registry(path: Path, smartds_root: Path, target: Path, plan: list[Feed
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--smartds-root", type=Path, default=DEFAULT_SMARTDS_ROOT)
-    parser.add_argument("--target", type=Path, default=DEFAULT_TARGET)
-    parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
+    parser.add_argument("--smartds-root", type=Path, required=True,
+                        help="SMART-DS OpenDSS folder to discover feeders in.")
+    parser.add_argument("--target", type=Path, required=True,
+                        help="Folder that receives the flat feeder copies, outside the repository.")
+    parser.add_argument("--registry", type=Path, required=True,
+                        help="Path of the feeder_registry.json to write, outside the repository.")
     parser.add_argument(
         "--include",
         nargs="+",
@@ -182,7 +180,7 @@ def main() -> int:
         if index == 1 or index % 100 == 0 or index == len(plan):
             print(f"{index:,}/{len(plan):,}: {item.source} -> {item.destination}")
 
-    write_registry(registry, smartds_root, target, plan, args.dry_run)
+    write_registry(registry, plan, args.dry_run)
     print(f"Registry: {registry}")
     return 0
 
