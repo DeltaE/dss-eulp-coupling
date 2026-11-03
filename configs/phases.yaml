@@ -125,6 +125,6 @@ pre:
 "8":
   steps:
     - cmd: "{python} aggregate_m1_m2_with_circuits.py"
-      cwd: 7_circuit_instantiation
+      cwd: 8_results_analysis
     - cmd: "{python} append_experiment_results.py"
       cwd: 8_results_analysis
