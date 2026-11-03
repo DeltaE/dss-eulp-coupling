@@ -198,8 +198,8 @@ for feeder in df_summary_result["Feeder"].unique():
         # Store results for the feeder
         peak_load_curves[feeder] = peak_curves
 
-    # Inside your main feeder loop (after df_curve is created)
-    df_curve_per_feeder[feeder] = df_curve.copy()  # 🔹 NEW
+        # Inside your main feeder loop (after df_curve is created)
+        df_curve_per_feeder[feeder] = df_curve.copy()  # 🔹 NEW
 
 # Convert results into structured DataFrame
 records = []
