@@ -140,7 +140,7 @@ def load_matching_csvs(file_dict):
         frames.append(out)
 
     if missing:
-        print(f"\n  ⚠  Missing or invalid matching files:")
+        print(f"\n  !  Missing or invalid matching files:")
         for st, fp in missing:
             print(f"     {st}: {fp}")
 
@@ -198,7 +198,7 @@ def figure_a(df, feeder="circuit_52", state="MI", season="winter"):
     out_path = os.path.join(OUT_DIR, "figure_a_power_flow.png")
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print(f"  Figure A saved → {out_path}")
+    print(f"  Figure A saved -> {out_path}")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -244,7 +244,7 @@ def figure_b(match_df):
     out_path = os.path.join(OUT_DIR, "figure_b_tolerance.png")
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print(f"  Figure B saved → {out_path}")
+    print(f"  Figure B saved -> {out_path}")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -297,7 +297,7 @@ def figure_c(df):
     out_path = os.path.join(OUT_DIR, "figure_c_peak_loading.png")
     fig.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
-    print(f"  Figure C saved → {out_path}")
+    print(f"  Figure C saved -> {out_path}")
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -322,13 +322,13 @@ if __name__ == "__main__":
               f"{match_df['state'].nunique()} states")
 
     # --- Generate figures ---
-    print("\n── Figure A ──")
+    print("\n-- Figure A --")
     figure_a(agg)
 
-    print("\n── Figure B ──")
+    print("\n-- Figure B --")
     figure_b(match_df)
 
-    print("\n── Figure C ──")
+    print("\n-- Figure C --")
     figure_c(agg)
 
     print(f"\nDone. All figures saved to: {OUT_DIR}")
