@@ -2,15 +2,24 @@
 """
 Module Name: pfs_ev_base_profiles.py
 Description:
-    
+    EV base charging profile for the Phase 7 deploy script.
+
+    Returns the 96 fifteen-minute means of one EV charging profile in
+    <circuit>/data_ev/:
+        with_daily_plug_in_factor_70/
+            Weekday - Level 2 - Diversified (75th percentile) of 100 EVs.csv
+    Each profile file has 1,440 one-minute values (an unnamed index column and
+    one value column). The 12 files in with_daily_plug_in_factor_70/ hold 0.70
+    times the values of the files with the same names in
+    without_daily_plug_in_factor/. The origin of the data_ev files is not
+    recorded in the repository.
 
 Functions:
-    - 
-    
+    - process_vehicle_data: returns the base curve and writes data_ev/df_enatd.csv.
 
 Usage:
-    This module is intended to be imported and used by 
-    `power_flow_sim.py`. It is not designed to be executed directly.
+    This module is intended to be imported and used by
+    `power_flow_sim_daily_EV_STO_DG_deploy.py`. It is not designed to be executed directly.
 
 Author: Luis F. Victor Gallardo
 Date: 2024/03/21
@@ -20,42 +29,50 @@ Version: 0.1
 import os
 import pandas as pd
 
-def process_vehicle_data(CURRENT_DIR, ev_profile_version='without_pif', test_compare_ev_input_profiles=True):
+EV_PROFILE_FOLDER = 'data_ev/with_daily_plug_in_factor_70'
+EV_PROFILE_FILE = 'Weekday - Level 2 - Diversified (75th percentile) of 100 EVs.csv'
+
+
+def process_vehicle_data(CURRENT_DIR, write_comparison_csv=True):
     """
-    Processes electric vehicle (EV) data by reading data files based on the EV profile version,
-    optionally comparing EV input profiles, and saving the processed data to a CSV file. For files
-    that match specific criteria related to 'Level 2', '75th percentile of 100 EVs', and 'Weekday',
-    the function calculates and returns 15-minute averages of the 'Values' column.
+    Return the EV base curve: the 96 fifteen-minute means of EV_PROFILE_FILE in
+    EV_PROFILE_FOLDER under CURRENT_DIR. Each mean is sum(values[i:i+15]) / 15
+    for i = 0, 15, ..., 1425, over the file's value column.
 
     Parameters:
-    - CURRENT_DIR (str): The directory where the data files are located.
-    - ev_profile_version (str, optional): The EV profile version to be used for processing the data.
-    - test_compare_ev_input_profiles (bool, optional): Flag to indicate comparison of EV input profiles.
+    - CURRENT_DIR (str): the folder that holds data_ev/ (the circuit folder).
+    - write_comparison_csv (bool, optional): if True, also read every file of
+      data_ev/with_daily_plug_in_factor_70/ and the file of the same name in
+      data_ev/without_daily_plug_in_factor/, rename the value column to
+      'Values', add a 'Differentiator' column (<file>_pif or <file>_wopif), and
+      write all 24 frames stacked to CURRENT_DIR/data_ev/df_enatd.csv
+      (columns 'Unnamed: 0', 'Values', 'Differentiator'), replacing any
+      existing file. The returned values are the same either way.
 
     Returns:
-    - list_vals_use_ev_15 (list): 15-minute averages of the 'Values' for specific files, empty if no files match.
+    - list_vals_use_ev_15 (list): the 96 means.
 
-    Outputs:
-    - A CSV file named 'df_enatd.csv' within the 'data_ev' directory in CURRENT_DIR with the processed data.
+    Stops:
+    - FileNotFoundError if data_ev/ or EV_PROFILE_FILE is missing, or, with
+      write_comparison_csv, if a file has no counterpart in the second folder.
     """
-    list_file_path_ev = []
     list_vals_use_ev_15 = []
 
-    # Check for profile version and list files accordingly
-    if ev_profile_version == 'with_pif_70':
-        print('happens 1')
-        list_file_path_ev = os.listdir(os.path.join(CURRENT_DIR, 'data_ev/with_daily_plug_in_factor_70'))
-    elif ev_profile_version == 'without_pif':
-        print('happens 2')
-        list_file_path_ev = os.listdir(os.path.join(CURRENT_DIR, 'data_ev/without_daily_plug_in_factor'))
+    # The base curve is the 70 % plug-in factor file
+    l_ev_use = pd.read_csv(os.path.join(CURRENT_DIR, EV_PROFILE_FOLDER, EV_PROFILE_FILE))
+    l_ev_use.columns.values[1] = 'Values'
+    list_vals_use = l_ev_use['Values'].tolist()
+    # Calculate the 15-minute averages
+    for i in range(0, len(list_vals_use), 15):
+        avg_chunk = sum(list_vals_use[i:i+15]) / 15
+        list_vals_use_ev_15.append(avg_chunk)
 
     li_append = []
 
-    if test_compare_ev_input_profiles and list_file_path_ev:
+    if write_comparison_csv:
         dir_ev_pif = os.path.join(CURRENT_DIR, 'data_ev/with_daily_plug_in_factor_70')
         list_file_path_ev_pif = os.listdir(dir_ev_pif)
         dir_ev_wopif = os.path.join(CURRENT_DIR, 'data_ev/without_daily_plug_in_factor')
-        list_file_path_ev_wopif = os.listdir(dir_ev_wopif)
 
         # Iterate across names to compare files
         for l in list_file_path_ev_pif:
@@ -70,18 +87,10 @@ def process_vehicle_data(CURRENT_DIR, ev_profile_version='without_pif', test_com
 
             li_append.extend([l_ev_pif, l_ev_wopif])
 
-            # Additional processing for specific files
-            if 'Level 2' in l and '(75th percentile) of 100 EVs' in l and 'Weekday' in l:
-                list_vals_use = l_ev_pif['Values'].tolist()
-                # Calculate the 15-minute averages
-                for i in range(0, len(list_vals_use), 15):
-                    avg_chunk = sum(list_vals_use[i:i+15]) / 15
-                    list_vals_use_ev_15.append(avg_chunk)
-
         # Concatenate all processed DataFrames
         df_enatd = pd.concat(li_append, axis=0, ignore_index=True)
         # Save the concatenated DataFrame to a CSV file
         df_enatd.to_csv(os.path.join(CURRENT_DIR, 'data_ev/df_enatd.csv'), index=False)
 
-    # Return the list of 15-minute averages for the specific files
+    # Return the list of 15-minute averages
     return list_vals_use_ev_15

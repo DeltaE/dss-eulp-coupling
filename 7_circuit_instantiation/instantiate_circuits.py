@@ -362,7 +362,9 @@ for feeder in feeders:
             shutil.copytree(EV_DATA_SRC, dst_folder / "data_ev", dirs_exist_ok=True)
             print("  • Copied data_ev/ into circuit folder")
         else:
-            print("  • data_ev/ not found at repo root; EV generator will use defaults")
+            print(f"[FAIL] {EV_DATA_SRC} not found. The EV generator in "
+                  f"{RUNNER_BASENAME} needs data_ev/ in every circuit folder.")
+            sys.exit(1)
 
         # paths
         loads_path = None; lshp_path = None
