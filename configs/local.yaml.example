@@ -7,6 +7,5 @@ smart_ds_base: "D:/lvg"     # topology smart_ds_root = smart_ds_base / topology.
 eulp_metadata_root: "D:/lvg/eulp_metadata"
 runs_root: "runs"           # per-case provenance output (repo-relative or absolute)
 
-# Optional overrides (leave commented to use pipeline_config.yaml defaults):
-# smart_ds_parquet_root: "3b_smartds_eulp_match/parquet_data"   # -> PIPELINE_SMART_DS_PARQUET_ROOT
-# parquet_data_root: "./parquet_data"                            # -> PIPELINE_PARQUET_ROOT
+# run_case.py derives the parquet roots from topology_registry.yaml (the parquet_data
+# folder beside each topology's opendss tree). local.yaml holds no parquet path.

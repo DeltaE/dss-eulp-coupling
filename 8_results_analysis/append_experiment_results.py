@@ -19,24 +19,16 @@ from pipeline_utils import load_config, resolve_work_path
 cfg = load_config()
 STATE = cfg['state']
 
-# Resolve season: PIPELINE_SEASON env var (set by run_case.py per season loop)
-# takes priority, then fall back to pipeline_config.yaml.  Never silently
-# default to 'unknown' — that masks the very bug this fix addresses.
-_env_season = os.environ.get("PIPELINE_SEASON", "").strip().lower()
-_cfg_season = cfg.get("season", "").strip().lower()
-SEASON = _env_season or _cfg_season
-if not SEASON:
-    raise RuntimeError(
-        "Cannot resolve season: neither PIPELINE_SEASON env var nor "
-        "pipeline_config.yaml 'season' key is set.  Fix your config."
-    )
+# Season: PIPELINE_SEASON, set by run_case.py for each season. load_config exits 1
+# when it is unset.
+SEASON = cfg['season'].strip().lower()
 VALID_SEASONS = {"summer", "winter"}
 if SEASON not in VALID_SEASONS:
     raise ValueError(
         f"Season '{SEASON}' not in {VALID_SEASONS}. "
-        f"Check PIPELINE_SEASON env var or pipeline_config.yaml."
+        f"Check PIPELINE_SEASON."
     )
-print(f"[append] season = '{SEASON}'  (source: {'env PIPELINE_SEASON' if _env_season else 'pipeline_config.yaml'})")
+print(f"[append] season = '{SEASON}'  (source: env PIPELINE_SEASON)")
 
 OUTPUT_DIR = Path(resolve_work_path("8_results_analysis"))
 OUTPUT_DIR.mkdir(exist_ok=True)
