@@ -2,7 +2,8 @@
 """
 power_flow_sim_daily_EV_STO_DG_deploy.py
 ----------------------------------------
-Build and solve one DER scenario of one prepared circuit as a 96-step daily run.
+Build and solve one DER scenario of one prepared circuit as a daily-mode run of
+96 x horizon_days fifteen-minute steps (horizon_days in pipeline_config.yaml, default 1).
 
 Run from inside a prepared circuit folder <circuit>/ (run_circuits.py starts it with
 cwd set to that folder). instantiate_circuits.py copies this script there and rewrites
@@ -29,8 +30,8 @@ Steps
 1. Builds one 96-point EV base curve (pfs_ev_base_profiles) and
    N = int(n_base_loads * ev_perc * l2_perc) uncontrolled session rows (n_base_loads
    counts every base load, all phases). Controlled rows are the same rows with each
-   row's energy spread evenly over its non-zero intervals. Rows are truncated or
-   tiled to the number of EV hosts.
+   row's energy spread evenly over its non-zero intervals. With horizon_days > 1 each
+   row repeats its day. Rows are truncated or tiled to the number of EV hosts.
 2. Copies every .dss file of the feeder (except *_original*) into ModifiedCircuitData/
    and points LoadShapes.dss at ../../profiles_use_bench/<circuit>/.
 3. Writes LoadShapes_EV.dss (EVu_i, EVc_i, 4 decimals) and appends two EV loads per host
@@ -46,9 +47,10 @@ Steps
 5. Writes PVSystems.dss and LoadShapes_PV.dss: per target pmpp = max(pv_min_kw,
    round(pv_kw_per_peak_kw * peak, 1)), kVA = 1.1 * pmpp, and one 96-point daily
    shape: "kW Generated (1000 kW Array)" / 1000 in the donor's SMART-DS solar file on
-   this feeder's baseline peak day of the run's season (pv_daily_shape).
+   this feeder's baseline peak day of the run's season and the horizon_days - 1 days
+   after it (pv_daily_shape).
 6. Rewrites Master.dss: replaces the yearly 15-minute 35040-step solve with
-   "Solve mode=daily stepsize=15m number=96", comments out Plot lines, places the
+   "Solve mode=daily stepsize=15m number=<96 x horizon_days>", comments out Plot lines, places the
    new Redirect lines before the first Solve, and appends Export lines for the
    storage monitors.
 7. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
@@ -170,8 +172,10 @@ from dss_engine import create_dss_engine
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, horizon_days, horizon_dates
 CFG = load_config()
+HORIZON_DAYS = horizon_days(CFG)
+NPTS = IRRADIANCE_NPTS * HORIZON_DAYS  # 15-minute steps in the solve and in the EV and PV shapes
 DER_SIZING = CFG.get("der_sizing") or {}
 def der_sizing(key):
     if key not in DER_SIZING:
@@ -525,13 +529,19 @@ def pv_daily_shape(feeder, season):
         if PV_KW_COLUMN not in (reader.fieldnames or []):
             print(f"[FAIL] Column {PV_KW_COLUMN!r} not in {pv_file}")
             sys.exit(1)
-        values = [round(float(r[PV_KW_COLUMN]) / 1000, 9) for r in reader
-                  if int(r["Month"]) == month and int(r["Day"]) == day]
-    if len(values) != IRRADIANCE_NPTS:
-        print(f"[FAIL] {len(values)} rows for month {month} day {day} in {pv_file}; "
-              f"expected {IRRADIANCE_NPTS}.")
-        sys.exit(1)
-    print(f"PV shape -> {season} peak day {month:02d}-{day:02d} of {feeder} from {pv_file}")
+        rows_pv = list(reader)
+    values = []
+    # Multi-day horizon: the peak day and the HORIZON_DAYS - 1 days after it
+    for m, d in horizon_dates(month, day, HORIZON_DAYS):
+        day_values = [round(float(r[PV_KW_COLUMN]) / 1000, 9) for r in rows_pv
+                      if int(r["Month"]) == m and int(r["Day"]) == d]
+        if len(day_values) != IRRADIANCE_NPTS:
+            print(f"[FAIL] {len(day_values)} rows for month {m} day {d} in {pv_file}; "
+                  f"expected {IRRADIANCE_NPTS}.")
+            sys.exit(1)
+        values.extend(day_values)
+    print(f"PV shape -> {season} peak day {month:02d}-{day:02d} of {feeder}, "
+          f"{HORIZON_DAYS} day(s), from {pv_file}")
     return values
 
 def get_circuit_name(master_path):
@@ -623,9 +633,13 @@ if ACTIVATE_EV:
         return out
 
     arr_ev_all_ctl = equal_energy_realloc(arr_ev_all_unctl)
+
+    # Multi-day horizon: every EV repeats its daily session pattern each day
+    arr_ev_all_unctl = np.tile(arr_ev_all_unctl, (1, HORIZON_DAYS))
+    arr_ev_all_ctl   = np.tile(arr_ev_all_ctl,   (1, HORIZON_DAYS))
 else:
-    arr_ev_all_unctl = np.zeros((0, IRRADIANCE_NPTS))
-    arr_ev_all_ctl   = np.zeros((0, IRRADIANCE_NPTS))
+    arr_ev_all_unctl = np.zeros((0, NPTS))
+    arr_ev_all_ctl   = np.zeros((0, NPTS))
 
 # ---------------- EV host lists from JSON ----------------
 json_ev_un = ASSIGN.get("ev_loads_uncontrolled", []) if isinstance(ASSIGN, dict) else []
@@ -653,7 +667,7 @@ def ensure_rows(mat, N_target):
     if mat.shape[0] >= N_target:
         return mat[:N_target, :]
     if mat.shape[0] == 0:
-        return np.zeros((N_target, IRRADIANCE_NPTS))
+        return np.zeros((N_target, NPTS))
     # replicate rows as needed
     reps = int(np.ceil(N_target / mat.shape[0]))
     tiled = np.tile(mat, (reps, 1))
@@ -880,7 +894,7 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
             bus_str = f"{busname}.1.2.3" if ph == "3" else info["bus1"]
             ls_name = f"PVShape_{idx}"
             pv_name = f"pv_{full}"
-            f_ls.write(f"New Loadshape.{ls_name} npts={IRRADIANCE_NPTS} interval={IRR_INTERVAL_H} mult=({prof_str})\n")
+            f_ls.write(f"New Loadshape.{ls_name} npts={NPTS} interval={IRR_INTERVAL_H} mult=({prof_str})\n")
             f_pv.write(
                 f"New PVSystem.{pv_name} phases={ph} bus1={bus_str} kV={info['kV']} "
                 f"kVA={pv_kw*1.1:.1f} pmpp={pv_kw:.1f} pf=1 %Cutin=0.1 %Cutout=0.1 "
@@ -907,7 +921,7 @@ print(f"EV hosts without _1/_2 legs, EV on the host's own bus: {len(EV_HOSTS_OWN
       f"(commercial profile: {n_ev_own_bus_com})")
 
 # Finally, force Master to a DAILY run (96x15m), and (optionally) comment plot lines
-if not retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m"):
+if not retarget_master_to_daily(master_dss_path, npts=NPTS, stepsize="15m"):
     print(f"[FAIL] No 'Solve mode=yearly stepsize=15m number=35040' line to retarget in {master_dss_path}.")
     sys.exit(1)
 

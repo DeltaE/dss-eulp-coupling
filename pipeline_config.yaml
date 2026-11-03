@@ -11,6 +11,11 @@ quota:
   residential_order: auto
   commercial_order: auto
 
+# Simulation horizon in days (prototype, experiment/multi-day). Phase 5b slices, and
+# Phase 7 solves, each feeder's peak day and the horizon_days - 1 calendar days after
+# it (same month and day in every source year). 1 is the published one-day run.
+horizon_days: 1
+
 # EULP releases on the OEDI data lake that Phase 5a downloads from, under
 # https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/
 eulp_release:

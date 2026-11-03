@@ -25,7 +25,9 @@ Steps
 3. Winter peak day: the kept month in {12, 1, 2} with the highest point; summer: the
    same in {6, 7, 8}. Both seasons are always processed; the run's season is not used.
 4. For each CSV row of the feeder, reads the full parquet, keeps the rows whose
-   timestamp month and day equal the peak day (any year), and writes them.
+   timestamp month and day equal the peak day (any year), and writes them. With
+   horizon_days > 1 (pipeline_config.yaml) it keeps the peak day and the
+   horizon_days - 1 calendar days after it, in calendar order.
 
 Outputs
 - baseline only: <work_root>/5b_profile_generation/<STATE>_peak_days.csv, one row per
@@ -61,7 +63,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, resolve_work_path
+from pipeline_utils import load_config, resolve_work_path, horizon_days, horizon_dates
 
 START_PROCESS = time.time()
 
@@ -75,6 +77,7 @@ parser.add_argument("--scenario", required=True, choices=sorted(SCENARIO_INPUTS)
 ARGS = parser.parse_args()
 
 cfg = load_config()
+HORIZON_DAYS = horizon_days(cfg)
 STATE = cfg['state']
 SEASON = cfg['season']
 STR_STATE = STATE
@@ -337,8 +340,14 @@ if BOOL_SAVE_SLICES:
                     target_day = target_date.day
 
                     # Filter by month and day only (ignore year)
-                    df_day = df_full[(df_full["timestamp"].dt.month == target_month) &
-                                    (df_full["timestamp"].dt.day == target_day)]
+                    if HORIZON_DAYS == 1:
+                        df_day = df_full[(df_full["timestamp"].dt.month == target_month) &
+                                        (df_full["timestamp"].dt.day == target_day)]
+                    else:
+                        # peak day and the following days, in calendar order
+                        df_day = pd.concat([
+                            df_full[(df_full["timestamp"].dt.month == m) & (df_full["timestamp"].dt.day == d)]
+                            for m, d in horizon_dates(target_month, target_day, HORIZON_DAYS)])
 
                     out_path = os.path.join(output_dir, row['Parquet_File'])
                     if not df_day.empty:
@@ -377,8 +386,14 @@ if BOOL_SAVE_SLICES:
                     target_day = target_date.day
 
                     # Filter by month and day only (ignore year)
-                    df_day = df_full[(df_full["timestamp"].dt.month == target_month) &
-                                    (df_full["timestamp"].dt.day == target_day)]
+                    if HORIZON_DAYS == 1:
+                        df_day = df_full[(df_full["timestamp"].dt.month == target_month) &
+                                        (df_full["timestamp"].dt.day == target_day)]
+                    else:
+                        # peak day and the following days, in calendar order
+                        df_day = pd.concat([
+                            df_full[(df_full["timestamp"].dt.month == m) & (df_full["timestamp"].dt.day == d)]
+                            for m, d in horizon_dates(target_month, target_day, HORIZON_DAYS)])
 
                     out_path = os.path.join(output_dir, row['Parquet_File'])
                     if not df_day.empty:

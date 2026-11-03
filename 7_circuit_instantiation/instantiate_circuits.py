@@ -26,7 +26,7 @@ from collections import defaultdict
 import math, random
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, load_feeder_registry, resolve_work_path
+from pipeline_utils import load_config, load_feeder_registry, resolve_work_path, horizon_days, STEPS_PER_DAY
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -43,7 +43,7 @@ registry = load_feeder_registry()
 feeder_to_circuit = registry["circuit_name_map"]
 SKIP_CIRCUITS = {int(n) for n in cfg.get('skip_circuits', [])}
 
-FORCE_NPTS = 96
+FORCE_NPTS = STEPS_PER_DAY * horizon_days(cfg)  # 96 per day of the horizon
 FORCE_INTERVAL = 0.25
 
 # -----------------------
@@ -601,7 +601,7 @@ for feeder in feeders:
 
                     if src_kw is None or src_kvar is None:
                         # flat-ones patch
-                        npts = 96
+                        npts = FORCE_NPTS
                         ones = make_ones_list(npts)
                         line = re.sub(r"mult\s*=\s*\(file=.*?\)",  f"mult=({ones})",  line, flags=re.IGNORECASE)
                         line = re.sub(r"qmult\s*=\s*\(file=.*?\)", f"qmult=({ones})", line, flags=re.IGNORECASE)
