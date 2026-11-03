@@ -20,7 +20,7 @@ cfg = load_config()
 START_PROCESS = time.time()
 
 # --- PATCHED: --scenario CLI flag ---
-SCENARIO = cfg.get("scenario", "")
+SCENARIO = ""  # baseline unless --scenario is given
 for _i, _arg in enumerate(sys.argv):
     if _arg == "--scenario" and _i + 1 < len(sys.argv):
         SCENARIO = sys.argv[_i + 1]

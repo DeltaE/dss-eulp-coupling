@@ -133,7 +133,7 @@ def planned_files_for_dataset(
     cluster: dict[str, Any],
     dataset: str,
 ) -> list[dict[str, Any]]:
-    data_raw = eulp_metadata_root()
+    metadata_root = eulp_metadata_root()
     groups_key = f"{dataset}_folder_groups"
     upgrades_key = f"{dataset}_upgrades"
     group_names = cluster.get(groups_key, [])
@@ -145,13 +145,13 @@ def planned_files_for_dataset(
     for state in states:
         for group_name in group_names:
             group = folder_groups[group_name]
-            folder = data_raw / group["folder_pattern"].format(state=state)
+            folder = metadata_root / group["folder_pattern"].format(state=state)
             if not folder.exists():
                 files.append(
                     {
                         "state": state,
                         "group": group_name,
-                        "folder": folder.relative_to(data_raw).as_posix(),
+                        "folder": folder.relative_to(metadata_root).as_posix(),
                         "exists": False,
                         "file": None,
                     }
@@ -163,9 +163,9 @@ def planned_files_for_dataset(
                         {
                             "state": state,
                             "group": group_name,
-                            "folder": folder.relative_to(data_raw).as_posix(),
+                            "folder": folder.relative_to(metadata_root).as_posix(),
                             "exists": True,
-                            "file": csv_path.relative_to(data_raw).as_posix(),
+                            "file": csv_path.relative_to(metadata_root).as_posix(),
                         }
                     )
     return files
@@ -282,11 +282,11 @@ def write_folder_append_dataset(
     summary = CsvSummary(path=_display_path(output_path))
     writer: csv.DictWriter[str] | None = None
     selected_columns: list[str] | None = None
-    data_raw = eulp_metadata_root()
+    metadata_root = eulp_metadata_root()
 
     with output_path.open("w", newline="", encoding="utf-8") as out_handle:
         for item in planned:
-            input_path = data_raw / item["file"]
+            input_path = metadata_root / item["file"]
             with input_path.open("r", newline="", encoding="utf-8-sig") as in_handle:
                 reader = csv.DictReader(in_handle)
                 if reader.fieldnames is None:

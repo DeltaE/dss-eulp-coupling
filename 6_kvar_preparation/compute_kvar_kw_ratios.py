@@ -32,7 +32,7 @@ from pipeline_utils import load_config, resolve_config_path, resolve_work_path
 cfg = load_config()
 
 # --- PATCHED: --scenario CLI flag ---
-SCENARIO = cfg.get("scenario", "")
+SCENARIO = ""  # baseline unless --scenario is given
 for _i, _arg in enumerate(sys.argv):
     if _arg == "--scenario" and _i + 1 < len(sys.argv):
         SCENARIO = sys.argv[_i + 1]

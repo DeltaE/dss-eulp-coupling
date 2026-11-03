@@ -1,7 +1,8 @@
 # Available EULP donor-profile states (the "donor menu").
 # donor_state drives EULP metadata filtering, profile matching/downloading,
 # and CSV generation -> sets PIPELINE_STATE.
-# parquet_data_root defaults to pipeline_config.yaml unless overridden in local.yaml.
+# The parquet pool comes from the topology: run_case.py derives it from smart_ds_relpath
+# (or parquet_relpath) in topology_registry.yaml.
 
 donors:
   NC:

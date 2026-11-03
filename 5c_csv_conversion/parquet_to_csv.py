@@ -54,7 +54,7 @@ feeder_by_folder_key = {
 # ---------------------------------------------------------------------
 
 # Scenario selection: "" = baseline, "dm", "uncontrolled"
-SCENARIO = cfg.get("scenario", "")
+SCENARIO = ""  # baseline unless --scenario is given
 # CLI override: python parquet_to_csv.py --scenario dm
 for _i, _arg in enumerate(sys.argv):
     if _arg == "--scenario" and _i + 1 < len(sys.argv):
