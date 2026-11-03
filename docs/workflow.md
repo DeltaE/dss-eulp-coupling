@@ -66,9 +66,9 @@ Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTH
 
 ### Phases 5b, 5d and 5b_variants: profile generation
 
-- `5b` (`5b_profile_generation`): `phase5b_scale.py` runs `scale_feeder_curves_impl.py`. It reads the two Phase 4 final CSVs from `<ws>/4_quota_assignment/`. `phase5b_peak.py` runs `find_max_day_curve_impl.py`. Together they build the baseline profiles.
+- `5b` (`5b_profile_generation`): `phase5b_scale.py` runs `scale_feeder_curves_impl.py`. It reads the two Phase 4 final CSVs from `<ws>/4_quota_assignment/`. `phase5b_peak.py` runs `find_max_day_curve_impl.py --scenario baseline`. Together they build the baseline profiles.
 - `5d` (`5d_scenario_controls`): `combine_scenarios.py` writes `<ws>/5d_scenario_controls/combine_scenarios/combined_scenarios.csv`. `get_scenario_csv_controls.py` then reads it and selects the controls for the demand management (DM) and uncontrolled variants.
-- `5b_variants` (`5b_profile_generation`): `phase5b_variants_dm.py` and `phase5b_variants_uncontrolled.py` build the DM and uncontrolled profiles.
+- `5b_variants` (`5b_profile_generation`): `phase5b_variants_dm.py` and `phase5b_variants_uncontrolled.py` run `find_max_day_curve_impl.py` with `--scenario dm` and `--scenario uncontrolled`. They build the DM and uncontrolled profiles.
 
 ### Phases 5c and 5c_variants: CSV conversion (5c_csv_conversion)
 
@@ -184,9 +184,9 @@ The `phase*.py` scripts are thin wrappers around the implementation scripts.
 | `phase5a_download_residential.py` | `download_parquets_residential_impl.py` |
 | `phase5a_download_commercial.py` | `download_parquets_commercial_impl.py` |
 | `phase5b_scale.py` | `scale_feeder_curves_impl.py` |
-| `phase5b_peak.py` | `find_max_day_curve_impl.py` |
-| `phase5b_variants_dm.py` | `find_max_day_curve_dm_impl.py` |
-| `phase5b_variants_uncontrolled.py` | `find_max_day_curve_uncontrolled_impl.py` |
+| `phase5b_peak.py` | `find_max_day_curve_impl.py --scenario baseline` |
+| `phase5b_variants_dm.py` | `find_max_day_curve_impl.py --scenario dm` |
+| `phase5b_variants_uncontrolled.py` | `find_max_day_curve_impl.py --scenario uncontrolled` |
 
 ### Script notes
 

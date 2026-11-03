@@ -1,10 +1,51 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Mar 24 07:23:39 2025
+Phase 5b: find each feeder's winter and summer peak day and save that day of every
+building profile.
 
-@author: luisfernando
+Usage: python find_max_day_curve_impl.py --scenario {baseline,dm,uncontrolled}
+Run through phase5b_peak.py (baseline, step 5b) and phase5b_variants_dm.py and
+phase5b_variants_uncontrolled.py (step 5b_variants) in configs/phases.yaml. State,
+work root and parquet root come from the PIPELINE_* variables through
+pipeline_utils.load_config; a missing variable exits 1.
+
+Inputs
+- baseline: <work_root>/5b_profile_generation/<STATE>_required_parquets_per_feeder.csv
+- dm, uncontrolled: <work_root>/5d_scenario_controls/get_scenario_csv_controls/
+  <STATE>_required_parquets_per_feeder_<scenario>.csv
+  Columns Feeder, Parquet_Folder, Parquet_File, REAL_LOAD_COUNT.
+- <parquet_data_root>/<Parquet_Folder>/<Parquet_File>: EULP building time series
+  with timestamp and out.electricity.total.energy_consumption (kWh per 15 minutes).
+
+Steps
+1. Per feeder, in CSV order: sums energy * 4 * REAL_LOAD_COUNT over its rows into one
+   kW curve.
+2. Puts the curve on a 15-minute index from 2025-01-01 00:00; per month, takes the day
+   with the highest single 15-minute value; keeps it if it has 96 points.
+3. Winter peak day: the kept month in {12, 1, 2} with the highest point; summer: the
+   same in {6, 7, 8}. Both seasons are always processed; the run's season is not used.
+4. For each CSV row of the feeder, reads the full parquet, keeps the rows whose
+   timestamp month and day equal the peak day (any year), and writes them.
+
+Outputs
+- <work_root>/5b_profile_generation/daily_parquets/
+  <STATE>_<feeder with "--" as "_">_<winter|summer><suffix>/<Parquet_File>,
+  suffix "" (baseline), "_dm" or "_uncontrolled". Folders are created if missing and
+  never cleared. Plots are closed unsaved.
+
+Fallbacks
+- Curve pass: an unreadable parquet prints "Error reading ..." and is left out of the
+  feeder sum.
+- A month whose peak day lacks 96 points prints "Incomplete daily curve ..." and is
+  left out.
+
+Stops
+- Slice pass, every scenario: an empty peak day exits 1 (winter) or 3 (summer); an
+  unreadable parquet exits 2 (winter) or 4 (summer).
+- A missing input CSV raises FileNotFoundError (exit 1).
 """
 
+import argparse
 import os
 import pandas as pd
 import numpy as np
@@ -20,6 +61,15 @@ from pipeline_utils import load_config, resolve_work_path
 
 START_PROCESS = time.time()
 
+SCENARIO_INPUTS = {
+    "baseline": ("5b_profile_generation", "_required_parquets_per_feeder.csv"),
+    "dm": (os.path.join("5d_scenario_controls", "get_scenario_csv_controls"), "_required_parquets_per_feeder_dm.csv"),
+    "uncontrolled": (os.path.join("5d_scenario_controls", "get_scenario_csv_controls"), "_required_parquets_per_feeder_uncontrolled.csv"),
+}
+parser = argparse.ArgumentParser(description="Phase 5b peak-day slices for one scenario.")
+parser.add_argument("--scenario", required=True, choices=sorted(SCENARIO_INPUTS))
+ARGS = parser.parse_args()
+
 cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
@@ -34,15 +84,16 @@ if not PARQUET_DATA_ROOT.is_absolute():
 
 # --- run controls (added) ---
 SHOW_PLOTS = False              # True = show spaghetti plots; False = skip (won't block on a server)
-SCENARIO = ""                  # daily_parquets suffix so baseline/dm/uncontrolled don't overwrite each other
+SCENARIO = "" if ARGS.scenario == "baseline" else ARGS.scenario  # daily_parquets suffix so baseline/dm/uncontrolled don't overwrite each other
 _SCEN_SUFFIX = f"_{SCENARIO}" if SCENARIO else ""
 
 # 🔹 NEW: Store df_curve per feeder
 df_curve_per_feeder = {}  # 🔹 NEW
 
 # Load required parquet summary
+_input_dir, _input_suffix = SCENARIO_INPUTS[ARGS.scenario]
 df_summary_result = pd.read_csv(
-    resolve_work_path("5b_profile_generation", STR_STATE + "_required_parquets_per_feeder.csv")
+    resolve_work_path(_input_dir, STR_STATE + _input_suffix)
 )
 
 # Dictionary to store peak daily curves per month per feeder
@@ -272,8 +323,8 @@ if BOOL_SAVE_SLICES:
                     df_day = df_full[(df_full["timestamp"].dt.month == target_month) &
                                     (df_full["timestamp"].dt.day == target_day)]
 
+                    out_path = os.path.join(output_dir, row['Parquet_File'])
                     if not df_day.empty:
-                        out_path = os.path.join(output_dir, row['Parquet_File'])
                         df_day.to_parquet(out_path, index=False)
                         # print(f"✅ Saved WINTER day for {feeder} to {out_path}")
                     else:
@@ -312,8 +363,8 @@ if BOOL_SAVE_SLICES:
                     df_day = df_full[(df_full["timestamp"].dt.month == target_month) &
                                     (df_full["timestamp"].dt.day == target_day)]
 
+                    out_path = os.path.join(output_dir, row['Parquet_File'])
                     if not df_day.empty:
-                        out_path = os.path.join(output_dir, row['Parquet_File'])
                         df_day.to_parquet(out_path, index=False)
                         # print(f"✅ Saved SUMMER day for {feeder} to {out_path}")
                     else:
