@@ -43,19 +43,19 @@ matching_dirs = sorted(set(matching_dirs), key=lambda p: str(p).lower())
 
 print("\n=== Combining mixes_compare_long.csv from 0_experimental_design folders ===")
 if not matching_dirs:
-    print(f"  → No matching folders found under: {BASE_DIR}")
+    print(f"  -> No matching folders found under: {BASE_DIR}")
 
 frames = []
 for d in matching_dirs:
     csv_path = d / TARGET_FILE
     if not csv_path.exists():
-        print(f"  ⚠️  Missing file, skipping: {csv_path}")
+        print(f"  !  Missing file, skipping: {csv_path}")
         continue
 
     try:
         df = pd.read_csv(csv_path, low_memory=False)
     except Exception as e:
-        print(f"  ⚠️  Failed reading {csv_path}: {e}")
+        print(f"  !  Failed reading {csv_path}: {e}")
         continue
 
     # Drop stray index columns if present
@@ -65,12 +65,12 @@ for d in matching_dirs:
     df["source_folder"] = d.name  # or: str(d.relative_to(BASE_DIR)) for the relative path
 
     frames.append(df)
-    print(f"  ✓ {d.name}: {len(df):,} rows")
+    print(f"  ok {d.name}: {len(df):,} rows")
 
 # --- Write output ------------------------------------------------------------------
 if frames:
     combined = pd.concat(frames, ignore_index=True)
     combined.to_csv(OUT_PATH, index=False)
-    print(f"  ✅ Wrote {len(combined):,} rows from {len(frames)} folders → {OUT_PATH}")
+    print(f"  OK Wrote {len(combined):,} rows from {len(frames)} folders -> {OUT_PATH}")
 else:
-    print("  → Nothing to write.")
+    print("  -> Nothing to write.")
