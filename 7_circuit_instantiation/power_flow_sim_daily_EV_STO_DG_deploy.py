@@ -34,7 +34,10 @@ Steps
 2. Copies every .dss file of the feeder (except *_original*) into ModifiedCircuitData/
    and points LoadShapes.dss at ../../profiles_use_bench/<circuit>/.
 3. Writes LoadShapes_EV.dss (EVu_i, EVc_i, 4 decimals) and appends two EV loads per host
-   (legs _1 and _2, kW=0.5 each, pf=1) to ModifiedCircuitData/Loads.dss.
+   (EVu_<host>_1 and _2, or EVc_, kW=0.5 each, pf=1) to ModifiedCircuitData/Loads.dss:
+   on the host's legs <host>_1 and <host>_2 when both exist, else both on the host
+   load itself with its own bus1, kV, conn and phases (a balanced three-phase EV load
+   at a three-phase host).
 4. Writes Storage.dss: per target kWRated = max(storage_min_kw,
    round(storage_kw_per_peak_kw * peak, 3)), kWhRated = storage_hours * kWRated,
    kVA = kWRated / 0.90, 20 % stored, two monitors, and one StorageController
@@ -56,12 +59,11 @@ Outputs
   PVSystems.dss, LoadShapes_PV.dss and the monitor CSVs OpenDSS exports.
 - <circuit>/data_ev/df_enatd.csv (written by process_vehicle_data on every run).
 - Console counts: the ev_loads split when used, storage and PV raised to their
-  minimum, and peaks taken from Loads_original.dss.
+  minimum, peaks taken from Loads_original.dss, and EV hosts placed on their own
+  bus (with how many carry a commercial com_ profile).
 
 Fallbacks and floors
 - ev_loads_uncontrolled and ev_loads_controlled both empty: ev_loads split in half.
-- EV host without both _1 and _2 loads (every three-phase host): both legs go to the
-  first single-phase load in Loads.dss; skipped if none exists.
 - Peak: profile CSV maximum, else Loads_original.dss kW.
 - Storage and PV minimums from der_sizing; controller kWTarget floor 50 kW.
 
@@ -72,6 +74,7 @@ Stops (exit 1 unless noted)
 - der_sizing key missing from pipeline_config.yaml.
 - A .dss copy into ModifiedCircuitData/ fails.
 - A storage or PV target is not a load in Loads.dss.
+- An EV host has neither both _1 and _2 legs nor a load of its own in Loads.dss.
 - PV shape: season not summer or winter, peak-day record or row missing, solar file,
   column or the 96 rows of the date missing.
 - No peak kW for a storage or PV target.
@@ -659,6 +662,24 @@ def ensure_rows(mat, N_target):
 arr_u = ensure_rows(arr_ev_all_unctl, N_u)
 arr_c = ensure_rows(arr_ev_all_ctl,   N_c)
 
+EV_HOSTS_OWN_BUS = []  # EV hosts without _1/_2 legs (three-phase loads): EV on the host's own bus
+
+def ev_leg_infos(base):
+    """Return the parsed attributes for the two EV legs of host base: those of
+    <base>_1 and <base>_2 when both are loads; else those of the host load <base>
+    itself for both legs (its own bus1, kV, conn and phases, so a three-phase host
+    gets a balanced three-phase EV load), and base is added to EV_HOSTS_OWN_BUS.
+    Stops if base has neither both legs nor a load of its own in Loads.dss."""
+    n1 = base + "_1"; n2 = base + "_2"
+    if n1 in parsed_loads_map and n2 in parsed_loads_map:
+        return parsed_loads_map[n1], parsed_loads_map[n2]
+    host = parsed_loads_map.get(base)
+    if host is None:
+        print(f"[FAIL] EV host {base} is not a load in {PATH_LOADS_DSS}.")
+        sys.exit(1)
+    EV_HOSTS_OWN_BUS.append(base)
+    return host, host
+
 # ---------------- Prepare scenario dir ----------------
 os.makedirs(OUT_DIR, exist_ok=True)
 
@@ -708,16 +729,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
         f_ld.write("\n! EV Loads (mixed types)\n\n")
         # uncontrolled
         for i, base in enumerate(json_ev_un):
-            n1 = base + "_1"; n2 = base + "_2"
-            if n1 not in parsed_loads_map or n2 not in parsed_loads_map:
-                # fallback: try any 1-phase load
-                candidates = [n for n,a in parsed_loads_map.items() if a.get("ph") == "1"]
-                if not candidates:
-                    continue
-                n1 = candidates[0]
-                stem = re.sub(r"_[0-9]+$", "", n1)
-                n2   = stem + "_2" if stem + "_2" in parsed_loads_map else n1
-            for suff, info in zip(("_1","_2"), (parsed_loads_map[n1], parsed_loads_map[n2])):
+            for suff, info in zip(("_1","_2"), ev_leg_infos(base)):
                 ev_load_name = f"EVu_{base}{suff}"
                 f_ld.write(
                     f"New Load.{ev_load_name} conn={info['conn']} bus1={info['bus1']} kV={info['kV']} "
@@ -726,15 +738,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
                 )
         # controlled
         for i, base in enumerate(json_ev_ct):
-            n1 = base + "_1"; n2 = base + "_2"
-            if n1 not in parsed_loads_map or n2 not in parsed_loads_map:
-                candidates = [n for n,a in parsed_loads_map.items() if a.get("ph") == "1"]
-                if not candidates:
-                    continue
-                n1 = candidates[0]
-                stem = re.sub(r"_[0-9]+$", "", n1)
-                n2   = stem + "_2" if stem + "_2" in parsed_loads_map else n1
-            for suff, info in zip(("_1","_2"), (parsed_loads_map[n1], parsed_loads_map[n2])):
+            for suff, info in zip(("_1","_2"), ev_leg_infos(base)):
                 ev_load_name = f"EVc_{base}{suff}"
                 f_ld.write(
                     f"New Load.{ev_load_name} conn={info['conn']} bus1={info['bus1']} kV={info['kV']} "
@@ -897,6 +901,10 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
 print(f"Sizing -> storage at the {STORAGE_MIN_KW} kW minimum: {n_storage_at_min} of {n_storage}; "
       f"PV at the {PV_MIN_KW} kW minimum: {n_pv_at_min} of {n_pv}")
 print(f"Peak kW from Loads_original.dss instead of a profile CSV: {len(PEAK_FROM_ORIGINAL_KW)}")
+n_ev_own_bus_com = sum(1 for b in EV_HOSTS_OWN_BUS
+                       if any(d.lower().startswith("com_") for d in base_to_daily.get(b, set())))
+print(f"EV hosts without _1/_2 legs, EV on the host's own bus: {len(EV_HOSTS_OWN_BUS)} "
+      f"(commercial profile: {n_ev_own_bus_com})")
 
 # Finally, force Master to a DAILY run (96x15m), and (optionally) comment plot lines
 if not retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m"):
