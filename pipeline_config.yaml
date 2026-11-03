@@ -30,7 +30,9 @@ der_sizing:
   storage_min_kw: 5.0
   # ASSUMPTION: storage energy is 4.0 hours of rated power (kWh = 4.0 x kW), for
   # every storage system. It sets how long a full battery can discharge at rated
-  # power. A longer duration raises stored energy and discharge time.
+  # power. A longer duration raises stored energy and discharge time. The NREL
+  # Annual Technology Baseline 2024 bases its commercial battery storage costs on
+  # 4-hour systems: https://atb.nrel.gov/electricity/2024/commercial_battery_storage
   storage_hours: 4.0
   # ASSUMPTION: PV array rating (Pmpp) is 0.30 times the host's peak kW, for every
   # PV system in every case. It sizes the array as a share of the host's demand.
