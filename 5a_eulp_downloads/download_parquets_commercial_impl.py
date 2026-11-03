@@ -32,7 +32,7 @@ CASE_ID = f"{DOWNLOAD_DATE}_comm_{STATE}"
 
 # Dataset location
 QUERY_YEAR = 2024
-DATASET = "comstock_amy2018_release_1"
+DATASET = cfg['eulp_release']['commercial']  # eulp_release in pipeline_config.yaml
 BUCKET = "oedi-data-lake"
 ROOT_PREFIX = "nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock"
 
