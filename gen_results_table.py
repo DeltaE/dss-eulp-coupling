@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """Regenerate Table 2 from the four case workspaces, checking both seasons.
 
-Outputs table2.csv and table2.md under the active work root's Phase 8 directory.
+Writes table2.csv and table2.md to <runs_root>/ (beside m2_all_cases_all_seasons.csv),
+and also to <work_root>/8_results_analysis/ when PIPELINE_WORK_ROOT is set. runs_root
+comes from configs/local.yaml or --runs-root; no other setting is needed.
 Phase 4 counts reproduce phase4_select's report() from its saved final CSVs,
 so generation does not rerun assignment or depend on temporary console logs.
 """
 import argparse
 import ast
+import os
 import sys
 from pathlib import Path
 
 import pandas as pd
 import yaml
-
-from pipeline_utils import resolve_work_path
 
 
 CASES = (
@@ -81,13 +82,16 @@ def main():
         *("| " + " | ".join(map(str, row)) + " |"
           for row in table.itertuples(index=False, name=None)),
     ]) + "\n"
-    output_dir = Path(resolve_work_path("8_results_analysis"))
-    output_dir.mkdir(parents=True, exist_ok=True)
-    table.to_csv(output_dir / "table2.csv", index=False)
-    (output_dir / "table2.md").write_text(markdown, encoding="utf-8")
+    output_dirs = [runs_root]
+    if os.environ.get("PIPELINE_WORK_ROOT"):
+        output_dirs.append(Path(os.environ["PIPELINE_WORK_ROOT"]) / "8_results_analysis")
     print(markdown, end="")
-    print(f"Written: {output_dir / 'table2.csv'}")
-    print(f"Written: {output_dir / 'table2.md'}")
+    for output_dir in output_dirs:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        table.to_csv(output_dir / "table2.csv", index=False)
+        (output_dir / "table2.md").write_text(markdown, encoding="utf-8")
+        print(f"Written: {output_dir / 'table2.csv'}")
+        print(f"Written: {output_dir / 'table2.md'}")
 
 
 if __name__ == "__main__":
