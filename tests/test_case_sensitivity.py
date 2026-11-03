@@ -26,6 +26,16 @@ sys.path.insert(0, REPO_ROOT)
 from pipeline_utils import resolve_dss_file  # noqa: E402
 
 
+def _expected_lower_case_name(requested):
+    """The name a lookup of `requested` in LOWER_FEEDER returns. A case-insensitive
+    filesystem (NTFS, the APFS default) finds the requested name itself, so the
+    exact-path branch returns it; a case-sensitive one (ext4) returns the on-disk
+    lower-case name."""
+    if os.path.exists(os.path.join(LOWER_FEEDER, requested)):
+        return requested
+    return requested.lower()
+
+
 def _extract_deploy_script_function(name):
     """The deploy script is copied per-instance into each circuit folder and
     is not import-safe (it runs top-level code immediately), so extract the
@@ -50,7 +60,7 @@ def test_resolve_dss_file_finds_normal_case():
 
 def test_resolve_dss_file_finds_lower_case():
     p = resolve_dss_file(LOWER_FEEDER, "Loads.dss")
-    assert p.name == "loads.dss"
+    assert p.name == _expected_lower_case_name("Loads.dss")
     assert p.exists()
 
 
@@ -71,7 +81,7 @@ def test_deploy_script_is_feeder_dir_accepts_both_cases():
 def test_deploy_script_resolve_dss_file_matches_both_cases():
     resolve = _extract_deploy_script_function("resolve_dss_file")
     assert os.path.basename(resolve(NORMAL_FEEDER, "Loads.dss")) == "Loads.dss"
-    assert os.path.basename(resolve(LOWER_FEEDER, "Loads.dss")) == "loads.dss"
+    assert os.path.basename(resolve(LOWER_FEEDER, "Loads.dss")) == _expected_lower_case_name("Loads.dss")
 
 
 if __name__ == "__main__":
