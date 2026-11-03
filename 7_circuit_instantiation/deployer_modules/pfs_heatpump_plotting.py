@@ -1,16 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Module Name: pfs_heatpump_plotting.py
-Description:
-    
-
-Functions:
-    - 
-    
-
-Usage:
-    This module is intended to be imported and used by 
-    `power_flow_sim.py`. It is not designed to be executed directly.
+pfs_heatpump_plotting.py
+A plot of a mean heat-pump profile over per-unit points with a 4 kW line, saved as a PNG.
+Imported by power_flow_sim_daily_EV_STO_DG_deploy.py but not called by the pipeline.
 
 Author: Luis F. Victor Gallardo
 Date: 2024/03/21

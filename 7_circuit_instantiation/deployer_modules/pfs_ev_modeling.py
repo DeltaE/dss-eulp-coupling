@@ -1,16 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-Module Name: pfs_ev_modeling.py
-Description:
-    
+pfs_ev_modeling.py
+EV charging-session generation for the Phase 7 deploy script.
 
-Functions:
-    - 
-    
-
-Usage:
-    This module is intended to be imported and used by 
-    `power_flow_sim.py`. It is not designed to be executed directly.
+The deploy calls generate_initial_charging_sessions, adjust_charging_sessions and
+adjust_charging_sessions_2. balance_demand_with_zero_sessions and
+count_charging_cycles are imported by the deploy but not called by the pipeline.
+Each function resets the global NumPy random seed to 555. Arrays are changed in
+place and returned. The module imports matplotlib, which the functions do not use.
+Imported by power_flow_sim_daily_EV_STO_DG_deploy.py. It is not designed to be
+executed directly.
 
 Author: Luis F. Victor Gallardo
 Date: 2024/03/21

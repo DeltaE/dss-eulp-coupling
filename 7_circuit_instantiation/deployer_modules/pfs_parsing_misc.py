@@ -1,20 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Module Name: pfs_parsing_misc.py  (pfs stands for power flow support)
-Description:
-    This module contains utility functions to parse transformer, line, and load data
-    for power flow simulations in OpenDSS. It's designed to support `power_flow_sim.py`
-    by extracting necessary components from textual circuit descriptions, facilitating
-    automated manipulation and analysis of power flow data.
-
-Functions:
-    - parse_transformers(file_content, lines): Parses transformers from a given textual input.
-    - parse_lines(file_content): Parses lines from a given textual input.
-    - parse_loads(file_content): Parses loads from a given textual input.
-
-Usage:
-    This module is intended to be imported and used by 
-    `power_flow_sim.py`. It is not designed to be executed directly.
+pfs_parsing_misc.py
+Regex parsers for New Transformer, New Line and New Load lines, plus small sum, target and interpolation helpers.
+Imported by power_flow_sim_daily_EV_STO_DG_deploy.py but not called by the pipeline.
 
 Author: Luis F. Victor Gallardo
 Date: 2024/03/21

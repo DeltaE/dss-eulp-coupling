@@ -1,16 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Module Name: pfs_hp_base_profiles.py
-Description:
-    
-
-Functions:
-    - 
-    
-
-Usage:
-    This module is intended to be imported and used by 
-    `power_flow_sim.py`. It is not designed to be executed directly.
+pfs_hp_base_profiles.py
+Heat-pump unit profiles filtered by month, day and temperature band, sampled with a seed and interpolated from 24 to 96 steps.
+Imported by power_flow_sim_daily_EV_STO_DG_deploy.py but not called by the pipeline.
 
 Author: Luis F. Victor Gallardo
 Date: 2024/03/23
