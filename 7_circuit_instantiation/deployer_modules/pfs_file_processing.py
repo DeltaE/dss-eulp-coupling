@@ -1,17 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Module Name: pfs_file_processing.py
-Description:
-    
-
-Functions:
-    - modify_master_file: Adjusts timeframes and comments out badly connected PV systems
-    - modify_dss_files: Adjusts load data based on scenarios
-    
-
-Usage:
-    This module is intended to be imported and used by 
-    `power_flow_sim.py`. It is not designed to be executed directly.
+pfs_file_processing.py
+Per-timestep rewrites of Master.dss and of Loads/PV .dss files (scaled load kW, added EV and heat-pump kW, PV irradiance).
+Imported by power_flow_sim_daily_EV_STO_DG_deploy.py but not called by the pipeline.
 
 Author: Luis F. Victor Gallardo
 Date: 2024/03/21
