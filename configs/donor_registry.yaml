@@ -1,4 +1,7 @@
 # Available EULP donor-profile states (the "donor menu").
+# pv_profile: where the Phase 7 PV daily shape comes from. source: smartds reads
+# "kW Generated (1000 kW Array)" from a SMART-DS solar_data CSV; file is relative to
+# smart_ds_base in configs/local.yaml. The sun follows the donor.
 # donor_state drives EULP metadata filtering, profile matching/downloading,
 # and CSV generation -> sets PIPELINE_STATE.
 # The parquet pool comes from the topology: run_case.py derives it from smart_ds_relpath
@@ -10,6 +13,14 @@ donors:
     eulp_download_date: "20250330"
     residential_metadata: "residential_data_SELECT_STATES.csv"
     commercial_metadata: "commercial_data_SELECT_STATES.csv"
+    # ASSUMPTION: the PV daily shape of every NC-donor case comes from the SMART-DS 2018
+    # solar file for Greensboro (35.9984 N, 79.9153 W), 15 degree tilt, 180 degree
+    # (south) azimuth: the first south-facing site in the GSO solar_data folder. It
+    # stands for rooftop PV across the region. Another tilt or azimuth moves the PV
+    # output and its timing on every PV host of these cases.
+    pv_profile:
+      source: smartds
+      file: GSO/urban-suburban/solar_data/GSO_35.9984_-79.9153_15_180_full.csv
     status: ready
 
   TX:
@@ -17,4 +28,12 @@ donors:
     eulp_download_date: "20250330"
     residential_metadata: "residential_data_SELECT_STATES.csv"
     commercial_metadata: "commercial_data_SELECT_STATES.csv"
+    # ASSUMPTION: the PV daily shape of every TX-donor case comes from the SMART-DS 2018
+    # solar file for Austin (30.1141 N, 97.7120 W), 15 degree tilt, 180 degree (south)
+    # azimuth: the first south-facing site in the AUS solar_data folder. It stands for
+    # rooftop PV across the region. Another tilt or azimuth moves the PV output and its
+    # timing on every PV host of these cases.
+    pv_profile:
+      source: smartds
+      file: AUS/P2U/solar_data/AUS_30.1141_-97.7120_15_180_full.csv
     status: ready

@@ -19,6 +19,10 @@ Inputs
 - <circuit>/../profiles_use_bench/<circuit>/<daily>.csv: one-column kW profiles, used
   for storage and PV sizing.
 - der_sizing in pipeline_config.yaml: storage and PV ratios and minimums.
+- <work_root>/5b_profile_generation/<STATE>_peak_days.csv: each feeder's baseline
+  winter and summer peak day (Phase 5b).
+- PIPELINE_PV_PROFILE_FILE: the donor's SMART-DS solar file (pv_profile in
+  configs/donor_registry.yaml).
 - Environment: SC_KW_TARGET_FACTOR (0.8), SC_KW_TARGET_LOW (0.0), SC_RESERVE_PCT (20).
 
 Steps
@@ -37,8 +41,9 @@ Steps
    (PeakShave, kWTarget = max(50, SC_KW_TARGET_FACTOR * total kW)) anchored on
    Monitor m1/m2 or the first Energymeter of Master.dss.
 5. Writes PVSystems.dss and LoadShapes_PV.dss: per target pmpp = max(pv_min_kw,
-   round(pv_kw_per_peak_kw * peak, 1)), kVA = 1.1 * pmpp, one fixed 96-point summer or
-   winter irradiance shape (season from the JSON, default summer), effcurve=myEff.
+   round(pv_kw_per_peak_kw * peak, 1)), kVA = 1.1 * pmpp, and one 96-point daily
+   shape: "kW Generated (1000 kW Array)" / 1000 in the donor's SMART-DS solar file on
+   this feeder's baseline peak day of the run's season (pv_daily_shape).
 6. Rewrites Master.dss: replaces the yearly 15-minute 35040-step solve with
    "Solve mode=daily stepsize=15m number=96", comments out Plot lines, places the
    new Redirect lines before the first Solve, and appends Export lines for the
@@ -67,6 +72,8 @@ Stops (exit 1 unless noted)
 - der_sizing key missing from pipeline_config.yaml.
 - A .dss copy into ModifiedCircuitData/ fails.
 - A storage or PV target is not a load in Loads.dss.
+- PV shape: season not summer or winter, peak-day record or row missing, solar file,
+  column or the 96 rows of the date missing.
 - No peak kW for a storage or PV target.
 - No yearly solve line to retarget in Master.dss.
 - RuntimeError: storage objects exist but Master.dss has no Monitor m1/m2 or
@@ -144,10 +151,6 @@ def resolve_dss_file(directory, filename):
             return os.path.join(directory, entry)
     raise FileNotFoundError(f"{filename} not found in {directory} (case-insensitive search)")
 
-# Fixed irradiance (96 points)
-irradiance_winter_padded = [0.0]*30 + [0.0889,0.13254,0.17853,0.12173,0.05258,0.04381,0.03429,0.04749,0.06053,0.07725,0.09377,0.09119,0.08877,0.09676,0.10466,0.11636,0.12792,0.1476,0.16692,0.18,0.19282,0.20862,0.2245,0.2171,0.2098,0.25007,0.28447,0.31986,0.34005,0.31685,0.28823,0.24886,0.20951,0.16926,0.1312,0.09432,0.06385,0.04184,0.03615,0.03066,0.02312,0.00845]+[0.0]*25
-irradiance_summer_padded = [0.0]*25 + [0.09904,0.16947,0.2279,0.29098,0.34296,0.39615,0.44168,0.48566,0.52159,0.55551,0.58447,0.61212,0.63157,0.65283,0.66968,0.68472,0.69552,0.70443,0.71021,0.71404,0.71482,0.71364,0.70865,0.70175,0.69187,0.68011,0.66613,0.65034,0.63108,0.61013,0.58641,0.56116,0.53425,0.50397,0.46959,0.43362,0.39509,0.35526,0.31306,0.26707,0.22195,0.17753,0.13386,0.09435,0.06009,0.03379,0.02603,0.02325,0.01879,0.01289]+[0.0]*21
-
 # EV helpers (your modules)
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 ROOT        = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
@@ -165,7 +168,8 @@ from dss_engine import create_dss_engine
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
 from pipeline_utils import load_config
-DER_SIZING = load_config().get("der_sizing") or {}
+CFG = load_config()
+DER_SIZING = CFG.get("der_sizing") or {}
 def der_sizing(key):
     if key not in DER_SIZING:
         print(f"[FAIL] der_sizing.{key} is missing from pipeline_config.yaml.")
@@ -483,6 +487,49 @@ def peak_kw_for_load(full_name):
     print(f"[FAIL] No peak kW for {full_name}: no profile CSV in {PROFILES_PATH} "
           f"and no kW= in {PATH_LOADS_DSS_ORIG}.")
     sys.exit(1)
+
+PV_KW_COLUMN = "kW Generated (1000 kW Array)"
+
+def pv_daily_shape(feeder, season):
+    """
+    Return the PV daily shape of feeder for season: the IRRADIANCE_NPTS values of
+    PV_KW_COLUMN divided by 1000 (rounded to 9 decimals) in the donor's SMART-DS solar file
+    (PIPELINE_PV_PROFILE_FILE), on the month and day of the feeder's baseline peak
+    day for that season in <work_root>/5b_profile_generation/<STATE>_peak_days.csv.
+    The file's year is ignored. Stops if the season, the peak day, the file, the
+    column or the IRRADIANCE_NPTS rows of that date are missing.
+    """
+    if season not in ("summer", "winter"):
+        print(f"[FAIL] scenario_assignments.json season is {season!r}; expected summer or winter.")
+        sys.exit(1)
+    peak_days_path = os.path.join(CFG["work_root"], "5b_profile_generation",
+                                  f"{CFG['state']}_peak_days.csv")
+    if not os.path.exists(peak_days_path):
+        print(f"[FAIL] Peak-day record not found: {peak_days_path}. Run Phase 5b first.")
+        sys.exit(1)
+    with open(peak_days_path, newline="", encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(f) if r["Feeder"] == feeder and r["Season"] == season]
+    if len(rows) != 1:
+        print(f"[FAIL] {len(rows)} {season} peak days for feeder {feeder} in {peak_days_path}; expected 1.")
+        sys.exit(1)
+    month, day = int(rows[0]["Month"]), int(rows[0]["Day"])
+    pv_file = CFG["pv_profile_file"]
+    if not os.path.exists(pv_file):
+        print(f"[FAIL] PV profile file not found: {pv_file}")
+        sys.exit(1)
+    with open(pv_file, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if PV_KW_COLUMN not in (reader.fieldnames or []):
+            print(f"[FAIL] Column {PV_KW_COLUMN!r} not in {pv_file}")
+            sys.exit(1)
+        values = [round(float(r[PV_KW_COLUMN]) / 1000, 9) for r in reader
+                  if int(r["Month"]) == month and int(r["Day"]) == day]
+    if len(values) != IRRADIANCE_NPTS:
+        print(f"[FAIL] {len(values)} rows for month {month} day {day} in {pv_file}; "
+              f"expected {IRRADIANCE_NPTS}.")
+        sys.exit(1)
+    print(f"PV shape -> {season} peak day {month:02d}-{day:02d} of {feeder} from {pv_file}")
+    return values
 
 def get_circuit_name(master_path):
     """Parse the 'New Circuit.<name>' line from Master.dss."""
@@ -810,8 +857,9 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
     with open(pv_path, "w", encoding="utf-8") as f_pv, open(pv_ls_path, "w", encoding="utf-8") as f_ls:
         f_pv.write("! PV SYSTEMS (from JSON targets)\n\n")
         f_ls.write("! PV LoadShapes\n\n")
-        season = (ASSIGN.get("season") or "summer").lower()
-        profile = irradiance_summer_padded if season == "summer" else irradiance_winter_padded
+        season = (ASSIGN.get("season") or "").lower()
+        # Shape on this feeder's baseline peak day of the run's season
+        profile = pv_daily_shape(CIRCUIT_NAME, season)
         prof_str = " ".join(str(v) for v in profile)
 
         for idx, full in enumerate(pv_targets):
@@ -831,7 +879,7 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
             f_ls.write(f"New Loadshape.{ls_name} npts={IRRADIANCE_NPTS} interval={IRR_INTERVAL_H} mult=({prof_str})\n")
             f_pv.write(
                 f"New PVSystem.{pv_name} phases={ph} bus1={bus_str} kV={info['kV']} "
-                f"kVA={pv_kw*1.1:.1f} pmpp={pv_kw:.1f} pf=1 %Cutin=0.1 %Cutout=0.1 effcurve=myEff "
+                f"kVA={pv_kw*1.1:.1f} pmpp={pv_kw:.1f} pf=1 %Cutin=0.1 %Cutout=0.1 "
                 f"daily={ls_name} irradiance=1\n\n"
             )
             n_pv += 1

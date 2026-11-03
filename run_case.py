@@ -99,6 +99,11 @@ def resolve_case(case_path: Path) -> dict:
     if not Path(eulp_metadata_root).is_dir():
         sys.exit(f"eulp_metadata_root folder does not exist: {eulp_metadata_root}")
     eulp_metadata_root = Path(eulp_metadata_root).as_posix()
+    pv_profile = donor.get("pv_profile") or {}
+    if pv_profile.get("source") != "smartds" or not pv_profile.get("file"):
+        sys.exit(f"Donor '{donor_id}' needs pv_profile with source: smartds and file: "
+                 f"<path relative to smart_ds_base> in donor_registry.yaml.")
+    pv_profile_file = (Path(smart_ds_base) / pv_profile["file"]).as_posix()
     topo_relpath = Path(topo["smart_ds_relpath"])
     smart_ds_root = Path(smart_ds_base) / topo_relpath
     if topo.get("circuit_folder"):
@@ -136,6 +141,7 @@ def resolve_case(case_path: Path) -> dict:
         "donor_state": donor["donor_state"],
         "max_feeders": case.get("execution", {}).get("max_feeders", "null"),
         "eulp_download_date": donor.get("eulp_download_date"),
+        "pv_profile_file": pv_profile_file,
         "seasons": defaults.get("seasons", ["summer", "winter"]),
         "phase_order": defaults.get("phase_order", []),
         "base_env": defaults.get("base_env", {}),
@@ -162,6 +168,7 @@ def build_env(resolved: dict, season: str) -> dict:
     env["PIPELINE_EULP_METADATA_ROOT"] = resolved["eulp_metadata_root"]  # EULP metadata CSVs, Phase 1
     env["PIPELINE_EULP_DOWNLOAD_DATE"] = str(resolved["eulp_download_date"])  # donor registry
     env["PIPELINE_MIXES_FILE"] = resolved["mixes_file"]  # mixes_file in defaults.yaml, Phase 7a
+    env["PIPELINE_PV_PROFILE_FILE"] = resolved["pv_profile_file"]  # donor pv_profile, Phase 7c
     return env
 
 
@@ -240,6 +247,7 @@ def write_manifest(run_dir: Path, resolved: dict, season: str) -> None:
                      "circuit_folder": resolved["circuit_folder"]},
         "donor": {"donor_state": resolved["donor_state"],
                   "eulp_download_date": resolved["eulp_download_date"],
+                  "pv_profile_file": resolved["pv_profile_file"],
                   "season": season},
         "git": _git_info(),
         "timestamp": _dt.datetime.now().isoformat(timespec="seconds"),

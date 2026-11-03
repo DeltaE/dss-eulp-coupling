@@ -28,10 +28,14 @@ Steps
    timestamp month and day equal the peak day (any year), and writes them.
 
 Outputs
+- baseline only: <work_root>/5b_profile_generation/<STATE>_peak_days.csv, one row per
+  feeder and season (Feeder, Season, Month, Day, Peak_kW). Phase 7 takes each
+  circuit's PV daily shape from this date.
 - <work_root>/5b_profile_generation/daily_parquets/
   <STATE>_<feeder with "--" as "_">_<winter|summer><suffix>/<Parquet_File>,
   suffix "" (baseline), "_dm" or "_uncontrolled". Folders are created if missing and
-  never cleared. Plots are closed unsaved.
+  never cleared. Plots are closed unsaved. The winter and summer peak days are also
+  printed for every scenario.
 
 Fallbacks
 - Curve pass: an unreadable parquet prints "Error reading ..." and is left out of the
@@ -271,6 +275,7 @@ for feeder, df_curve in df_curve_per_feeder.items():  #
 
 # 🔹 NEW: Identify winter and summer peak days per feeder
 print("\n🔍 Peak Days Summary (Winter & Summer):\n")  # 🔹 NEW
+peak_day_rows = []  # one row per feeder and season, written for the baseline scenario
 for feeder in df_peak_daily["Feeder"].unique():  # 🔹 NEW
     df_feeder = df_peak_daily[df_peak_daily["Feeder"] == feeder]  # 🔹 NEW
 
@@ -280,6 +285,8 @@ for feeder in df_peak_daily["Feeder"].unique():  # 🔹 NEW
         winter_peak = df_winter.loc[df_winter.iloc[:, 3:].max(axis=1).idxmax()]  # Highest single point in winter
         winter_peak_value = max(winter_peak[3:])  # 🔹 NEW: Get max kW in curve
         print(f"Feeder {feeder} - ❄️ Winter Peak Day: {winter_peak['Peak Day']} (Month {winter_peak['Month']}) – Peak Value: {winter_peak_value:.2f} kW")  # 🔹 NEW
+        peak_day_rows.append([feeder, "winter", winter_peak["Peak Day"][1].month,
+                              winter_peak["Peak Day"][1].day, winter_peak_value])
 
     # Summer months
     df_summer = df_feeder[df_feeder["Month"].isin([6, 7, 8])]
@@ -287,6 +294,16 @@ for feeder in df_peak_daily["Feeder"].unique():  # 🔹 NEW
         summer_peak = df_summer.loc[df_summer.iloc[:, 3:].max(axis=1).idxmax()]
         summer_peak_value = max(summer_peak[3:])  # 🔹 NEW: Get max kW in curve
         print(f"Feeder {feeder} - ☀️ Summer Peak Day: {summer_peak['Peak Day']} (Month {summer_peak['Month']}) – Peak Value: {summer_peak_value:.2f} kW")  # 🔹 NEW
+        peak_day_rows.append([feeder, "summer", summer_peak["Peak Day"][1].month,
+                              summer_peak["Peak Day"][1].day, summer_peak_value])
+
+# Record of the baseline peak days (month and day; the year is ignored downstream).
+# Phase 7 takes each circuit's PV daily shape from this date.
+if ARGS.scenario == "baseline":
+    peak_days_path = resolve_work_path("5b_profile_generation", STR_STATE + "_peak_days.csv")
+    pd.DataFrame(peak_day_rows, columns=["Feeder", "Season", "Month", "Day", "Peak_kW"]).to_csv(
+        peak_days_path, index=False)
+    print(f"Peak days written: {peak_days_path}")
 
 # 🔁 Slicing and saving only winter/summer peak day parquets
 BOOL_SAVE_SLICES = True
