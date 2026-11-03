@@ -1,26 +1,25 @@
 # Linux Setup
 
-Machine-specific setup for running this pipeline natively on Linux (no OpenDSS
-COM, no Windows). For the general topology/donor/case-running model see
-[instantiation_management.md](instantiation_management.md); this page is only
-the platform-specific parts: interpreter, dependencies, environment variables,
-and where the SMART-DS/EULP data has to end up.
+Machine-specific setup for running this pipeline natively on Linux, without OpenDSS
+COM or Windows. [instantiation_management.md](instantiation_management.md) covers
+the general topology, donor and case model. This page covers the platform-specific
+parts: interpreter, dependencies, environment variables, and where the SMART-DS
+and EULP data go.
 
-Verified against `srye-deltae-08` (Ubuntu 20.04, glibc 2.31). The
-version numbers below are hard constraints, not suggestions: the acceptance
-bar for this port is *zero numerical change* against the Windows baseline, and
-that's only checkable if numpy/pandas/scipy/pyarrow are byte-identical.
+Verified against `srye-deltae-08` (Ubuntu 20.04, glibc 2.31). The version numbers
+below are hard constraints. The acceptance bar for this port is zero numerical
+change against the Windows baseline. That bar is only checkable if numpy, pandas,
+scipy and pyarrow are byte-identical.
 
 ## 1. Create the Python 3.11 environment
 
-The system Python on most distros (3.8 on Ubuntu 20.04) is **not** usable --
-too old for the pinned dependency set, and running under it is the single
-easiest way to silently invalidate a whole run without any other symptom.
+The system Python on most distros (3.8 on Ubuntu 20.04) is too old for the pinned
+dependency set. A run under it can be invalid with no other symptom.
 `tests/test_environment_pins.py` (below) checks the interpreter and the pins.
 
 ```bash
-# micromamba (or conda/mamba -- any environment manager that gives you a
-# real, isolated Python 3.11 works; micromamba is what this was verified with)
+# micromamba, conda or mamba: any environment manager that gives a real,
+# isolated Python 3.11 works. This page was verified with micromamba.
 micromamba create -n dsseulp python=3.11 -y
 micromamba activate dsseulp
 
@@ -30,12 +29,12 @@ pip install -r requirements.txt
 `requirements.txt` pins every package to the exact version verified on the
 Windows machine that produced all existing results (numpy 1.26.4, pandas
 2.1.4, scipy 1.11.4, pyarrow 14.0.2, matplotlib 3.8.0, PyYAML 6.0.1, requests
-2.31.0, urllib3 2.0.7) and declares the platform split for the OpenDSS engine:
+2.31.0, urllib3 2.0.7). It declares the platform split for the OpenDSS engine:
 `comtypes` on win32, `opendssdirect.py` everywhere else. **Do not** upgrade or
 downgrade any of these without re-validating outputs against the Windows
 baseline first.
 
-Confirm the pins actually landed:
+Confirm the pins landed:
 
 ```bash
 python tests/test_environment_pins.py
@@ -47,9 +46,9 @@ Phase 7 reaches OpenDSS through
 `7_circuit_instantiation/deployer_modules/dss_engine.py`, which selects a
 backend by `sys.platform` (override with `DSS_BACKEND=com|direct` for
 cross-platform testing). On Linux this is a thin adapter over
-`opendssdirect.py` / DSS C-API -- a different engine implementation than the
-Windows COM `OpenDSSEngine.DSS`, verified independently for a daily-mode,
-15-minute-stepsize, 96-step solve.
+`opendssdirect.py` and DSS C-API. That engine is a separate implementation from
+the Windows COM `OpenDSSEngine.DSS`. It was verified independently for a
+daily-mode, 15-minute-stepsize, 96-step solve.
 
 ```bash
 python tests/test_dss_engine_linux.py
@@ -86,43 +85,41 @@ Put the SMART-DS tree, the EULP parquet pool and the EULP metadata under
 distribution. `README.md`, section "Prerequisites for a cold clone", lists the
 data each case needs.
 
-Do not write pipeline outputs to `/cvmfs` -- it's read-only.
+`/cvmfs` is read-only. Write pipeline outputs elsewhere.
 
 ### Case sensitivity
 
-This box is ext4 -- genuinely case-sensitive, unlike the Windows machine the
-data was produced on. File access is routed through a case-insensitive
-resolver (`resolve_dss_file()` in `pipeline_utils.py`, and locally in
-`power_flow_sim_daily_EV_STO_DG_deploy.py` since that script is copied
-per-instance into each circuit folder), but if the SMART-DS export you copy
-over uses any casing this hasn't been tested against, run
-`tests/test_case_sensitivity.py` before trusting a full pipeline run.
+This box is ext4, which is case-sensitive. The Windows machine the data was
+produced on is case-insensitive. File access goes through a case-insensitive
+resolver: `resolve_dss_file()` in `pipeline_utils.py`, and a local copy in
+`power_flow_sim_daily_EV_STO_DG_deploy.py`, since that script is copied into
+each circuit folder. If the SMART-DS export you copy over uses a casing that has
+not been tested, run `tests/test_case_sensitivity.py` before trusting a full
+pipeline run.
 
 ## 5. Encoding
 
-`PYTHONIOENCODING=utf-8` is already set as `base_env` for every phase in
-`configs/defaults.yaml`, so `run_case.py`-driven runs don't need anything extra.
-If you invoke a phase script directly (not through `run_case.py`) and see it
-choke on the `✅`/`❌`/`⚠️` status glyphs in its own output
-(happens under `LANG=C` or similar), set it yourself:
+`PYTHONIOENCODING=utf-8` is set as `base_env` for every phase in
+`configs/defaults.yaml`, so `run_case.py`-driven runs need nothing extra. A phase
+script run directly, outside `run_case.py`, can fail on the `✅`/`❌`/`⚠️` status
+glyphs in its own output under `LANG=C` or similar. Set the variable yourself in
+that case:
 
 ```bash
 export PYTHONIOENCODING=utf-8
 ```
 
-File I/O is pinned to `encoding="utf-8"` explicitly wherever the pipeline
-reads/writes text (rather than relying on the platform default, which is
-cp1252 on Windows and utf-8 here), so this is only an output-stream concern,
-not a file-content one.
+File I/O passes `encoding="utf-8"` explicitly wherever the pipeline reads or
+writes text. The platform default is cp1252 on Windows and utf-8 here, so the
+setting above only affects the output stream. File contents are the same on both.
 
 ## 6. Path constraints
 
-Phase commands run through `shlex.split()` + `shell=False` on POSIX (not a
-shell), which means a space anywhere in `PIPELINE_WORK_ROOT`,
-`PIPELINE_SMART_DS_ROOT`, `PIPELINE_PARQUET_ROOT`, or the Python interpreter
-path itself will break command parsing. `run_case.py` checks for this at
-startup and refuses to run with a clear message rather than silently
-mis-splitting a command -- keep all of the above space-free.
+On POSIX, phase commands run through `shlex.split()` with `shell=False`. A
+space anywhere in `PIPELINE_WORK_ROOT`, `PIPELINE_SMART_DS_ROOT`,
+`PIPELINE_PARQUET_ROOT`, or the Python interpreter path breaks command parsing.
+`run_case.py` checks for this at startup and refuses to run with a clear
+message. Keep all of these paths free of spaces.
 
 ## 7. Running the deterministic chain
 
@@ -132,15 +129,14 @@ python run_case.py --case configs/cases/<your-case>.yaml --all
 ```
 
 See [instantiation_management.md](instantiation_management.md) for what a
-"case" is and how to add a new topology/donor.
+"case" is and how to add a new topology or donor.
 
 ## 8. Full test sweep
 
-None of these need real SMART-DS/EULP data:
+None of these need real SMART-DS or EULP data:
 
 ```bash
 for f in tests/test_*.py; do python "$f" || echo "FAILED: $f"; done
 ```
 
-(Or `pytest tests/` if you have pytest installed -- every file is
-pytest-discoverable too.)
+`pytest tests/` runs the same files, since every file is pytest-discoverable.
