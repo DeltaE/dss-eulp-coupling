@@ -24,16 +24,13 @@ EV_NOMINAL_POWER_KW  = 7.36
 EV_MAX_EVENTS        = 2
 EV_ERROR_TOL         = 1e-6
 
-# Storage sizing vs load peak
-STORAGE_KW_PER_PEAK  = 0.75
-STORAGE_ENERGY_HOURS = 4.0
+# Storage sizing vs load peak (ratios and minimums: der_sizing in pipeline_config.yaml)
 STORAGE_PF           = 0.90
 STORAGE_RESERVE_PCT  = 20
 STORAGE_EFF_CHG      = 95.0
 STORAGE_EFF_DCH      = 95.0
 
-# PV sizing vs load peak
-PV_KW_PER_PEAK       = 0.30
+# PV sizing vs load peak (ratio and minimum: der_sizing in pipeline_config.yaml)
 IRRADIANCE_NPTS      = 96
 IRR_INTERVAL_H       = 0.25
 
@@ -93,30 +90,59 @@ from pfs_ev_base_profiles import process_vehicle_data
 from pfs_hp_base_profiles import generate_heatpump_profiles
 from dss_engine import create_dss_engine
 
+# DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
+sys.path.insert(0, os.path.join(ROOT, '..'))
+from pipeline_utils import load_config
+DER_SIZING = load_config().get("der_sizing") or {}
+def der_sizing(key):
+    if key not in DER_SIZING:
+        print(f"[FAIL] der_sizing.{key} is missing from pipeline_config.yaml.")
+        sys.exit(1)
+    return float(DER_SIZING[key])
+STORAGE_KW_PER_PEAK  = der_sizing("storage_kw_per_peak_kw")
+STORAGE_MIN_KW       = der_sizing("storage_min_kw")
+STORAGE_ENERGY_HOURS = der_sizing("storage_hours")
+PV_KW_PER_PEAK       = der_sizing("pv_kw_per_peak_kw")
+PV_MIN_KW            = der_sizing("pv_min_kw")
+
 # -----------------------
 # Start
 # -----------------------
 START_TIME     = time.time()
 CIRCUIT_FOLDER = os.path.basename(CURRENT_DIR)
 PROFILES_PATH  = os.path.join('..', 'profiles_use_bench', CIRCUIT_FOLDER)
+OUT_DIR        = os.path.join(CURRENT_DIR, "ModifiedCircuitData")
 
-# feeder subfolder
-subs = [d for d in os.listdir(CURRENT_DIR) if is_feeder_dir(os.path.join(CURRENT_DIR, d))]
+# A second run in the same folder would read its own results and append the EV loads again.
+if os.path.isdir(OUT_DIR) and os.listdir(OUT_DIR):
+    print(f"[FAIL] {OUT_DIR} already holds results of this script. "
+          "Run the deploy only in a freshly instantiated circuit folder.")
+    sys.exit(1)
+
+# feeder subfolder (ModifiedCircuitData is this script's output, never the feeder source)
+subs = [d for d in os.listdir(CURRENT_DIR)
+        if d != "ModifiedCircuitData" and is_feeder_dir(os.path.join(CURRENT_DIR, d))]
 if not subs:
     print("[FAIL] No feeder subfolder with Loads, LoadShapes, and Master DSS files found.")
     sys.exit(1)
 CIRCUIT_NAME = subs[0]
 CIRCUIT_DIR  = os.path.join(CURRENT_DIR, CIRCUIT_NAME)
 
-# assignments JSON
+# assignments JSON (instantiate_circuits.py writes it for every circuit)
 ASSIGN_PATH = os.path.join(CURRENT_DIR, "scenario_assignments.json")
-ASSIGN = {}
-if os.path.exists(ASSIGN_PATH):
-    try:
-        ASSIGN = json.loads(read_text(ASSIGN_PATH))
-        print(f"[OK] Loaded scenario assignments: {ASSIGN_PATH}")
-    except Exception as e:
-        print(f"[WARN] Could not parse scenario_assignments.json: {e}")
+if not os.path.exists(ASSIGN_PATH):
+    print(f"[FAIL] scenario_assignments.json not found: {ASSIGN_PATH}. "
+          "Run instantiate_circuits.py (Phase 7b) first.")
+    sys.exit(1)
+try:
+    ASSIGN = json.loads(read_text(ASSIGN_PATH))
+except Exception as e:
+    print(f"[FAIL] Could not parse scenario_assignments.json: {e}")
+    sys.exit(1)
+if not isinstance(ASSIGN, dict):
+    print(f"[FAIL] scenario_assignments.json does not hold a JSON object: {ASSIGN_PATH}")
+    sys.exit(1)
+print(f"[OK] Loaded scenario assignments: {ASSIGN_PATH}")
 
 # EV params
 ev_perc           = clamp01(ASSIGN.get("ev", {}).get("perc", DEFAULT_EV_PERC))
@@ -336,8 +362,10 @@ def retarget_master_to_daily(master_path, npts=96, stepsize="15m", comment_plots
         write_lines(master_path, out)
     return changed
 
+PEAK_FROM_ORIGINAL_KW = []  # loads sized from Loads_original.dss kW instead of a profile CSV
+
 def peak_kw_for_load(full_name):
-    """Try consolidated CSV (peak of daily), else original kW, else tiny fallback."""
+    """Try consolidated CSV (peak of daily), else original kW, else stop."""
     base = re.sub(r"_[0-9]+$", "", full_name)
     for dn in sorted(base_to_daily.get(base, set())):
         csv_path = os.path.join(PROFILES_PATH, f"{dn}.csv")
@@ -353,8 +381,12 @@ def peak_kw_for_load(full_name):
                 m_kw = re.search(r"\bkW=([0-9\.Ee+-]+)", line)
                 if m_kw:
                     v = try_float(m_kw.group(1), None)
-                    if v is not None: return v
-    return 10.0
+                    if v is not None:
+                        PEAK_FROM_ORIGINAL_KW.append(full_name)
+                        return v
+    print(f"[FAIL] No peak kW for {full_name}: no profile CSV in {PROFILES_PATH} "
+          f"and no kW= in {PATH_LOADS_DSS_ORIG}.")
+    sys.exit(1)
 
 def get_circuit_name(master_path):
     """Parse the 'New Circuit.<name>' line from Master.dss."""
@@ -390,8 +422,11 @@ def assert_monitor_exports(master_path, monitor_names, search_dir):
 
 # ---------------- EV profiles (both types) ----------------
 if ACTIVATE_EV:
-    # base EV demand input (from ./data_ev copied at instantiate)
-    avg_15 = process_vehicle_data(CURRENT_DIR, ev_profile_version='without_pif', test_compare_ev_input_profiles=True)
+    # Base EV curve: the 96 fifteen-minute means of
+    # data_ev/with_daily_plug_in_factor_70/Weekday - Level 2 - Diversified (75th percentile) of 100 EVs.csv
+    # (data_ev/ is copied into the circuit folder by instantiate_circuits.py).
+    # write_comparison_csv=True also writes data_ev/df_enatd.csv (all 24 input files stacked).
+    avg_15 = process_vehicle_data(CURRENT_DIR, write_comparison_csv=True)
 
     def generate_ev_profiles(avg_demand, load_number_resi, ev_p, l2_p, nominal_power, max_events, err_tol):
         avg_demand = np.array(deepcopy(avg_demand))
@@ -442,6 +477,10 @@ if (not json_ev_un) and (not json_ev_ct):
     half = len(all_ev)//2
     json_ev_un = all_ev[:half]
     json_ev_ct = all_ev[half:]
+    if all_ev:
+        print(f"[WARN] ev_loads_uncontrolled and ev_loads_controlled are empty: "
+              f"split {len(all_ev)} ev_loads hosts into {len(json_ev_un)} uncontrolled "
+              f"and {len(json_ev_ct)} controlled.")
 
 N_u = len(json_ev_un)
 N_c = len(json_ev_ct)
@@ -461,7 +500,6 @@ arr_u = ensure_rows(arr_ev_all_unctl, N_u)
 arr_c = ensure_rows(arr_ev_all_ctl,   N_c)
 
 # ---------------- Prepare scenario dir ----------------
-OUT_DIR = os.path.join(CURRENT_DIR, "ModifiedCircuitData")
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # Copy ALL .dss files from the feeder directory (dynamic discovery).
@@ -476,8 +514,9 @@ for fn in dss_files:
     dst = os.path.join(OUT_DIR, fn)
     try:
         shutil.copy2(src, dst)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[FAIL] Could not copy {src} to {dst}: {e}")
+        sys.exit(1)
     if fn.lower() == 'master.dss':
         master_dss_path = dst
     if fn.lower() == 'loadshapes.dss':
@@ -571,6 +610,7 @@ storage_objnames = []    # Full class-qualified ('Storage.storage_busA')
 storage_objnames_2 = []
 total_storage_kW = 0.0
 n_storage = 0
+n_storage_at_min = 0
 
 if storage_targets:
     with open(storage_path, "w", encoding="utf-8") as f_st:
@@ -578,10 +618,13 @@ if storage_targets:
         for full in storage_targets:
             info = parsed_loads_map.get(full)
             if not info:
-                continue
+                print(f"[FAIL] Storage target {full} is not a load in {PATH_LOADS_DSS}.")
+                sys.exit(1)
 
             pk = peak_kw_for_load(full)  # your existing helper
-            kWRated  = max(5.0, round(STORAGE_KW_PER_PEAK * pk, 3))
+            if round(STORAGE_KW_PER_PEAK * pk, 3) < STORAGE_MIN_KW:
+                n_storage_at_min += 1
+            kWRated  = max(STORAGE_MIN_KW, round(STORAGE_KW_PER_PEAK * pk, 3))
             kWhRated = round(kWRated * STORAGE_ENERGY_HOURS, 3)
             kVA      = round(kWRated / max(STORAGE_PF, 1e-3), 3)
 
@@ -647,6 +690,7 @@ if master_dss_path:
 # ---------------- PV (from JSON targets) ----------------
 pv_targets      = ASSIGN.get("pv_targets", [])      if isinstance(ASSIGN, dict) else []
 n_pv = 0
+n_pv_at_min = 0
 if PV_KW_PER_PEAK > 0.0 and pv_targets:
     pv_path    = os.path.join(OUT_DIR, "PVSystems.dss")
     pv_ls_path = os.path.join(OUT_DIR, "LoadShapes_PV.dss")
@@ -660,9 +704,12 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
         for idx, full in enumerate(pv_targets):
             info = parsed_loads_map.get(full)
             if not info:
-                continue
+                print(f"[FAIL] PV target {full} is not a load in {PATH_LOADS_DSS}.")
+                sys.exit(1)
             pk = peak_kw_for_load(full)
-            pv_kw   = max(10.0, round(PV_KW_PER_PEAK * pk, 1))
+            if round(PV_KW_PER_PEAK * pk, 1) < PV_MIN_KW:
+                n_pv_at_min += 1
+            pv_kw   = max(PV_MIN_KW, round(PV_KW_PER_PEAK * pk, 1))
             busname = info["bus1"].split('.')[0]
             ph      = info.get("ph", "1")
             bus_str = f"{busname}.1.2.3" if ph == "3" else info["bus1"]
@@ -686,13 +733,17 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
             new_ml.append("\n! Added PV items\nRedirect PVSystems.dss\n")
         write_lines(master_dss_path, new_ml)
 
+print(f"Sizing -> storage at the {STORAGE_MIN_KW} kW minimum: {n_storage_at_min} of {n_storage}; "
+      f"PV at the {PV_MIN_KW} kW minimum: {n_pv_at_min} of {n_pv}")
+print(f"Peak kW from Loads_original.dss instead of a profile CSV: {len(PEAK_FROM_ORIGINAL_KW)}")
+
 # Finally, force Master to a DAILY run (96x15m), and (optionally) comment plot lines
-retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m")
+if not retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m"):
+    print(f"[FAIL] No 'Solve mode=yearly stepsize=15m number=35040' line to retarget in {master_dss_path}.")
+    sys.exit(1)
 
 # patch Master
 if master_dss_path:
-    # --- Finalize Master to a DAILY run (96x15m) ---
-    retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m")
     ensure_redirects_before_solve(master_dss_path)
     assert_expected_redirects(
         master_dss_path,

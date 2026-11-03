@@ -10,3 +10,27 @@ quota:
   redistribution: proportional
   residential_order: auto
   commercial_order: auto
+
+# DER sizing in the Phase 7 deploy script, per storage or PV host load, from the
+# host's peak kW (the maximum of its daily kW profile).
+der_sizing:
+  # ASSUMPTION: storage power rating is 0.75 times the host's peak kW, for every
+  # storage system in every case. It lets the battery cover most of the host's own
+  # peak. A higher ratio raises storage kW and kWh and the PeakShave target.
+  storage_kw_per_peak_kw: 0.75
+  # ASSUMPTION: storage power rating is at least 5.0 kW, for every storage system.
+  # It keeps a battery at a host with a low peak from being negligible. A higher
+  # minimum raises storage kW and kWh at hosts with a low peak.
+  storage_min_kw: 5.0
+  # ASSUMPTION: storage energy is 4.0 hours of rated power (kWh = 4.0 x kW), for
+  # every storage system. It sets how long a full battery can discharge at rated
+  # power. A longer duration raises stored energy and discharge time.
+  storage_hours: 4.0
+  # ASSUMPTION: PV array rating (Pmpp) is 0.30 times the host's peak kW, for every
+  # PV system in every case. It sizes the array as a share of the host's demand.
+  # A higher ratio raises PV output and the midday reverse flow at the host.
+  pv_kw_per_peak_kw: 0.30
+  # ASSUMPTION: PV array rating is at least 10.0 kW, for every PV system. It keeps
+  # an array at a host with a low peak from being negligible. A higher minimum
+  # raises PV output at hosts with a low peak.
+  pv_min_kw: 10.0
