@@ -2,13 +2,78 @@
 """
 power_flow_sim_daily_EV_STO_DG_deploy.py
 ----------------------------------------
-Single-scenario deploy runner for a prepared circuit folder.
-- Mixes *both* EV types (uncontrolled + controlled) in one scenario.
-- Uses ev_loads_uncontrolled / ev_loads_controlled from scenario_assignments.json.
-- Replicates EV rows if generator yields fewer than requested loads.
-- Storage/PV sized vs target load peak and added once.
+Build and solve one DER scenario of one prepared circuit as a 96-step daily run.
 
-Run from inside a prepared circuit folder: ./<STATE>_circuit_<n>_<mix>/
+Run from inside a prepared circuit folder <circuit>/ (run_circuits.py starts it with
+cwd set to that folder). instantiate_circuits.py copies this script there and rewrites
+ROOT so that deployer_modules/ and pipeline_config.yaml are found in the repository.
+
+Inputs
+- <circuit>/<feeder>/: the first subfolder other than ModifiedCircuitData that holds
+  Loads.dss, LoadShapes.dss and Master.dss. Loads.dss gives load names, buses, kV,
+  phases, conn and daily shapes; Loads_original.dss gives the original kW.
+- <circuit>/scenario_assignments.json: ev.perc, ev.lvl2_perc, ev_loads_uncontrolled,
+  ev_loads_controlled (or ev_loads, split in half when both are empty),
+  storage_targets, pv_targets, season.
+- <circuit>/data_ev/: EV charging profiles (see pfs_ev_base_profiles).
+- ../profiles_use_bench/<circuit>/<daily>.csv: one-column kW profiles, read relative
+  to the working directory, used for storage and PV sizing.
+- der_sizing in pipeline_config.yaml: storage and PV ratios and minimums.
+- Environment: SC_KW_TARGET_FACTOR (0.8), SC_KW_TARGET_LOW (0.0), SC_RESERVE_PCT (20).
+
+Steps
+1. Builds one 96-point EV base curve (pfs_ev_base_profiles) and
+   N = int(n_base_loads * ev_perc * l2_perc) uncontrolled session rows (n_base_loads
+   counts every base load, all phases). Controlled rows are the same rows with each
+   row's energy spread evenly over its non-zero intervals. Rows are truncated or
+   tiled to the number of EV hosts.
+2. Copies every .dss file of the feeder (except *_original*) into ModifiedCircuitData/
+   and points LoadShapes.dss at ../../profiles_use_bench/<circuit>/.
+3. Writes LoadShapes_EV.dss (EVu_i, EVc_i, 4 decimals) and appends two EV loads per host
+   (legs _1 and _2, kW=0.5 each, pf=1) to ModifiedCircuitData/Loads.dss.
+4. Writes Storage.dss: per target kWRated = max(storage_min_kw,
+   round(storage_kw_per_peak_kw * peak, 3)), kWhRated = storage_hours * kWRated,
+   kVA = kWRated / 0.90, 20 % stored, two monitors, and one StorageController
+   (PeakShave, kWTarget = max(50, SC_KW_TARGET_FACTOR * total kW)) anchored on
+   Monitor m1/m2 or the first Energymeter of Master.dss.
+5. Writes PVSystems.dss and LoadShapes_PV.dss: per target pmpp = max(pv_min_kw,
+   round(pv_kw_per_peak_kw * peak, 1)), kVA = 1.1 * pmpp, one fixed 96-point summer or
+   winter irradiance shape (season from the JSON, default summer), effcurve=myEff.
+6. Rewrites Master.dss: replaces the yearly 15-minute 35040-step solve with
+   "Solve mode=daily stepsize=15m number=96", comments out Plot lines, places the
+   new Redirect lines before the first Solve, and appends Export lines for the
+   storage monitors.
+7. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
+   and reads Solution.Converged.
+
+Outputs
+- ModifiedCircuitData/: copied and edited .dss files, LoadShapes_EV.dss, Storage.dss,
+  PVSystems.dss, LoadShapes_PV.dss and the monitor CSVs OpenDSS exports.
+- <circuit>/data_ev/df_enatd.csv (written by process_vehicle_data on every run).
+- Console counts: the ev_loads split when used, storage and PV raised to their
+  minimum, and peaks taken from Loads_original.dss.
+
+Fallbacks and floors
+- ev_loads_uncontrolled and ev_loads_controlled both empty: ev_loads split in half.
+- EV host without both _1 and _2 loads (every three-phase host): both legs go to the
+  first single-phase load in Loads.dss; skipped if none exists.
+- Peak: profile CSV maximum, else Loads_original.dss kW.
+- Storage and PV minimums from der_sizing; controller kWTarget floor 50 kW.
+
+Stops (exit 1 unless noted)
+- ModifiedCircuitData/ already holds files.
+- No feeder subfolder.
+- scenario_assignments.json missing, unparsable or not a JSON object.
+- der_sizing key missing from pipeline_config.yaml.
+- A .dss copy into ModifiedCircuitData/ fails.
+- A storage or PV target is not a load in Loads.dss.
+- No peak kW for a storage or PV target.
+- No yearly solve line to retarget in Master.dss.
+- RuntimeError: storage objects exist but Master.dss has no Monitor m1/m2 or
+  Energymeter; a DER Redirect line is missing; a monitor export CSV is missing.
+- Uncaught exception: for example data_ev/ missing (FileNotFoundError).
+- Solution.Converged is not True after Compile, or the circuit was not compiled.
+- exit 0 otherwise.
 """
 
 import os, re, sys, csv, time, json, math, shutil, random, cmath
@@ -40,6 +105,10 @@ COMPILE_CIRCUIT      = True
 # -----------------------
 # Helpers
 # -----------------------
+# read_text / read_lines: the UTF-8 text or list of lines of a file.
+# write_text / write_lines: write text or lines to a file in UTF-8, replacing it.
+# try_float(x, default): float(x), or default if conversion fails.
+# clamp01(x): float(x) limited to [0, 1].
 def read_text(p):  return open(p,'r',encoding='utf-8').read()
 def write_text(p,t): open(p,'w',encoding='utf-8').write(t)
 def read_lines(p): return open(p,'r',encoding='utf-8').readlines()
@@ -49,6 +118,10 @@ def try_float(x, default=None):
     except Exception: return default
 def clamp01(x): return max(0.0, min(1.0, float(x)))
 def is_feeder_dir(path):
+    """Return True if path is a folder whose file names include loads.dss,
+    loadshapes.dss and master.dss (case-insensitive); False if it is not a folder
+    or cannot be listed. ModifiedCircuitData/ qualifies once it exists, so the
+    caller leaves it out."""
     if not os.path.isdir(path):
         return False
     try:
@@ -196,11 +269,18 @@ for line in read_lines(PATH_LOADS_DSS):
 
 def ensure_redirects_before_solve(master_path):
     """
-    Make sure our added redirects are placed BEFORE the first Solve:
-      - After 'Redirect LoadShapes.dss':  LoadShapes_EV.dss, LoadShapes_PV.dss (if exist)
-      - After 'Redirect Loads.dss':      Storage.dss, PVSystems.dss (if exist)
-    If anchors aren't found, insert blocks just before the first Solve.
-    Removes existing duplicates of these redirects to keep Master clean.
+    Rewrite master_path so that the Redirect lines for the files this script creates
+    come before the first Solve.
+
+    Removes every line containing "Redirect LoadShapes_EV.dss",
+    "Redirect LoadShapes_PV.dss", "Redirect PVSystems.dss" or "Redirect Storage.dss",
+    then inserts, for each of those files that exists next to master_path:
+    - LoadShapes_EV.dss and LoadShapes_PV.dss after the first "Redirect LoadShapes.dss";
+    - Storage.dss and PVSystems.dss after the first "Redirect Loads.dss";
+    - either block just before the first Solve line if its anchor was not met, or at
+      the end of the file if there is no Solve line.
+    Does nothing if none of the four files exists. Writes master_path; returns None.
+    The comment lines written earlier ("! Added EV files" and similar) are kept.
     """
     ml = read_lines(master_path)
 
@@ -302,8 +382,10 @@ def assert_expected_redirects(master_path, storage_present, pv_present, ev_prese
 
 def find_controller_anchor(master_path):
     """
-    Return the element string to monitor by reading Master.dss.
-    Prefer monitor m1/m2; if missing, fall back to Energymeter.
+    Return the element monitored by the first "New Monitor.m1" or "New Monitor.m2"
+    line of master_path (its element= value); if none, the element of the first
+    "New Energymeter.<name> <element>" line; if none, or if the file cannot be read,
+    None. The caller raises RuntimeError on None.
     """
     elem = None
     try:
@@ -326,10 +408,15 @@ def find_controller_anchor(master_path):
 
 def retarget_master_to_daily(master_path, npts=96, stepsize="15m", comment_plots=True):
     """
-    Replace only a 'Solve mode=yearly stepsize=15m number=35040' line with
-    'Solve mode=daily stepsize=15m number=96'. Case-insensitive, order-insensitive.
-    Leaves all other lines untouched.
-    Returns True if a replacement was made, else False.
+    Turn the yearly run in master_path into a daily run.
+
+    Replaces each line that starts with "solve" and contains mode=yearly, stepsize=15m
+    and number=35040 (case-insensitive, any order) with
+    "Solve mode=daily stepsize=<stepsize> number=<npts>". With comment_plots, also turns
+    each uncommented line starting with "plot" into "! <line>   (disabled by deploy)".
+    Other lines are kept, with a newline added if missing.
+    Writes master_path only if a solve line was replaced. Returns True if a solve line
+    was replaced, else False; the caller stops on False.
     """
     ml = read_lines(master_path)
     out = []
@@ -365,7 +452,18 @@ def retarget_master_to_daily(master_path, npts=96, stepsize="15m", comment_plots
 PEAK_FROM_ORIGINAL_KW = []  # loads sized from Loads_original.dss kW instead of a profile CSV
 
 def peak_kw_for_load(full_name):
-    """Try consolidated CSV (peak of daily), else original kW, else stop."""
+    """
+    Return the peak kW used to size storage or PV on load full_name.
+
+    1. For each daily loadshape of the load's base name (full_name without its _<n>
+       suffix), in sorted order: if ../profiles_use_bench/<circuit>/<shape>.csv exists
+       (relative to the working directory), return the maximum of its first column
+       (read with header=None). Read errors are ignored and the next shape is tried.
+    2. Else, the kW= value of the first line of <feeder>/Loads_original.dss that
+       contains "New Load.<full_name>" (a substring match); the name is added to
+       PEAK_FROM_ORIGINAL_KW, which the script counts.
+    3. Else, print [FAIL] and exit 1.
+    """
     base = re.sub(r"_[0-9]+$", "", full_name)
     for dn in sorted(base_to_daily.get(base, set())):
         csv_path = os.path.join(PROFILES_PATH, f"{dn}.csv")
@@ -429,6 +527,16 @@ if ACTIVATE_EV:
     avg_15 = process_vehicle_data(CURRENT_DIR, write_comparison_csv=True)
 
     def generate_ev_profiles(avg_demand, load_number_resi, ev_p, l2_p, nominal_power, max_events, err_tol):
+        """
+        Return an N x T array of EV charging power (kW) whose interval means follow
+        avg_demand, with N = int(load_number_resi * ev_p * l2_p) and T = len(avg_demand).
+
+        Calls generate_initial_charging_sessions, adjust_charging_sessions and
+        adjust_charging_sessions_2 with min_power = 0.9 * nominal_power (seed 555 inside
+        each), then gives each all-zero row the average non-zero value of the mean
+        profile on every interval where that mean is non-zero. The caller passes the
+        count of all base loads (every phase) as load_number_resi.
+        """
         avg_demand = np.array(deepcopy(avg_demand))
         N = int(load_number_resi * ev_p * l2_p)
         min_power = nominal_power * 0.9
@@ -451,6 +559,10 @@ if ACTIVATE_EV:
                                            EV_NOMINAL_POWER_KW, EV_MAX_EVENTS, EV_ERROR_TOL)
 
     def equal_energy_realloc(profiles):
+        """Return an array of the same shape where each row's total energy is spread
+        evenly over that row's non-zero intervals; all-zero rows stay zero. Makes the
+        controlled EV rows from the uncontrolled ones (row i of each comes from the
+        same session row)."""
         P = profiles.copy()
         out = np.zeros_like(P)
         for i in range(P.shape[0]):
@@ -487,6 +599,9 @@ N_c = len(json_ev_ct)
 
 # If instantiate bumped to 2 EVs (to get both types), we may need to replicate profiles
 def ensure_rows(mat, N_target):
+    """Return exactly N_target rows: the first N_target rows of mat if it has enough;
+    mat tiled and cut if it has fewer; an N_target x 96 array of zeros if mat has
+    no rows."""
     if mat.shape[0] >= N_target:
         return mat[:N_target, :]
     if mat.shape[0] == 0:

@@ -6,7 +6,8 @@ EV charging-session generation for the Phase 7 deploy script.
 The deploy calls generate_initial_charging_sessions, adjust_charging_sessions and
 adjust_charging_sessions_2. balance_demand_with_zero_sessions and
 count_charging_cycles are imported by the deploy but not called by the pipeline.
-Each function resets the global NumPy random seed to 555. Arrays are changed in
+Every function except count_charging_cycles resets the global NumPy random seed
+to 555. Arrays are changed in
 place and returned. The module imports matplotlib, which the functions do not use.
 Imported by power_flow_sim_daily_EV_STO_DG_deploy.py. It is not designed to be
 executed directly.
@@ -36,6 +37,17 @@ import cmath
 
 # Function to generate initial random charging sessions
 def generate_initial_charging_sessions(N, total_intervals, nominal_power, min_power, max_charging_events, average_demand):
+    """
+    Return an N x total_intervals array with one charging block per EV.
+
+    For each EV: start = randint(0, total_intervals - 1), end = randint(start + 1,
+    total_intervals), power = uniform(min_power, nominal_power); intervals start to
+    end - 1 are set to that power, so the last interval is never set here.
+    max_charging_events and average_demand do not change the result: the remaining
+    power is power * (1 - (end - start)), never above min_power, so the loop for
+    further events stops at once. average_demand / N is computed and not used
+    (N = 0 gives a division warning and a 0-row array).
+    """
     np.random.seed(555)
     sessions = np.zeros((N, total_intervals))
     demand_per_ev = average_demand / N  # Divide the average demand evenly across all EVs
@@ -64,6 +76,14 @@ def generate_initial_charging_sessions(N, total_intervals, nominal_power, min_po
 
 
 def adjust_charging_sessions(sessions, average_demand, N, nominal_power, total_intervals, error_tolerance):
+    """
+    For each interval, move the mean over EVs toward [0.9 * average_demand,
+    average_demand]: if above, set non-zero sessions to 0 in row order until the
+    mean is at or below the upper bound; if below, set sessions below nominal_power
+    to nominal_power in row order until the mean reaches the lower bound. N and
+    error_tolerance do not change the result (the tolerance check does nothing).
+    Changes sessions in place and returns it.
+    """
     np.random.seed(555)
     # Target ranges from 90% to 100% of average_demand
     lower_bound = 0.9 * average_demand
@@ -105,6 +125,11 @@ def adjust_charging_sessions(sessions, average_demand, N, nominal_power, total_i
 
 
 def balance_demand_with_zero_sessions(sessions, average_demand, N, nominal_power, total_intervals, min_power):
+    """
+    Give each all-zero EV row nominal_power on intervals whose mean is below
+    average_demand, until the first interval where the gap closes. Imported by the
+    deploy script but not called by the pipeline.
+    """
     np.random.seed(555)
     zero_event_sessions = np.where(np.all(sessions == 0, axis=1))[0]
 
@@ -127,6 +152,14 @@ def balance_demand_with_zero_sessions(sessions, average_demand, N, nominal_power
 
 
 def adjust_charging_sessions_2(sessions, average_demand, N, nominal_power, total_intervals, error_tolerance, max_charging_events, min_power):
+    """
+    First pass: the same interval adjustment as adjust_charging_sessions.
+    Second pass: for each EV whose row is all zero, while the row stays zero and
+    fewer than max_charging_events + 1 events were added, set one random interval
+    to uniform(min_power, nominal_power), and reset it to 0 if the interval mean
+    then exceeds average_demand. A row can stay all zero. error_tolerance does not
+    change the result. Changes sessions in place and returns it.
+    """
     np.random.seed(555)
     
     lower_bound = 0.9 * average_demand
@@ -172,6 +205,9 @@ def adjust_charging_sessions_2(sessions, average_demand, N, nominal_power, total
 
 
 def count_charging_cycles(sessions):
+    """Return, per EV row, the number of charge starts (a non-zero first interval
+    plus each zero to non-zero step). Imported by the deploy script but not called
+    by the pipeline."""
     cycles_count = np.zeros(sessions.shape[0])
     for i in range(sessions.shape[0]):
         if sessions[i, 0] > 0:
