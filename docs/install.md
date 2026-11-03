@@ -5,7 +5,7 @@ The documentation does **not** require OpenDSS. Only Sphinx-related packages are
 ## 2.1 Prerequisites (Project side)
 
 - **Conda**: 24.5.0
-- **Python**: 3.9+ (project), 3.11 (docs build on RTD)
+- **Python**: 3.11 (project and docs build on RTD)
 - **OpenDSS**: 9.8.0.1 (for simulations, Windows COM interface)
 - **Data**: EULP via OEDI (open), SMART-DS feeders (NC, TX, CA)
 
