@@ -3,15 +3,14 @@ version: 1
 paths:
   outputs: outputs
 
+# The EULP release of each metadata folder is eulp_release in pipeline_config.yaml.
 folder_groups:
   residential_tmy3:
     dataset: residential
     folder_pattern: Metadata_{state}_Residential
-    release: resstock_tmy3_release_2
   commercial_amy2018:
     dataset: commercial
     folder_pattern: Metadata_{state}_Commercial
-    release: comstock_amy2018_release_1
 
 columns:
   commercial_append_csvs_script_v2:
