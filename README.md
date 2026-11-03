@@ -153,6 +153,8 @@ python .\0_experimental_design\run_mix_generator.py --out <folder>
 - Homes use EULP ResStock profiles on TMY3 weather. Commercial buildings use EULP ComStock profiles on 2018 weather, and SMART-DS solar data is for 2018.
 - The EV charging profiles in `7_circuit_instantiation/data_ev/` are an illustrative home Level 2 shape. Their origin is not documented in the repository.
 - Storage and PV sizes follow assumed ratios and minimums. See `der_sizing` in `pipeline_config.yaml`.
+- EVs at commercial customers use the home Level 2 profile.
+- Each case takes its PV daily shape from one SMART-DS solar site of the donor's region, on each feeder's baseline peak day. See `pv_profile` in `configs/donor_registry.yaml`.
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
 
 ## Key Handoffs
