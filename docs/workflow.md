@@ -104,9 +104,9 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 
 | Mix | EV | Storage (3-phase loads) | PV (3-phase loads) | Heat pump shares (baseline / DM / uncontrolled) |
 | --- | --- | --- | --- | --- |
-| `fire_baseline` | 10% | 5% | 5% | 1.0 / 0.0 / 0.0 |
-| `fire_mixed` | 20% | 10% | 10% | 0.5 / 0.3 / 0.2 |
-| `fire_stress` | 30% | 15% | 15% | 0.2 / 0.2 / 0.6 |
+| `baseline` | 10% | 5% | 5% | 1.0 / 0.0 / 0.0 |
+| `mixed` | 20% | 10% | 10% | 0.5 / 0.3 / 0.2 |
+| `stress` | 30% | 15% | 15% | 0.2 / 0.2 / 0.6 |
 
 - **Storage control:** The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes and controls storage. Phase 7b picks the storage hosts and writes them as `storage_targets`.
 

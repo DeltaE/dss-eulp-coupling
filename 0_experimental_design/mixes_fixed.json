@@ -1,5 +1,5 @@
 {
-  "fire_baseline": {
+  "baseline": {
     "shares": {"baseline": 1.0, "dm": 0.0, "un": 0.0},
     "heating_seed": 555,
     "ev_perc": 0.10,
@@ -12,7 +12,7 @@
     "disjoint_sets": true,
     "ev_split": {"controlled": 0.50, "uncontrolled": 0.50}
   },
-  "fire_mixed": {
+  "mixed": {
     "shares": {"baseline": 0.50, "dm": 0.30, "un": 0.20},
     "heating_seed": 555,
     "ev_perc": 0.20,
@@ -25,7 +25,7 @@
     "disjoint_sets": true,
     "ev_split": {"controlled": 0.60, "uncontrolled": 0.40}
   },
-  "fire_stress": {
+  "stress": {
     "shares": {"baseline": 0.20, "dm": 0.20, "un": 0.60},
     "heating_seed": 555,
     "ev_perc": 0.30,
