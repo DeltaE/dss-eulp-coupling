@@ -376,9 +376,11 @@ def verify_phase5c():
             fp = os.path.join(full, csv_name)
             df = pd.read_csv(fp, header=None)
             rows = len(df)
+            from pipeline_utils import horizon_days, STEPS_PER_DAY, load_config
+            n_steps = STEPS_PER_DAY * horizon_days(load_config())
             check(
-                f"    {tag} '{csv_name}': {rows} rows (expect 96)",
-                rows == 96,
+                f"    {tag} '{csv_name}': {rows} rows (expect {n_steps})",
+                rows == n_steps,
             )
 
     if matched:

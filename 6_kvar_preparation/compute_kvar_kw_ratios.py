@@ -27,9 +27,10 @@ START_PROCESS = time.time()
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
-from pipeline_utils import load_config, resolve_config_path, resolve_work_path
+from pipeline_utils import load_config, resolve_config_path, resolve_work_path, horizon_days, STEPS_PER_DAY
 
 cfg = load_config()
+N_STEPS = STEPS_PER_DAY * horizon_days(cfg)
 
 # --- PATCHED: --scenario CLI flag ---
 SCENARIO = ""  # baseline unless --scenario is given
@@ -155,7 +156,7 @@ for folder_name, time_list in folder_timestamps.items():  # MODIFIED
         arr_ratio = ratios.tolist()
         n_missing = df_filtered[REAL_COL].isna().sum()
 
-        if len(arr_ratio) != 96 or n_missing > 0:
+        if len(arr_ratio) != N_STEPS or n_missing > 0:
             print('⚠️ Something is odd!', file=sys.stderr)
             sys.exit(1)
 

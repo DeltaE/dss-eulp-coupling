@@ -39,7 +39,9 @@ PHASE_P = ["P1 (kW)", "P2 (kW)", "P3 (kW)"]
 KEYS = ["case", "topology", "donor", "season", "scenario", "feeder"]
 SC_ORDER = {"baseline": 0, "mixed": 1, "stress": 2}
 
-EXPECT = dict(cases=4, seasons=2, scenarios=3, feeders=2, ts=96)
+with open(REPO_ROOT / "pipeline_config.yaml", encoding="utf-8") as fh:
+    HORIZON_DAYS = int((yaml.safe_load(fh) or {}).get("horizon_days", 1))
+EXPECT = dict(cases=4, seasons=2, scenarios=3, feeders=2, ts=96 * HORIZON_DAYS)
 EXPECT_COMBOS = EXPECT["cases"] * EXPECT["seasons"] * EXPECT["scenarios"] * EXPECT["feeders"]
 # circuit_folder keys are folder names (<substation>_circuit_<n>_<mix>) that carry neither
 # donor nor season. Four cases and two seasons give 48 combos, which collapse to

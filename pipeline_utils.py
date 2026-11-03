@@ -92,6 +92,30 @@ def load_config(config_path=None):
     return cfg
 
 
+STEPS_PER_DAY = 96  # 15-minute steps
+
+
+def horizon_days(cfg):
+    """Days in the simulation horizon: horizon_days in pipeline_config.yaml, default 1."""
+    days = int(cfg.get("horizon_days", 1))
+    if days < 1:
+        sys.exit(f"horizon_days must be at least 1, got {days}.")
+    return days
+
+
+def horizon_dates(month, day, days):
+    """(month, day) of the peak day and the days - 1 calendar days after it, on the
+    2025 calendar (a non-leap year, as the Phase 5b curve index). December wraps
+    to January."""
+    import datetime
+    start = datetime.date(2025, month, day)
+    out = []
+    for i in range(days):
+        d = start + datetime.timedelta(days=i)
+        out.append((d.month, d.day))
+    return out
+
+
 def load_feeder_registry(config_path=None):
     cfg = load_config(config_path)
     registry_path = resolve_config_path(cfg["feeder_registry_path"])
