@@ -21,6 +21,7 @@ RUN_VALUES = {
     "feeder_registry_path": "PIPELINE_FEEDER_REGISTRY_PATH",
     "eulp_download_date": "PIPELINE_EULP_DOWNLOAD_DATE",
     "mixes_file": "PIPELINE_MIXES_FILE",
+    "pv_profile_file": "PIPELINE_PV_PROFILE_FILE",
 }
 
 
