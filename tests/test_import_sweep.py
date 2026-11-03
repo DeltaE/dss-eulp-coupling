@@ -30,6 +30,9 @@ _EXCLUDE_DIRS = {".git", "archive", "__pycache__", "tests"}
 # (checked informally here: if a name only exists in the win32-only set,
 # skip it on this platform rather than fail).
 _WIN32_ONLY_MODULES = {"comtypes", "win32com", "win32api", "pywintypes"}
+# requirements.txt declares opendssdirect only off Windows (sys_platform != "win32");
+# Windows uses the COM backend.
+_NON_WIN32_ONLY_MODULES = {"opendssdirect"}
 
 
 def _iter_repo_python_files():
@@ -94,6 +97,8 @@ def test_every_top_level_import_resolves_on_this_platform():
                 continue
             if name in _WIN32_ONLY_MODULES and sys.platform != "win32":
                 continue  # correctly gated elsewhere (sys_platform markers / try-except)
+            if name in _NON_WIN32_ONLY_MODULES and sys.platform == "win32":
+                continue  # required only off Windows
             try:
                 importlib.import_module(name)
             except ImportError:
