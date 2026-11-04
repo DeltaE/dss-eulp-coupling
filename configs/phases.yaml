@@ -108,6 +108,10 @@ pre:
     - cmd: "{python} generate_kvar_csvs.py --scenario uncontrolled"
       cwd: 6_kvar_preparation
 
+mix_days:
+  steps:
+    - cmd: "{python} mix_days.py"
+
 "7a":
   steps:
     - cmd: "{python} bridge_phase5c_to_phase7.py"

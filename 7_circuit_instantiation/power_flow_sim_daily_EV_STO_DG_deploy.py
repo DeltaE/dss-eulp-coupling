@@ -21,6 +21,11 @@ Inputs
 - der_sizing in pipeline_config.yaml: storage and PV ratios and minimums.
 - <work_root>/5b_profile_generation/<STATE>_peak_days.csv: each feeder's baseline
   winter and summer peak day (Phase 5b).
+- With peak_day_rule: per_circuit in pipeline_config.yaml, for a circuit whose mix is
+  not 100 % baseline: <work_root>/mix_days/<STATE>_circuit_days.csv, the circuit's own
+  peak day per feeder, season and mix (phase mix_days), and the mix's shares in
+  <work_root>/7_circuit_instantiation/mixes.json. The mix is the part of the circuit
+  folder name after _circuit_<n>_.
 - PIPELINE_PV_PROFILE_FILE: the donor's SMART-DS solar file (pv_profile in
   configs/donor_registry.yaml).
 - Environment: SC_KW_TARGET_FACTOR (0.8), SC_KW_TARGET_LOW (0.0), SC_RESERVE_PCT (20).
@@ -46,7 +51,8 @@ Steps
 5. Writes PVSystems.dss and LoadShapes_PV.dss: per target pmpp = max(pv_min_kw,
    round(pv_kw_per_peak_kw * peak, 1)), kVA = 1.1 * pmpp, and one 96-point daily
    shape: "kW Generated (1000 kW Array)" / 1000 in the donor's SMART-DS solar file on
-   this feeder's baseline peak day of the run's season (pv_daily_shape).
+   this feeder's baseline peak day of the run's season, or on the circuit's own peak
+   day under per_circuit (pv_daily_shape).
 6. Rewrites Master.dss: replaces the yearly 15-minute 35040-step solve with
    "Solve mode=daily stepsize=15m number=96", comments out Plot lines, places the
    new Redirect lines before the first Solve, and appends Export lines for the
@@ -170,8 +176,11 @@ from dss_engine import create_dss_engine
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
-from pipeline_utils import load_config
+from pipeline_utils import load_config, peak_day_rule
+sys.path.append(ROOT)
+from heating_split import is_baseline_only
 CFG = load_config()
+PEAK_DAY_RULE = peak_day_rule(CFG)
 DER_SIZING = CFG.get("der_sizing") or {}
 def der_sizing(key):
     if key not in DER_SIZING:
@@ -499,22 +508,43 @@ def pv_daily_shape(feeder, season):
     PV_KW_COLUMN divided by 1000 (rounded to 9 decimals) in the donor's SMART-DS solar file
     (PIPELINE_PV_PROFILE_FILE), on the month and day of the feeder's baseline peak
     day for that season in <work_root>/5b_profile_generation/<STATE>_peak_days.csv.
+    With peak_day_rule per_circuit and a circuit mix that is not 100 % baseline, the
+    date is the row of the feeder, season and mix in
+    <work_root>/mix_days/<STATE>_circuit_days.csv instead.
     The file's year is ignored. Stops if the season, the peak day, the file, the
-    column or the IRRADIANCE_NPTS rows of that date are missing.
+    column or the IRRADIANCE_NPTS rows of that date are missing, or under per_circuit
+    if the circuit's mix is not in mixes.json.
     """
     if season not in ("summer", "winter"):
         print(f"[FAIL] scenario_assignments.json season is {season!r}; expected summer or winter.")
         sys.exit(1)
     peak_days_path = os.path.join(CFG["work_root"], "5b_profile_generation",
                                   f"{CFG['state']}_peak_days.csv")
+    mix_name = None
+    if PEAK_DAY_RULE == "per_circuit":
+        m_mix = re.match(r"^.*_circuit_\d+_(.+)$", CIRCUIT_FOLDER)
+        mixes_path = os.path.join(CFG["work_root"], "7_circuit_instantiation", "mixes.json")
+        mixes = json.loads(read_text(mixes_path)) if os.path.exists(mixes_path) else {}
+        if not m_mix or m_mix.group(1) not in mixes:
+            print(f"[FAIL] No mix for circuit folder {CIRCUIT_FOLDER} in {mixes_path}.")
+            sys.exit(1)
+        if not is_baseline_only(mixes[m_mix.group(1)]["shares"]):
+            mix_name = m_mix.group(1)
+            peak_days_path = os.path.join(CFG["work_root"], "mix_days",
+                                          f"{CFG['state']}_circuit_days.csv")
     if not os.path.exists(peak_days_path):
-        print(f"[FAIL] Peak-day record not found: {peak_days_path}. Run Phase 5b first.")
+        print(f"[FAIL] Peak-day record not found: {peak_days_path}. "
+              f"Run Phase {'mix_days' if mix_name else '5b'} first.")
         sys.exit(1)
     with open(peak_days_path, newline="", encoding="utf-8") as f:
-        rows = [r for r in csv.DictReader(f) if r["Feeder"] == feeder and r["Season"] == season]
+        rows = [r for r in csv.DictReader(f) if r["Feeder"] == feeder and r["Season"] == season
+                and (mix_name is None or r["Mix"] == mix_name)]
     if len(rows) != 1:
-        print(f"[FAIL] {len(rows)} {season} peak days for feeder {feeder} in {peak_days_path}; expected 1.")
+        print(f"[FAIL] {len(rows)} {season} peak days for feeder {feeder}"
+              f"{' and mix ' + mix_name if mix_name else ''} in {peak_days_path}; expected 1.")
         sys.exit(1)
+    if mix_name:
+        print(f"PV day -> peak_day_rule per_circuit, mix {mix_name}, from {peak_days_path}")
     month, day = int(rows[0]["Month"]), int(rows[0]["Day"])
     pv_file = CFG["pv_profile_file"]
     if not os.path.exists(pv_file):

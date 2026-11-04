@@ -26,8 +26,8 @@ from collections import defaultdict
 import math, random
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, load_feeder_registry, resolve_work_path
-from heating_split import split_heating
+from pipeline_utils import load_config, load_feeder_registry, peak_day_rule, resolve_work_path
+from heating_split import is_baseline_only, split_heating
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -77,6 +77,10 @@ SMARTDS_ROOT = resolve_config_path(cfg['smart_ds_root'])
 HP_BASELINE_ROOT = Path(resolve_work_path("7_circuit_instantiation", STATE + '_4_profhp'))
 HP_DM_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_6_profhp_dm'))
 HP_UN_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_7_profhp_un'))
+# peak_day_rule (pipeline_config.yaml): with per_circuit, a circuit whose mix is not
+# 100 % baseline reads the three profhp roots under <work_root>/mix_days/<mix>/
+# (phase mix_days) instead.
+PEAK_DAY_RULE = peak_day_rule(cfg)
 
 PROFILES_USE_BENCH_DIR = Path(resolve_work_path("7_circuit_instantiation", "profiles_use_bench"))
 PROFILES_USE_BENCH_DIR.mkdir(exist_ok=True)
@@ -385,16 +389,28 @@ for feeder in feeders:
 
         # per-bucket indexing (state/season)
         bucket_name = bucket_from_map(feeder_name, STATE, SEASON)
+        hp_baseline_root, hp_dm_root, hp_un_root = HP_BASELINE_ROOT, HP_DM_ROOT, HP_UN_ROOT
+        if PEAK_DAY_RULE == "per_circuit" and not is_baseline_only(shares):
+            mix_phase7 = Path(resolve_work_path("mix_days", mix_name, "7_circuit_instantiation"))
+            hp_baseline_root = mix_phase7 / (STATE + '_4_profhp')
+            hp_dm_root       = mix_phase7 / (STATE + '_6_profhp_dm')
+            hp_un_root       = mix_phase7 / (STATE + '_7_profhp_un')
+            print(f"  • peak_day_rule per_circuit: profiles from {mix_phase7}")
+            for root in (hp_baseline_root, hp_dm_root, hp_un_root):
+                if not (root / "daily_csvs" / (bucket_name or "")).is_dir():
+                    print(f"[FAIL] {root / 'daily_csvs' / (bucket_name or '')} not found. "
+                          f"Run phase mix_days with peak_day_rule: per_circuit first.")
+                    sys.exit(1)
         if bucket_name:
             print(f"  • Using mapped bucket: {bucket_name}")
-            idx_baseline = index_csvs(HP_BASELINE_ROOT, include_only={bucket_name})
-            idx_dm       = index_csvs(HP_DM_ROOT,       include_only={bucket_name})
-            idx_un       = index_csvs(HP_UN_ROOT,       include_only={bucket_name})
+            idx_baseline = index_csvs(hp_baseline_root, include_only={bucket_name})
+            idx_dm       = index_csvs(hp_dm_root,       include_only={bucket_name})
+            idx_un       = index_csvs(hp_un_root,       include_only={bucket_name})
         else:
             print("  • No map entry; indexing all daily_csvs (may risk collisions).")
-            idx_baseline = index_csvs(HP_BASELINE_ROOT)
-            idx_dm       = index_csvs(HP_DM_ROOT)
-            idx_un       = index_csvs(HP_UN_ROOT)
+            idx_baseline = index_csvs(hp_baseline_root)
+            idx_dm       = index_csvs(hp_dm_root)
+            idx_un       = index_csvs(hp_un_root)
 
         # means for flat-ones patch (loads_original is the backup path actually
         # written above; its on-disk case tracks loads_path's, not a fixed literal)
