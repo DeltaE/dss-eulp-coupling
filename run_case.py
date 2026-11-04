@@ -310,6 +310,12 @@ def main() -> None:
     args = ap.parse_args()
 
     resolved = resolve_case(args.case)
+    # The scripts read peak_day_rule through pipeline_utils.load_config; a bad value
+    # stops here before any phase runs.
+    rule = _load_yaml(REPO_ROOT / "pipeline_config.yaml").get("peak_day_rule")
+    if rule not in ("per_group", "per_circuit"):
+        sys.exit(f"[FAIL] peak_day_rule in pipeline_config.yaml is {rule!r}; "
+                 f"expected one of per_group, per_circuit.")
     phases = _load_yaml(CONFIG_DIR / "phases.yaml")
     seasons = [args.season] if args.season else resolved["seasons"]
     phase_ids = [args.phase] if args.phase else resolved["phase_order"]
@@ -324,6 +330,7 @@ def main() -> None:
     print(f"  PIPELINE_SMART_DS_ROOT={resolved['smart_ds_root']}")
     print(f"  PIPELINE_PARQUET_ROOT={resolved['parquet_root']}")
     print(f"  PIPELINE_EULP_METADATA_ROOT={resolved['eulp_metadata_root']}")
+    print(f"  peak_day_rule={rule}")
 
     workspaces = {season: (runs_root / resolved["case_id"] / season / "workspace").resolve()
                   for season in seasons}
