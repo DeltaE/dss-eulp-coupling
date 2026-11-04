@@ -146,7 +146,7 @@ def monthly_peak_curves(feeder, total_curve):
     df_curve["month"] = df_curve["time"].dt.month
     df_curve["day"] = df_curve["time"].dt.date
 
-    # ✅ FIXED: Find the day with the highest total demand per month
+    # Find the day with the highest total demand per month
     daily_max_peaks = df_curve.groupby(["month", "day"])["demand"].max()  # Max point each day
     peak_days = daily_max_peaks.groupby("month").idxmax()  # Day with the highest peak in the month
 
@@ -159,7 +159,7 @@ def monthly_peak_curves(feeder, total_curve):
 
         # Ensure exactly 96 points (24 hours at 15-min intervals)
         if len(daily_curve) != 96:
-            print(f"⚠️ Incomplete daily curve for {feeder} month {month}, skipping...")
+            print(f"Incomplete daily curve for {feeder} month {month}, skipping...")
             continue
 
         peak_curves[month] = {
@@ -215,10 +215,10 @@ def cut_peak_day(feeder, df_rows, target_date, output_dir, season):
             if not df_day.empty:
                 df_day.to_parquet(out_path, index=False)
             else:
-                print(f"⚠️ Emptiness for {season.upper()} day for {feeder} to {out_path}")
+                print(f"Emptiness for {season.upper()} day for {feeder} to {out_path}")
                 sys.exit(exit_empty)
         except Exception as e:
-            print(f"⚠️ {season.capitalize()} error reading {parquet_path}: {e}")
+            print(f"{season.capitalize()} error reading {parquet_path}: {e}")
             sys.exit(exit_read)
 
 
