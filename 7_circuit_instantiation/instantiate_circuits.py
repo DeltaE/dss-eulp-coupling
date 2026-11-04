@@ -395,7 +395,7 @@ for feeder in feeders:
             hp_baseline_root = mix_phase7 / (STATE + '_4_profhp')
             hp_dm_root       = mix_phase7 / (STATE + '_6_profhp_dm')
             hp_un_root       = mix_phase7 / (STATE + '_7_profhp_un')
-            print(f"  • peak_day_rule per_circuit: profiles from {mix_phase7}")
+            print(f"  - peak_day_rule per_circuit: profiles from {mix_phase7}")
             for root in (hp_baseline_root, hp_dm_root, hp_un_root):
                 if not (root / "daily_csvs" / (bucket_name or "")).is_dir():
                     print(f"[FAIL] {root / 'daily_csvs' / (bucket_name or '')} not found. "
