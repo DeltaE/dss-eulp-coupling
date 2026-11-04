@@ -27,7 +27,7 @@ START_PROCESS = time.time()
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
-from pipeline_utils import load_config, resolve_config_path, resolve_work_path
+from pipeline_utils import load_config, resolve_config_path, resolve_day_path, resolve_work_path
 
 cfg = load_config()
 
@@ -43,9 +43,11 @@ print(f"\n  Scenario: '{SCENARIO or 'baseline'}'  (suffix: '{_scen_suffix}')")
 
 # Adjust these paths:
 needed_parquets_path = resolve_work_path("6_kvar_preparation", "needed_parquets.pkl")
-timestamp_pickle      = resolve_work_path("5c_csv_conversion", f"folder_timestamps{_scen_suffix}.pkl")
+# needed_parquets.pkl does not depend on the day; the timestamps and the ratios do
+# (resolve_day_path: the mix subtree when PIPELINE_MIX is set, phase mix_days).
+timestamp_pickle      = resolve_day_path("5c_csv_conversion", f"folder_timestamps{_scen_suffix}.pkl")
 original_parquet_dir = resolve_config_path(cfg["smart_ds_parquet_root"])
-kvar_ratios_output    = resolve_work_path("6_kvar_preparation", f"kvar_ratios{_scen_suffix}.pkl")
+kvar_ratios_output    = resolve_day_path("6_kvar_preparation", f"kvar_ratios{_scen_suffix}.pkl")
 
 print(f"Using SMART-DS source parquet root: {original_parquet_dir}")
 print(f"Reading timestamps from: {timestamp_pickle}")
