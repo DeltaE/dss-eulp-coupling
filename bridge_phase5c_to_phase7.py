@@ -25,7 +25,7 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pipeline_utils import load_config, resolve_config_path, resolve_work_path
+from pipeline_utils import load_config, resolve_config_path, resolve_day_path
 
 # ── CONFIG ──────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parent
@@ -33,7 +33,9 @@ cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
 
-CSV_SOURCE = Path(resolve_work_path("5c_csv_conversion"))
+# Reads and writes go through resolve_day_path: the workspace, or the mix subtree
+# <work_root>/mix_days/<mix>/ when PIPELINE_MIX is set (phase mix_days).
+CSV_SOURCE = Path(resolve_day_path("5c_csv_conversion"))
 PHASE7_DIR = REPO_ROOT / "7_circuit_instantiation"
 # Workspace registry: PIPELINE_FEEDER_REGISTRY_PATH (set by run_case.py)
 REGISTRY_PATH = resolve_config_path(cfg["feeder_registry_path"])
@@ -89,7 +91,7 @@ for src_dir in all_5c_dirs:
         print(f"  SKIP: {src_dir.name} (unrecognized scenario suffix)")
         continue
 
-    profhp_root = Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP[scenario_suffix]))
+    profhp_root = Path(resolve_day_path("7_circuit_instantiation", SCENARIO_MAP[scenario_suffix]))
     dst_dir = profhp_root / "daily_csvs" / bucket_base
 
     csv_files = [f for f in src_dir.iterdir() if f.is_file() and f.suffix.lower() == ".csv"]
@@ -144,7 +146,7 @@ if copy_plan:
 # Verify
 header("STEP 1 VERIFY: profhp directory structure")
 for suffix, profhp_name in SCENARIO_MAP.items():
-    profhp_dir = Path(resolve_work_path("7_circuit_instantiation", profhp_name))
+    profhp_dir = Path(resolve_day_path("7_circuit_instantiation", profhp_name))
     daily = profhp_dir / "daily_csvs"
     if daily.is_dir():
         buckets = sorted([d for d in daily.iterdir() if d.is_dir()])
@@ -168,7 +170,7 @@ with MIXES_PATH.open("r", encoding="utf-8") as f:
     mixes = json.load(f)
 
 # 7b reads the mixes from the workspace; copy the file byte for byte
-WORK_MIXES_PATH = Path(resolve_work_path("7_circuit_instantiation", "mixes.json"))
+WORK_MIXES_PATH = Path(resolve_day_path("7_circuit_instantiation", "mixes.json"))
 WORK_MIXES_PATH.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(MIXES_PATH, WORK_MIXES_PATH)
 print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
@@ -222,9 +224,9 @@ else:
 header("STEP 4: Pre-flight summary")
 
 checks = {
-    f"profhp bridge ({SCENARIO_MAP['']})":              (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP[""])) / "daily_csvs").is_dir(),
-    f"profhp bridge ({SCENARIO_MAP['_dm']})":           (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_dm"])) / "daily_csvs").is_dir(),
-    f"profhp bridge ({SCENARIO_MAP['_uncontrolled']})": (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_uncontrolled"])) / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['']})":              (Path(resolve_day_path("7_circuit_instantiation", SCENARIO_MAP[""])) / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['_dm']})":           (Path(resolve_day_path("7_circuit_instantiation", SCENARIO_MAP["_dm"])) / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['_uncontrolled']})": (Path(resolve_day_path("7_circuit_instantiation", SCENARIO_MAP["_uncontrolled"])) / "daily_csvs").is_dir(),
     "mixes file":                     MIXES_PATH.is_file(),
     "feeder_registry.json":           REGISTRY_PATH.is_file(),
     "pipeline_config.yaml":           (REPO_ROOT / "pipeline_config.yaml").is_file(),
