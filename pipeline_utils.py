@@ -60,6 +60,30 @@ def resolve_work_path(*parts):
     return os.path.join(work_root, *parts)
 
 
+def resolve_day_path(*parts):
+    """Join parts under the folder that holds the files that depend on the simulated
+    day: the work root, or <work_root>/mix_days/<mix>/ when PIPELINE_MIX names a mix
+    (phase mix_days sets it). Returns an absolute path string. Creates nothing."""
+    mix = os.environ.get("PIPELINE_MIX")
+    if mix:
+        return resolve_work_path("mix_days", mix, *parts)
+    return resolve_work_path(*parts)
+
+
+PEAK_DAY_RULES = ("per_group", "per_circuit")
+
+
+def peak_day_rule(cfg):
+    """Return peak_day_rule from the loaded pipeline_config.yaml. A missing or unknown
+    value prints [FAIL] and exits 1."""
+    rule = cfg.get("peak_day_rule")
+    if rule not in PEAK_DAY_RULES:
+        print(f"[FAIL] peak_day_rule in pipeline_config.yaml is {rule!r}; "
+              f"expected one of {', '.join(PEAK_DAY_RULES)}.")
+        sys.exit(1)
+    return rule
+
+
 def resolve_dss_file(directory, filename):
     """Case-insensitive file lookup within `directory`. ext4 is genuinely
     case-sensitive (unlike the Windows machines SMART-DS exports were

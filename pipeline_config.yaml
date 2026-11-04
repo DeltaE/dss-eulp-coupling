@@ -42,3 +42,9 @@ der_sizing:
   # an array at a host with a low peak from being negligible. A higher minimum
   # raises PV output at hosts with a low peak.
   pv_min_kw: 10.0
+
+# Which calendar day each mixed or stress circuit is simulated on.
+# per_group: each heating group (baseline, dm, un) on its own seasonal peak day.
+# per_circuit: all groups of a circuit on one day, the peak day of the circuit's
+# building load. Baseline circuits use the baseline peak day under both values.
+peak_day_rule: per_group
