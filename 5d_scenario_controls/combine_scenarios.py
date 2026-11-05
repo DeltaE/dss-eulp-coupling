@@ -187,7 +187,7 @@ for folder_path in folders:
             row["uncontrolled_scenario_id"] = best_uncontrolled_id
             row["uncontrolled_diff"] = val - baseline_sum  # signed difference
 
-        # Demand management: pick the scenario with the **lowest absolute demand**
+        # dm (heat pump that keeps a fuel backup): pick the scenario with the **lowest absolute demand**
         best_dm_id = None
         best_dm_val = None
         for sid in scenario_ids["demand_management"]:

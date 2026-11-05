@@ -10,7 +10,7 @@ Each value has one owner:
 - `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root` and `runs_root`. Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
-- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release` and `der_sizing`.
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing`, `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules") and `voltage_band` (the band for the load voltage summaries).
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
@@ -27,12 +27,14 @@ The primary runnable scripts are state-agnostic.
 | 3 | `3_tolerance_matching/` | Match feeder peaks to EULP buildings |
 | 4 | `4_quota_assignment/` | Filter, stratify, and select representative buildings |
 | 5a | `5a_eulp_downloads/` | Download EULP parquet profiles from OEDI |
-| 5b | `5b_profile_generation/` | Build baseline, DM, and uncontrolled peak-day parquet slices |
+| 5b | `5b_profile_generation/` | Build baseline, dm and uncontrolled peak-day parquet slices |
 | 5c | `5c_csv_conversion/` | Convert daily parquet slices to OpenDSS CSV loadshapes |
-| 5d | `5d_scenario_controls/` | Split baseline profile mappings into DM/uncontrolled controls |
+| 5d | `5d_scenario_controls/` | Pick each building's dm and uncontrolled (un) profile. dm is a heat pump that keeps a fuel backup: ResStock upgrade 4, ComStock upgrade 2 or 9. un is a heat pump with electric backup: ResStock upgrade 1, ComStock upgrade 1 or 8 |
 | 6 | `6_kvar_preparation/` | Prepare kvar ratios and kvar CSV loadshapes |
 | 7 | `7_circuit_instantiation/` | Instantiate circuits and run OpenDSS batches |
 | 8 | `8_results_analysis/` | Aggregate monitor outputs, append experiment outputs and generate analysis figures |
+
+The upgrade names are in the OEDI lookup files of each release: https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/resstock_tmy3_release_2/upgrades_lookup.json and https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/comstock_amy2018_release_1/upgrades_lookup.json. The code keys stay `dm`, `uncontrolled` and `demand_management`.
 
 ## Prerequisites
 
@@ -122,6 +124,7 @@ python run_case.py --case <case> --phase 5c --season <season>           # CSV co
 python run_case.py --case <case> --phase 5c_variants --season <season>  # CSV conversion, DM and uncontrolled
 python run_case.py --case <case> --phase 6 --season <season>            # kvar preparation
 python run_case.py --case <case> --phase 6_variants --season <season>   # kvar preparation, DM and uncontrolled
+python run_case.py --case <case> --phase mix_days --season <season>     # circuit days and their profiles; real work only under per_circuit
 python run_case.py --case <case> --phase 7a --season <season>           # profile bridge and mixes.json
 python run_case.py --case <case> --phase 7b --season <season>           # circuit instantiation
 python run_case.py --case <case> --phase 7c --season <season>           # OpenDSS runs
@@ -147,6 +150,15 @@ python .\0_experimental_design\run_mix_generator.py --out <folder>
 
 `run_mix_generator.py` writes nothing inside the repository. `--all` does not use its output: Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names.
 
+## Peak-day rules
+
+`peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each mixed or stress circuit is simulated on. Baseline circuits run on each feeder's baseline seasonal peak day under both values.
+
+- `per_circuit`, the default: all heating groups of a circuit run on one day, the seasonal peak day of the circuit's building load under its mix. Phase `mix_days` finds that day and writes `<ws>/mix_days/<ST>_circuit_days.csv`, `<ST>_circuit_labels.csv` and `<ST>_circuit_weights.csv`. For each mix that is not 100 % baseline, it also writes the subtree `<ws>/mix_days/<mix>/` with the 5b, 5c, 6 and 7a outputs for that day.
+- `per_group`: each heating group (baseline, dm, uncontrolled) runs on its own seasonal peak day. Phase `mix_days` writes nothing.
+
+To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on.
+
 ## Known limitations
 
 - The simulation horizon is one day of 96 fifteen-minute steps. The deploy script, the `pfs_*` modules and the max-day script keep their names until the horizon becomes configurable.
@@ -154,8 +166,16 @@ python .\0_experimental_design\run_mix_generator.py --out <folder>
 - The EV charging profiles in `7_circuit_instantiation/data_ev/` are an illustrative home Level 2 shape. Their origin is not documented in the repository.
 - Storage and PV sizes follow assumed ratios and minimums. See `der_sizing` in `pipeline_config.yaml`.
 - EVs at commercial customers use the home Level 2 profile.
-- Each case takes its PV daily shape from one SMART-DS solar site of the donor's region, on each feeder's baseline peak day. See `pv_profile` in `configs/donor_registry.yaml`.
+- Each case takes its PV daily shape from one SMART-DS solar site of the donor's region, on the day the circuit runs on: the feeder's baseline peak day under `per_group`, the circuit's day under `per_circuit`. See `pv_profile` in `configs/donor_registry.yaml`.
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
+- Heating labels are dealt per customer, but customers in one building share its profile, so the realized building shares can differ from the mix by a few points.
+- Some commercial loadshapes have no matched building and run at the load's nominal kW all day, for example `com_kw_14257_pu` (case `NC_GSO_urban__TX`, feeder `udt4015`) and `com_kw_42051_pu` (topology TX_AUS, feeder `p2udt5222`).
+- Controlled EV charging spreads each car's energy evenly over its own charging intervals and does not move charging in time.
+- Workplace and public EV charging are not modelled.
+- Some ResStock 2024 Release 2 models lack the dual-fuel measure and run as baseline in the dm group: https://natlabrockies.github.io/ResStock.github.io/docs/resources/explanations/Issue_2024_2_Measure_Applicability.html.
+- `ev_lvl2_perc` changes only the number of EV session rows.
+- Under `per_circuit`, a case-season takes about twice as long and needs more disk than under `per_group`.
+- The source monitor m1 reads the source voltage setpoint. Load voltages come from the per-load record (`load_voltages.parquet`, see `docs/outputs.md`).
 
 ## Key Handoffs
 

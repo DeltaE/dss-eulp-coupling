@@ -213,7 +213,7 @@ def _make_scenario_dicts_from_unit(U, case_ids, fixed_case0, bounds, ev_split_fi
     shares = _dirichlet_from_uniform(U[:, col:col+3]); col += 3
     # baseline = shares[:, 0]; dm = shares[:, 1]; un = shares[:, 2]
     '''
-    Here we will add the shares of purely managed systems to look at the impact
+    Here we will add the shares of heat pumps that keep a fuel backup (dm) to look at the impact
     '''
     baseline = [0.2]; dm = [0.6]; un = [0.2]
 

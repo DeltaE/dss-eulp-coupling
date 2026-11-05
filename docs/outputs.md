@@ -26,6 +26,28 @@ One row per circuit/scenario/season/design—metadata to contextualize the time 
 - Fields: `n_loads`, `n_evs`, `n_storage`, `n_pv`, `feeder_head_kva`, etc.  
 - Join keys: `circuit_folder + season + design (+ scenario)`
 
+### Load voltages
+
+The Phase 7 deploy places one mode=0 Monitor `vl_<load>` on every Load of the circuit (every phase leg, EV loads included) through `ModifiedCircuitData/Monitors_LoadVoltage.dss`. After the solve it reads them through the OpenDSS engine and writes three files to `ModifiedCircuitData/`. `v_pu` is the conductor voltage to ground divided by the line-to-neutral base voltage of the load's bus that OpenDSS reports. A bus with no base voltage takes the base from the load's `kV`: `kV` for a one-phase wye load, `kV / sqrt(3)` otherwise. Neutral and ground conductors (node 0) are left out. Steps run from 1 to the number of samples the monitors hold.
+
+- `load_voltages.parquet`: one row per load, step and phase conductor. Columns `load`, `bus`, `step`, `conductor` (the node number), `v_volts`, `v_pu`.
+- `load_voltage_steps.csv`: one row per step. Columns `step`, `v_pu_min` and `v_pu_min_load` (lowest `v_pu` and its load), `v_pu_max` and `v_pu_max_load`, `n_below` and `n_above` (load conductors below `low_pu` and above `high_pu`).
+- `load_voltage_loads.csv`: one row per load. Columns `load`, `bus`, `v_pu_min` and `v_pu_min_step`, `v_pu_max` and `v_pu_max_step`, `n_steps_outside` (steps at which any conductor of the load is outside the band).
+
+Ties go to the first load by name or the first step.
+
+### `load_voltage_summary.csv`
+
+Phase 8 (`append_experiment_results.py`) writes it to `8_results_analysis/`, next to `aggregate_m2_combined.csv`. One row per circuit folder, from its `load_voltage_loads.csv`:
+
+- `circuit_folder`
+- `v_pu_min`, `v_pu_max`: the lowest and highest load `v_pu` of the day.
+- `n_loads_below`: loads whose `v_pu_min` is below `low_pu`.
+- `n_loads_above`: loads whose `v_pu_max` is above `high_pu`.
+- `n_load_steps_outside`: the sum of `n_steps_outside` over the loads.
+
+The band is `voltage_band` in `pipeline_config.yaml`: 0.95 to 1.05 per unit, ANSI C84.1 Range A at the service point, as described in NREL/TP-5D00-77156 (2021), section 2.2: https://www.nrel.gov/docs/fy21osti/77156.pdf. The source monitor m1 reads the source voltage setpoint, so it does not measure voltage along the feeder.
+
 ## 4.2 Visualization & Metrics
 
 - **Peak demand tracking** (primary metric), with Tableau dashboards.  

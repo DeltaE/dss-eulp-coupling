@@ -44,8 +44,8 @@ REGISTRY_PATH = resolve_config_path(cfg["feeder_registry_path"])
 #   scenario suffix in 5c folder name  →  profhp root directory name
 SCENARIO_MAP = {
     "":              f"{STATE}_4_profhp",       # baseline (no suffix)
-    "_dm":           f"{STATE}_6_profhp_dm",    # demand management
-    "_uncontrolled": f"{STATE}_7_profhp_un",    # uncontrolled
+    "_dm":           f"{STATE}_6_profhp_dm",    # dm: heat pump that keeps a fuel backup
+    "_uncontrolled": f"{STATE}_7_profhp_un",    # uncontrolled: heat pump with electric backup
 }
 
 SEP = "=" * 60

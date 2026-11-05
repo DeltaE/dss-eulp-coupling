@@ -30,7 +30,7 @@ dss-eulp-coupling/
 
 `python run_case.py --case configs/cases/<case>.yaml --all --season <season>` runs the phases below. `phase_order` in `configs/defaults.yaml` sets the order:
 
-`pre`, `1`, `2`, `3`, `4`, `5a`, `5b`, `5d`, `5b_variants`, `5c`, `5c_variants`, `6`, `6_variants`, `7a`, `7b`, `7c`, `8`.
+`pre`, `1`, `2`, `3`, `4`, `5a`, `5b`, `5d`, `5b_variants`, `5c`, `5c_variants`, `6`, `6_variants`, `mix_days`, `7a`, `7b`, `7c`, `8`.
 
 `configs/phases.yaml` defines the steps of each phase. `run_case.py` sets `PIPELINE_WORK_ROOT` to `<runs_root>/<case>/<season>/workspace/`, written `<ws>` below. `runs_root` comes from `configs/local.yaml` and is `runs` by default. Every phase reads and writes under `<ws>`. Before anything runs, `--all` checks the workspace of every requested season and refuses to start when any exists. Delete those folders to rerun the case-seasons. `--phase <id>` reruns one phase in the existing workspace. `--dry-run` prints the resolved variables and every command, and writes nothing.
 
@@ -67,7 +67,7 @@ Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTH
 ### Phases 5b, 5d and 5b_variants: profile generation
 
 - `5b` (`5b_profile_generation`): `phase5b_scale.py` runs `scale_feeder_curves_impl.py`. It reads the two Phase 4 final CSVs from `<ws>/4_quota_assignment/`. `phase5b_peak.py` runs `find_max_day_curve_impl.py --scenario baseline`. Together they build the baseline profiles.
-- `5d` (`5d_scenario_controls`): `combine_scenarios.py` writes `<ws>/5d_scenario_controls/combine_scenarios/combined_scenarios.csv`. `get_scenario_csv_controls.py` then reads it and selects the controls for the demand management (DM) and uncontrolled variants.
+- `5d` (`5d_scenario_controls`): `combine_scenarios.py` writes `<ws>/5d_scenario_controls/combine_scenarios/combined_scenarios.csv`. `get_scenario_csv_controls.py` then reads it and selects the controls for the dm and uncontrolled variants. dm is a heat pump that keeps a fuel backup: ResStock upgrade 4, ComStock upgrade 2 or 9. uncontrolled (un) is a heat pump with electric backup: ResStock upgrade 1, ComStock upgrade 1 or 8. The upgrade names are in the OEDI lookup files https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/resstock_tmy3_release_2/upgrades_lookup.json and https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/comstock_amy2018_release_1/upgrades_lookup.json.
 - `5b_variants` (`5b_profile_generation`): `phase5b_variants_dm.py` and `phase5b_variants_uncontrolled.py` run `find_max_day_curve_impl.py` with `--scenario dm` and `--scenario uncontrolled`. They build the DM and uncontrolled profiles.
 
 ### Phases 5c and 5c_variants: CSV conversion (5c_csv_conversion)
@@ -81,6 +81,15 @@ Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTH
 
 Both phases write `_kvar_` CSVs beside the `_kw_` CSVs.
 
+### Phase mix_days and the peak-day rules
+
+`peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each mixed or stress circuit is simulated on. Baseline circuits run on each feeder's baseline seasonal peak day under both values.
+
+- `per_circuit`, the default: all heating groups of a circuit run on one day, the seasonal peak day of the circuit's building load under its mix. `mix_days.py` finds that day and writes `<ws>/mix_days/<STATE>_circuit_days.csv`, `<STATE>_circuit_labels.csv` and `<STATE>_circuit_weights.csv`. For each mix that is not 100 % baseline, it reruns the day-dependent steps of 5c, 5c_variants, 6, 6_variants and 7a into `<ws>/mix_days/<mix>/`. Phases 7b and 7c then read the circuit's day and its profiles from there.
+- `per_group`: each heating group (baseline, dm, uncontrolled) runs on its own seasonal peak day. `mix_days.py` prints one line and writes nothing.
+
+To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on. After `mix_days`, `run_case.py` runs the 5b and 5c checks of `verify_phase.py` for baseline, dm and uncontrolled in each `<ws>/mix_days/<mix>/` subtree, under `per_circuit` only.
+
 ### Phases 7a, 7b and 7c: circuit instantiation and simulation (7_circuit_instantiation)
 
 - `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.json`) byte for byte to `<ws>/7_circuit_instantiation/mixes.json`, and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
@@ -90,7 +99,7 @@ Both phases write `_kvar_` CSVs beside the `_kw_` CSVs.
 ### Phase 8: results analysis
 
 1. `aggregate_m1_m2_with_circuits.py` runs in `8_results_analysis/`. It writes `aggregate_m1.csv`, `aggregate_m2.csv` and `circuit_summary.csv` to `<ws>/7_circuit_instantiation/`.
-2. `append_experiment_results.py` runs in `8_results_analysis/`. It reads `aggregate_m2.csv`, `circuit_summary.csv` and `heating_assignment__FULL.csv` from `<ws>/7_circuit_instantiation/`. It tags every row with the season, and with `design` set to the donor state. It writes `aggregate_m2_combined.csv`, `circuit_summary_combined.csv` and `heating_assignment__FULL_combined.csv` to `<ws>/8_results_analysis/`. It exits with an error when an input file is missing.
+2. `append_experiment_results.py` runs in `8_results_analysis/`. It reads `aggregate_m2.csv`, `circuit_summary.csv` and `heating_assignment__FULL.csv` from `<ws>/7_circuit_instantiation/`. It tags every row with the season, and with `design` set to the donor state. It writes `aggregate_m2_combined.csv`, `circuit_summary_combined.csv` and `heating_assignment__FULL_combined.csv` to `<ws>/8_results_analysis/`. It also writes `load_voltage_summary.csv` there, one row per circuit folder from its `load_voltage_loads.csv` (see `docs/outputs.md`). It exits with an error when an input file is missing.
 
 Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combined.csv` from all eight case-seasons into `m2_all_cases_all_seasons.csv` in the runs root (`runs_root` in `configs/local.yaml`, `runs/` by default). `gather_m2_cases.py` reads the workspaces under the runs root. `validate_2x2.py` checks that file. It exits 1 when it finds fewer than 12 `circuit_folder` values, before it writes anything. Otherwise it writes `peaks_per_combo.csv` to the runs root. `--all` runs neither script.
 
@@ -169,8 +178,8 @@ Outputs land in `<runs_root>/<case>/<season>/workspace/`. Phase 5a writes its EU
 | 5c | `parquet_to_csv.py` | Circuit loadshape CSV folders, `folder_timestamps.pkl`, `folder_equiv.pkl`, `folder_list_loadshapes.pkl` |
 | 6 | `save_needed_sd_parquets.py`, `compute_kvar_kw_ratios.py`, `generate_kvar_csvs.py` | `needed_parquets.pkl`, `kvar_ratios.pkl`, `_kvar_` CSVs beside the `_kw_` CSVs |
 | 7b | `instantiate_circuits.py` | Prepared circuit folders, `profiles_use_bench/` |
-| 7c | `run_circuits.py` | OpenDSS monitor CSVs in each circuit folder |
-| 8 | `aggregate_m1_m2_with_circuits.py`, `append_experiment_results.py` | `aggregate_m1.csv`, `aggregate_m2.csv`, `circuit_summary.csv` in `7_circuit_instantiation/`; combined CSVs in `8_results_analysis/` |
+| 7c | `run_circuits.py` | OpenDSS monitor CSVs and the load voltage files (`Monitors_LoadVoltage.dss`, `load_voltages.parquet`, `load_voltage_steps.csv`, `load_voltage_loads.csv`) in each circuit folder |
+| 8 | `aggregate_m1_m2_with_circuits.py`, `append_experiment_results.py` | `aggregate_m1.csv`, `aggregate_m2.csv`, `circuit_summary.csv` in `7_circuit_instantiation/`; combined CSVs and `load_voltage_summary.csv` in `8_results_analysis/` |
 
 ### Wrappers
 

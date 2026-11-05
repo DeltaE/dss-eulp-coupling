@@ -19,7 +19,7 @@
 ### Capabilities
 
 - Experimental designs via **Latin Hypercube Sampling (LHS)** and **Sobol sequences**.
-- Seasonal analysis (**summer/winter**) and multiple profile variants (baseline, demand management, uncontrolled).
+- Seasonal analysis (**summer/winter**) and multiple profile variants (baseline; dm, a heat pump that keeps a fuel backup; uncontrolled, a heat pump with electric backup).
 - EV/PV/Storage placement & control, per-feeder time-series simulation (96×15-min timesteps).
 
 ## 1.2 System Architecture
