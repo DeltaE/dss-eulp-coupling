@@ -47,4 +47,12 @@ der_sizing:
 # per_group: each heating group (baseline, dm, un) on its own seasonal peak day.
 # per_circuit: all groups of a circuit on one day, the peak day of the circuit's
 # building load. Baseline circuits use the baseline peak day under both values.
-peak_day_rule: per_group
+# per_circuit is the default; per_group remains available through this setting.
+peak_day_rule: per_circuit
+
+# Voltage band for load voltage summaries, per unit of nominal. ANSI C84.1 Range A
+# at the service point, as described in NREL/TP-5D00-77156 (2021), section 2.2:
+# https://www.nrel.gov/docs/fy21osti/77156.pdf
+voltage_band:
+  low_pu: 0.95
+  high_pu: 1.05

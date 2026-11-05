@@ -216,7 +216,7 @@ def sec5_stress(peaks):
     print(out.to_string(index=False))
     print(f"\nMonotone groups: {(out['monotone?']=='OK').sum()}/{len(out)}")
     if violations:
-        print("!! STRESS-ORDERING VIOLATIONS (expected in summer — HP efficiency effect):")
+        print("!! STRESS-ORDERING VIOLATIONS (expected in summer, HP efficiency effect):")
         for v in violations:
             print("   ", v)
     else:

@@ -14,6 +14,14 @@ COM object names used by power_flow_sim_daily_EV_STO_DG_deploy.py:
     DSScircuit.Solution.Solve()
     DSScircuit.Solution.Converged
 
+and, for reading load voltages (load_voltage.py) and line ratings:
+
+    DSScircuit.SetActiveElement(name), DSScircuit.ActiveCktElement
+        (Name, BusNames, NodeOrder, NumPhases, NormalAmps)
+    DSScircuit.SetActiveBus(name), DSScircuit.ActiveBus.kVBase
+    DSScircuit.Loads (AllNames, Name, kV, IsDelta)
+    DSScircuit.Monitors (Name, SampleCount, Header, Channel(i))
+
 Windows keeps the real comtypes COM object (behaviour unchanged). Any other
 platform gets a thin adapter over opendssdirect. Select with sys.platform,
 override with the DSS_BACKEND=com|direct env var for cross-platform testing.
@@ -77,9 +85,111 @@ class _DirectSolution:
         return self._dss.Solution.StepSize()
 
 
+class _DirectMonitors:
+    """Adapts opendssdirect's Monitors.* to COM's Name / SampleCount / Header / Channel."""
+
+    def __init__(self, dss_module):
+        self._dss = dss_module
+
+    @property
+    def Name(self):
+        return self._dss.Monitors.Name()
+
+    @Name.setter
+    def Name(self, value):
+        self._dss.Monitors.Name(value)
+
+    @property
+    def SampleCount(self):
+        return self._dss.Monitors.SampleCount()
+
+    @property
+    def Header(self):
+        return self._dss.Monitors.Header()
+
+    def Channel(self, index):
+        return self._dss.Monitors.Channel(index)
+
+
+class _DirectLoads:
+    """Adapts opendssdirect's Loads.* to COM's AllNames / Name / kV / IsDelta."""
+
+    def __init__(self, dss_module):
+        self._dss = dss_module
+
+    @property
+    def AllNames(self):
+        return self._dss.Loads.AllNames()
+
+    @property
+    def Name(self):
+        return self._dss.Loads.Name()
+
+    @Name.setter
+    def Name(self, value):
+        self._dss.Loads.Name(value)
+
+    @property
+    def kV(self):
+        return self._dss.Loads.kV()
+
+    @property
+    def IsDelta(self):
+        return self._dss.Loads.IsDelta()
+
+
+class _DirectCktElement:
+    """Adapts opendssdirect's CktElement.* to COM's ActiveCktElement properties."""
+
+    def __init__(self, dss_module):
+        self._dss = dss_module
+
+    @property
+    def Name(self):
+        return self._dss.CktElement.Name()
+
+    @property
+    def BusNames(self):
+        return self._dss.CktElement.BusNames()
+
+    @property
+    def NodeOrder(self):
+        return self._dss.CktElement.NodeOrder()
+
+    @property
+    def NumPhases(self):
+        return self._dss.CktElement.NumPhases()
+
+    @property
+    def NormalAmps(self):
+        return self._dss.CktElement.NormalAmps()
+
+
+class _DirectBus:
+    """Adapts opendssdirect's Bus.kVBase to COM's ActiveBus.kVBase."""
+
+    def __init__(self, dss_module):
+        self._dss = dss_module
+
+    @property
+    def kVBase(self):
+        return self._dss.Bus.kVBase()
+
+
 class _DirectCircuit:
     def __init__(self, dss_module):
+        self._dss = dss_module
         self.Solution = _DirectSolution(dss_module)
+        self.Monitors = _DirectMonitors(dss_module)
+        self.Loads = _DirectLoads(dss_module)
+        self.ActiveCktElement = _DirectCktElement(dss_module)
+        self.ActiveBus = _DirectBus(dss_module)
+
+    def SetActiveElement(self, name):
+        return self._dss.Circuit.SetActiveElement(name)
+
+    def SetActiveBus(self, name):
+        return self._dss.Circuit.SetActiveBus(name)
 
 
 class _DirectEngine:

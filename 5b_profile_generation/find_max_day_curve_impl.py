@@ -441,8 +441,8 @@ if ARGS.mix is not None:
     run_mix(ARGS.mix)
     sys.exit(0)
 
-# 🔹 NEW: Store df_curve per feeder
-df_curve_per_feeder = {}  # 🔹 NEW
+# NEW: Store df_curve per feeder
+df_curve_per_feeder = {}  # NEW
 
 # Load required parquet summary
 _input_dir, _input_suffix = SCENARIO_INPUTS[ARGS.scenario]
@@ -518,7 +518,7 @@ for feeder in df_summary_result["Feeder"].unique():
         peak_load_curves[feeder] = peak_curves
 
         # Inside your main feeder loop (after df_curve is created)
-        df_curve_per_feeder[feeder] = df_curve.copy()  # 🔹 NEW
+        df_curve_per_feeder[feeder] = df_curve.copy()  # NEW
 
 # Convert results into structured DataFrame
 df_peak_daily = peak_daily_frame(peak_load_curves)
@@ -532,7 +532,7 @@ month_names = {
     9: "September", 10: "October", 11: "November", 12: "December"
 }
 
-# 🔹 NEW: Loop through each feeder for plotting
+# NEW: Loop through each feeder for plotting
 for feeder, df_curve in df_curve_per_feeder.items():  #
     # Create subplots (3x4 grid for 12 months)
     fig, axes = plt.subplots(3, 4, figsize=(20, 12), sharex=True, sharey=True)
@@ -555,7 +555,7 @@ for feeder, df_curve in df_curve_per_feeder.items():  #
                 ax.plot(range(96), daily_curve, alpha=0.2, color="gray")  # Light gray for all curves
 
         # Filter data for the current month
-        df_peak_month  = df_peak_daily[(df_peak_daily["Month"] == month) & (df_peak_daily["Feeder"] == feeder)]  # 🔹 NEW
+        df_peak_month  = df_peak_daily[(df_peak_daily["Month"] == month) & (df_peak_daily["Feeder"] == feeder)]  # NEW
 
         # Plot the maximum peak curve in bold for distinction
         if not df_peak_month.empty:
@@ -582,23 +582,23 @@ for feeder, df_curve in df_curve_per_feeder.items():  #
 # import ace_tools as tools
 # tools.display_dataframe_to_user(name="Max Load per Month per Feeder", dataframe=df_max_loads)
 
-# 🔹 NEW: Identify winter and summer peak days per feeder
-print("\n🔍 Peak Days Summary (Winter & Summer):\n")  # 🔹 NEW
+# NEW: Identify winter and summer peak days per feeder
+print("\nPeak Days Summary (Winter & Summer):\n")  # NEW
 peak_day_rows = []  # one row per feeder and season, written for the baseline scenario
-for feeder in df_peak_daily["Feeder"].unique():  # 🔹 NEW
+for feeder in df_peak_daily["Feeder"].unique():  # NEW
     # Winter months
     winter_peak = season_peak_row(df_peak_daily, feeder, WINTER_MONTHS)  # Highest single point in winter
     if winter_peak is not None:
-        winter_peak_value = max(winter_peak[3:])  # 🔹 NEW: Get max kW in curve
-        print(f"Feeder {feeder} - ❄️ Winter Peak Day: {winter_peak['Peak Day']} (Month {winter_peak['Month']}) – Peak Value: {winter_peak_value:.2f} kW")  # 🔹 NEW
+        winter_peak_value = max(winter_peak[3:])  # NEW: Get max kW in curve
+        print(f"Feeder {feeder} - Winter Peak Day: {winter_peak['Peak Day']} (Month {winter_peak['Month']}) - Peak Value: {winter_peak_value:.2f} kW")  # NEW
         peak_day_rows.append([feeder, "winter", winter_peak["Peak Day"][1].month,
                               winter_peak["Peak Day"][1].day, winter_peak_value])
 
     # Summer months
     summer_peak = season_peak_row(df_peak_daily, feeder, SUMMER_MONTHS)
     if summer_peak is not None:
-        summer_peak_value = max(summer_peak[3:])  # 🔹 NEW: Get max kW in curve
-        print(f"Feeder {feeder} - ☀️ Summer Peak Day: {summer_peak['Peak Day']} (Month {summer_peak['Month']}) – Peak Value: {summer_peak_value:.2f} kW")  # 🔹 NEW
+        summer_peak_value = max(summer_peak[3:])  # NEW: Get max kW in curve
+        print(f"Feeder {feeder} - Summer Peak Day: {summer_peak['Peak Day']} (Month {summer_peak['Month']}) - Peak Value: {summer_peak_value:.2f} kW")  # NEW
         peak_day_rows.append([feeder, "summer", summer_peak["Peak Day"][1].month,
                               summer_peak["Peak Day"][1].day, summer_peak_value])
 
@@ -610,7 +610,7 @@ if ARGS.scenario == "baseline":
         peak_days_path, index=False)
     print(f"Peak days written: {peak_days_path}")
 
-# 🔁 Slicing and saving only winter/summer peak day parquets
+# Slicing and saving only winter/summer peak day parquets
 BOOL_SAVE_SLICES = True
 if BOOL_SAVE_SLICES:
     for feeder in df_peak_daily["Feeder"].unique():

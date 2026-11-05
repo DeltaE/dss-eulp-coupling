@@ -1,7 +1,11 @@
 # Phase definitions for run_case.py. --all runs the phases in defaults.yaml phase_order, pre to 8, for each selected season. A failed phase ends that season.
 # Placeholders substituted from the resolved case: {python}, {smart_ds_root}, {max_feeders}, {state}, {work_root}.
 # Each step is either {cmd: "..."} (optional cwd:) or {copy: [src, dst]} (dst ending "/" = into dir).
-# 'verify' runs `{python} verify_phase.py --phase <id>` from repo root after the steps.
+# 'verify' runs `{python} verify_phase.py --phase <id>` from repo root after the steps,
+# once per scenario in 'verify_scenarios' (baseline when absent).
+# 'verify_mix_days' lists phases whose checks also run, for baseline, dm and uncontrolled,
+# in <work_root>/mix_days/<mix>/ (--mix) for each mix that is not 100 % baseline, under
+# peak_day_rule per_circuit only.
 
 pre:
   steps:
@@ -74,6 +78,8 @@ pre:
       cwd: 5b_profile_generation
     - cmd: "{python} phase5b_variants_uncontrolled.py"
       cwd: 5b_profile_generation
+  verify: "5b"
+  verify_scenarios: [dm, uncontrolled]
 
 "5c":
   steps:
@@ -96,6 +102,8 @@ pre:
       cwd: 5c_csv_conversion
     - cmd: "{python} parquet_to_csv.py --scenario uncontrolled"
       cwd: 5c_csv_conversion
+  verify: "5c"
+  verify_scenarios: [dm, uncontrolled]
 
 "6_variants":
   steps:
@@ -111,6 +119,7 @@ pre:
 mix_days:
   steps:
     - cmd: "{python} mix_days.py"
+  verify_mix_days: ["5b", "5c"]
 
 "7a":
   steps:

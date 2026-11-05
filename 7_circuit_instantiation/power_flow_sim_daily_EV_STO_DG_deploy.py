@@ -28,6 +28,8 @@ Inputs
   folder name after _circuit_<n>_.
 - PIPELINE_PV_PROFILE_FILE: the donor's SMART-DS solar file (pv_profile in
   configs/donor_registry.yaml).
+- voltage_band in pipeline_config.yaml: low_pu and high_pu for the load voltage
+  summaries.
 - Environment: SC_KW_TARGET_FACTOR (0.8), SC_KW_TARGET_LOW (0.0), SC_RESERVE_PCT (20).
 
 Steps
@@ -57,16 +59,25 @@ Steps
    "Solve mode=daily stepsize=15m number=96", comments out Plot lines, places the
    new Redirect lines before the first Solve, and appends Export lines for the
    storage monitors.
-7. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
+7. Writes Monitors_LoadVoltage.dss: one mode=0 Monitor vl_<load> per Load in
+   ModifiedCircuitData/Loads.dss (load_voltage.py), and adds
+   "Redirect Monitors_LoadVoltage.dss" just before the first Solve line.
+8. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
    and reads Solution.Converged.
+9. When converged, reads every load Monitor through the engine (no Export lines) and
+   writes the load voltage tables (per unit of the load's bus base kV).
 
 Outputs
 - ModifiedCircuitData/: copied and edited .dss files, LoadShapes_EV.dss, Storage.dss,
   PVSystems.dss, LoadShapes_PV.dss and the monitor CSVs OpenDSS exports.
+- ModifiedCircuitData/Monitors_LoadVoltage.dss, load_voltages.parquet (one row per
+  load, step and phase conductor), load_voltage_steps.csv (one row per step) and
+  load_voltage_loads.csv (one row per load). Columns in docs/outputs.md.
 - <circuit>/data_ev/df_enatd.csv (written by process_vehicle_data on every run).
 - Console counts: the ev_loads split when used, storage and PV raised to their
   minimum, peaks taken from Loads_original.dss, and EV hosts placed on their own
-  bus (with how many carry a commercial com_ profile).
+  bus (with how many carry a commercial com_ profile); load monitors, steps and the
+  loads whose bus has no base voltage.
 
 Fallbacks and floors
 - ev_loads_uncontrolled and ev_loads_controlled both empty: ev_loads split in half.
@@ -86,7 +97,10 @@ Stops (exit 1 unless noted)
 - No peak kW for a storage or PV target.
 - No yearly solve line to retarget in Master.dss.
 - RuntimeError: storage objects exist but Master.dss has no Monitor m1/m2 or
-  Energymeter; a DER Redirect line is missing; a monitor export CSV is missing.
+  Energymeter; a DER Redirect line is missing; a monitor export CSV is missing; the
+  loads of the compiled circuit differ from the monitored loads, or a load monitor
+  does not match its load.
+- voltage_band missing from pipeline_config.yaml.
 - Uncaught exception: for example data_ev/ missing (FileNotFoundError).
 - Solution.Converged is not True after Compile, or the circuit was not compiled.
 - exit 0 otherwise.
@@ -173,6 +187,7 @@ from pfs_write_csv_1 import write_simulation_results_to_csv
 from pfs_ev_base_profiles import process_vehicle_data
 from pfs_hp_base_profiles import generate_heatpump_profiles
 from dss_engine import create_dss_engine
+from load_voltage import monitor_lines, read_load_monitors, load_voltage_frame, step_table, load_table
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
@@ -192,6 +207,11 @@ STORAGE_MIN_KW       = der_sizing("storage_min_kw")
 STORAGE_ENERGY_HOURS = der_sizing("storage_hours")
 PV_KW_PER_PEAK       = der_sizing("pv_kw_per_peak_kw")
 PV_MIN_KW            = der_sizing("pv_min_kw")
+VOLTAGE_BAND = CFG.get("voltage_band") or {}
+if "low_pu" not in VOLTAGE_BAND or "high_pu" not in VOLTAGE_BAND:
+    print("[FAIL] voltage_band.low_pu and voltage_band.high_pu must be set in pipeline_config.yaml.")
+    sys.exit(1)
+V_LOW_PU, V_HIGH_PU = float(VOLTAGE_BAND["low_pu"]), float(VOLTAGE_BAND["high_pu"])
 
 # -----------------------
 # Start
@@ -371,6 +391,14 @@ def ensure_redirects_before_solve(master_path):
         out.extend(block_objs)
 
     write_lines(master_path, out)
+
+def add_redirect_before_solve(master_path, filename):
+    """Insert the one line "Redirect <filename>" just before the first Solve line of
+    master_path (at the end if there is no Solve line). Writes master_path."""
+    ml = read_lines(master_path)
+    idx = next((i for i, ln in enumerate(ml) if re.match(r'(?i)^\s*Solve\b', ln.strip())), len(ml))
+    ml.insert(idx, f"Redirect {filename}\n")
+    write_lines(master_path, ml)
 
 def assert_expected_redirects(master_path, storage_present, pv_present, ev_present):
     """Fail loudly if a DER redirect we depend on didn't make it into Master.dss.
@@ -941,9 +969,19 @@ if not retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m"):
     print(f"[FAIL] No 'Solve mode=yearly stepsize=15m number=35040' line to retarget in {master_dss_path}.")
     sys.exit(1)
 
+# One voltage Monitor per Load (every phase leg, EV loads included)
+LV_MONITORS_FILE = "Monitors_LoadVoltage.dss"
+LV_LOADS = []
+for ln in read_lines(loads_ev_path):
+    m_ld = re.match(r"(?i)^\s*New\s+Load\.(\S+)", ln)
+    if m_ld:
+        LV_LOADS.append(m_ld.group(1))
+write_lines(os.path.join(OUT_DIR, LV_MONITORS_FILE), monitor_lines(LV_LOADS))
+
 # patch Master
 if master_dss_path:
     ensure_redirects_before_solve(master_dss_path)
+    add_redirect_before_solve(master_dss_path, LV_MONITORS_FILE)
     assert_expected_redirects(
         master_dss_path,
         storage_present=(n_storage > 0),
@@ -1010,6 +1048,24 @@ if COMPILE_CIRCUIT and master_dss_path:
     # Master.dss's own embedded "Solve"/"Export Monitors" lines run as part of
     # the Compile above; don't just trust that -- confirm the CSVs landed.
     assert_monitor_exports(master_dss_path, monitor_names, os.path.dirname(master_dss_path))
+
+    # Voltage at every load, read from the monitors through the engine
+    if converged:
+        lv_start = time.time()
+        engine_loads = {str(n).lower() for n in DSScircuit.Loads.AllNames}
+        if engine_loads != {n.lower() for n in LV_LOADS}:
+            raise RuntimeError(f"Loads in the compiled circuit ({len(engine_loads)}) differ from "
+                               f"the loads with a voltage monitor ({len(LV_LOADS)}).")
+        lv_frame, lv_no_base = load_voltage_frame(read_load_monitors(DSScircuit, LV_LOADS))
+        lv_frame.to_parquet(os.path.join(OUT_DIR, "load_voltages.parquet"), index=False)
+        step_table(lv_frame, V_LOW_PU, V_HIGH_PU).to_csv(
+            os.path.join(OUT_DIR, "load_voltage_steps.csv"), index=False)
+        load_table(lv_frame, V_LOW_PU, V_HIGH_PU).to_csv(
+            os.path.join(OUT_DIR, "load_voltage_loads.csv"), index=False)
+        print(f"Load voltages -> {len(LV_LOADS)} load monitors, {lv_frame['step'].nunique()} steps, "
+              f"{time.time() - lv_start:.2f} s")
+        print(f"Loads on a bus with no base voltage (base from the load kV): {len(lv_no_base)}"
+              f"{' ' + ' '.join(lv_no_base) if lv_no_base else ''}")
 else:
     converged = None  # circuit was never compiled/solved
 

@@ -38,6 +38,8 @@ except ImportError:
 
 REPO_ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = REPO_ROOT / "configs"
+sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
+from heating_split import is_baseline_only
 
 
 def _load_yaml(path: Path) -> dict:
@@ -222,20 +224,46 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
                     emit(f"  !! command failed (exit {rc})")
                     return False
 
-    verify = phase_def.get("verify")
-    if verify:
-        emit(f"  verify --phase {verify}")
-    if verify and not dry_run:
+    for verify_args in verify_calls(phase_def, resolved):
+        emit(f"  verify {' '.join(verify_args)}")
+        if dry_run:
+            continue
         if os.name == "posix":
-            rc = subprocess.run([sys.executable, "verify_phase.py", "--phase", str(verify)],
+            rc = subprocess.run([sys.executable, "verify_phase.py", *verify_args],
                                 cwd=REPO_ROOT, env=env, shell=False).returncode
         else:
-            rc = subprocess.run(f"{ctx['python']} verify_phase.py --phase {verify}",
+            rc = subprocess.run(f"{ctx['python']} verify_phase.py {' '.join(verify_args)}",
                                 cwd=REPO_ROOT, env=env, shell=True).returncode
         if rc != 0:
             emit(f"  !! verify failed (exit {rc})")
             return False
     return True
+
+
+def verify_calls(phase_def, resolved) -> list:
+    """The verify_phase.py argument lists to run after a phase, in order.
+    - verify: --phase <verify> once per scenario in verify_scenarios (baseline when the
+      key is absent; baseline passes no --scenario).
+    - verify_mix_days, under peak_day_rule per_circuit only: every phase it lists, for
+      baseline, dm and uncontrolled, with --mix <mix> for each mix of the mixes file that
+      is not 100 % baseline (the mixes phase mix_days writes a subtree for)."""
+    def scenario_args(scen):
+        return [] if scen == "baseline" else ["--scenario", scen]
+    calls = []
+    verify = phase_def.get("verify")
+    if verify:
+        for scen in phase_def.get("verify_scenarios", ["baseline"]):
+            calls.append(["--phase", str(verify)] + scenario_args(scen))
+    if phase_def.get("verify_mix_days") and resolved["peak_day_rule"] == "per_circuit":
+        with open(resolved["mixes_file"], encoding="utf-8") as fh:
+            mixes = json.load(fh)
+        for mix, mix_cfg in mixes.items():
+            if is_baseline_only(mix_cfg["shares"]):
+                continue
+            for verify_phase in phase_def["verify_mix_days"]:
+                for scen in ("baseline", "dm", "uncontrolled"):
+                    calls.append(["--phase", str(verify_phase)] + scenario_args(scen) + ["--mix", mix])
+    return calls
 
 
 def write_manifest(run_dir: Path, resolved: dict, season: str) -> None:
@@ -316,7 +344,8 @@ def main() -> None:
     if rule not in ("per_group", "per_circuit"):
         sys.exit(f"[FAIL] peak_day_rule in pipeline_config.yaml is {rule!r}; "
                  f"expected one of per_group, per_circuit.")
-    phases = _load_yaml(CONFIG_DIR / "phases.yaml")
+    resolved["peak_day_rule"] = rule
+    phases =_load_yaml(CONFIG_DIR / "phases.yaml")
     seasons = [args.season] if args.season else resolved["seasons"]
     phase_ids = [args.phase] if args.phase else resolved["phase_order"]
 

@@ -6,7 +6,8 @@ heating_split.split_heating (the Phase 7b heating split) on a synthetic list of 
 loads with the three mixes of 0_experimental_design/mixes_fixed.json: exact group
 counts by largest remainder, labels that match those counts, and the same labels on a
 second call with the same inputs. Also checks that pipeline_utils.peak_day_rule stops
-on a missing or unknown peak_day_rule and that pipeline_config.yaml holds per_group.
+on a missing or unknown peak_day_rule, and that pipeline_config.yaml holds per_circuit
+and peak_day_rule returns it.
 
 Run directly (no pytest needed): python tests/test_heating_split.py
 Or under pytest: pytest tests/test_heating_split.py
@@ -80,9 +81,11 @@ def test_unknown_peak_day_rule_stops():
     assert peak_day_rule({"peak_day_rule": "per_circuit"}) == "per_circuit"
 
 
-def test_committed_rule_is_per_group():
+def test_committed_rule_is_per_circuit():
     with open(os.path.join(REPO_ROOT, "pipeline_config.yaml"), encoding="utf-8") as f:
-        assert yaml.safe_load(f)["peak_day_rule"] == "per_group"
+        cfg = yaml.safe_load(f)
+    assert cfg["peak_day_rule"] == "per_circuit"
+    assert peak_day_rule(cfg) == "per_circuit"
 
 
 if __name__ == "__main__":

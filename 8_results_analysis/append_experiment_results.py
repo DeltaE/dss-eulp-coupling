@@ -9,11 +9,14 @@ Created on Wed Nov 12 18:19:52 2025
 
 from pathlib import Path
 import os
+import re
 import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import load_config, resolve_work_path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation', 'deployer_modules'))
+from load_voltage import circuit_summary
 
 # --- Configuration ------------------------------------------------------------
 cfg = load_config()
@@ -84,6 +87,33 @@ def combine_and_save(base_dir: Path, output_dir: Path,
     return combined
 
 
+def load_voltage_summary(circuits_dir: Path, output_dir: Path) -> pd.DataFrame:
+    """
+    One row per circuit folder (<substation>_circuit_<n>_<scenario>) of circuits_dir,
+    from its ModifiedCircuitData/load_voltage_loads.csv: lowest and highest load v_pu
+    of the day, loads ever below and above voltage_band, and load-steps outside it.
+    Saves load_voltage_summary.csv in output_dir. Stops if a circuit has no file.
+    """
+    band = cfg.get("voltage_band") or {}
+    low, high = float(band["low_pu"]), float(band["high_pu"])
+    rows = []
+    print("\n=== Load voltage summary ===")
+    for circuit_dir in sorted(circuits_dir.iterdir(), key=lambda p: p.name.lower()):
+        if not (circuit_dir.is_dir() and re.match(r"^(.+)_(circuit_\d+)_(.+)$", circuit_dir.name, re.IGNORECASE)):
+            continue
+        in_path = circuit_dir / "ModifiedCircuitData" / "load_voltage_loads.csv"
+        if not in_path.exists():
+            print(f"  Missing input file {in_path}")
+            sys.exit(1)
+        rows.append({"circuit_folder": circuit_dir.name,
+                     **circuit_summary(pd.read_csv(in_path), low, high)})
+    out_path = output_dir / "load_voltage_summary.csv"
+    summary = pd.DataFrame(rows)
+    summary.to_csv(out_path, index=False)
+    print(f"  Wrote {len(summary):,} rows -> {out_path}")
+    return summary
+
+
 # --- Main ---------------------------------------------------------------------
 if __name__ == "__main__":
     # If your script is not in the parent folder, uncomment and set an absolute path:
@@ -91,5 +121,7 @@ if __name__ == "__main__":
 
     for in_name, out_name in TARGET_FILES:
         combine_and_save(Path("."), OUTPUT_DIR, FOLDERS, in_name, out_name)
+
+    load_voltage_summary(Path(resolve_work_path("7_circuit_instantiation")), OUTPUT_DIR)
 
     print("\nAll done.")

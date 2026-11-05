@@ -77,8 +77,46 @@ def test_every_case_dry_runs_to_well_formed_posix_commands():
             os.rmdir(metadata_dir)
 
 
+def test_dry_run_verifies_every_day_file_set():
+    """Under the committed per_circuit rule, --all verifies 5b and 5c for baseline, dm
+    and uncontrolled in the workspace and in each mix_days/<mix>/ subtree that is not
+    100 % baseline (mixed and stress in mixes_fixed.json). Under per_group, no --mix."""
+    local_path, metadata_dir = _ensure_local_yaml()
+    try:
+        case_path = os.path.join(REPO_ROOT, "configs", "cases", "NC_GSO_urban__NC.yaml")
+        proc = subprocess.run(
+            [sys.executable, os.path.join(REPO_ROOT, "run_case.py"),
+             "--case", case_path, "--all", "--season", "winter", "--dry-run"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60,
+        )
+        assert proc.returncode == 0, proc.stderr
+        verify = [ln.strip() for ln in proc.stdout.splitlines() if ln.strip().startswith("verify ")]
+        expected = [f"verify --phase {p}{s}{m}"
+                    for m in ("", " --mix mixed", " --mix stress")
+                    for p in ("5b", "5c")
+                    for s in ("", " --scenario dm", " --scenario uncontrolled")]
+        for line in expected:
+            assert verify.count(line) == 1, (line, verify)
+        assert not any("baseline" in ln for ln in verify), verify
+    finally:
+        if metadata_dir:
+            os.remove(local_path)
+            os.rmdir(metadata_dir)
+
+    sys.path.insert(0, REPO_ROOT)
+    import yaml
+    from run_case import verify_calls
+    with open(os.path.join(REPO_ROOT, "configs", "phases.yaml"), encoding="utf-8") as f:
+        mix_days = yaml.safe_load(f)["mix_days"]
+    resolved = {"peak_day_rule": "per_group",
+                "mixes_file": os.path.join(REPO_ROOT, "0_experimental_design", "mixes_fixed.json")}
+    assert verify_calls(mix_days, resolved) == []
+    resolved["peak_day_rule"] = "per_circuit"
+    assert len(verify_calls(mix_days, resolved)) == 12
+
+
 if __name__ == "__main__":
-    tests = [(name, fn) for name, fn in sorted(globals().items())
+    tests =[(name, fn) for name, fn in sorted(globals().items())
               if name.startswith("test_") and callable(fn)]
     for name, fn in tests:
         fn()
