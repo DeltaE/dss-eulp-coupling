@@ -7,10 +7,10 @@ Load Profiles (EULP) for distribution system planning under uncertainty.
 
 Each value has one owner:
 
-- `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root` and `runs_root`. Copy it from `configs/local.yaml.example`.
+- `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root` and `runs_root`, and `openei_api_key_file` for the tariff fetch only (see "EV control"). Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
-- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing`, `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules") and `voltage_band` (the band for the load voltage summaries).
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing`, `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `voltage_band` (the band for the load voltage summaries), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
@@ -148,6 +148,8 @@ python .\0_download_smartds\download_smartds.py `
 python .\0_experimental_design\run_mix_generator.py --out <folder>
 ```
 
+The saved time-of-use rates in `7_circuit_instantiation/data_tariffs/` are tracked, so a cold clone needs no API key. To fetch them again, set `openei_api_key_file` in `configs/local.yaml` to a text file that holds an OpenEI API key and run `python 7_circuit_instantiation/fetch_tou_rates.py` from the repository root. `--all` does not run it.
+
 `run_mix_generator.py` writes nothing inside the repository. `--all` does not use its output: Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names.
 
 ## Peak-day rules
@@ -158,6 +160,19 @@ python .\0_experimental_design\run_mix_generator.py --out <folder>
 - `per_group`: each heating group (baseline, dm, uncontrolled) runs on its own seasonal peak day. Phase `mix_days` writes nothing.
 
 To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on.
+
+## EV control
+
+`ev_control` in `pipeline_config.yaml` sets how the Phase 7 deploy shapes the charging of controlled EVs. Every circuit has uncontrolled and controlled cars, and controlled car j starts from the same session row as uncontrolled car j. Main runs use the defaults, `ev_control: valley_fill_feeder` and `ev_valley_base: buildings_only`.
+
+- `uncontrolled`: controlled cars keep their session rows.
+- `valley_fill_feeder`, the default: the deploy solves the circuit without EVs, adds every uncontrolled car's kW to the feeder-head load, and places each controlled car, in host order, on the intervals where that load is lowest. A car keeps its daily energy and its number of charging intervals.
+- `valley_fill_transformer`: the same, on the load of each car's own service transformer, plus the uncontrolled cars on it. A car whose host has no single service transformer uses the feeder-head load.
+- `offpeak_start`: each controlled car starts at its first session interval when that interval is in the cheap period of the donor state's time-of-use rate, else at the next start of the cheap period. It charges at 7.36 kW until its daily energy is delivered. The rate is the weekday schedule of the simulated day's month, because the EV session curve is the weekday curve.
+
+`ev_valley_base` sets what the no-EV solve of the two valley rules holds: `buildings_only` (the default) or `after_pv_storage` (also PV and storage). The feeder and transformer rules compare a feeder view with a local view of where charging lands.
+
+The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_circuit_instantiation/data_tariffs/<ST>_urdb_rate.json`, with their source URL. `fetch_tou_rates.py` chooses them from the queries in `data_tariffs/rate_queries.yaml`. Each file records whether its rate was current when it was fetched.
 
 ## Known limitations
 
@@ -170,7 +185,12 @@ To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
 - Heating labels are dealt per customer, but customers in one building share its profile, so the realized building shares can differ from the mix by a few points.
 - Some commercial loadshapes have no matched building and run at the load's nominal kW all day, for example `com_kw_14257_pu` (case `NC_GSO_urban__TX`, feeder `udt4015`) and `com_kw_42051_pu` (topology TX_AUS, feeder `p2udt5222`).
-- Controlled EV charging spreads each car's energy evenly over its own charging intervals and does not move charging in time.
+- EV charging has no plug-in window: valley filling may place charging while a car is away from home.
+- The valley rules assume the aggregator knows the day's base curve exactly.
+- Controlled cars are placed one at a time in host order, so later cars get the valleys that earlier cars leave.
+- Under `offpeak_start`, every controlled car whose session starts outside the cheap period starts when the cheap period starts, so the fleet switches on at once.
+- The tariff is the weekday schedule of one utility per donor state. The saved file records whether the rate was current when it was fetched, and `offpeak_start` uses a rate that is no longer current as it is.
+- Controlled car j and uncontrolled car j are built from the same session row.
 - Workplace and public EV charging are not modelled.
 - Some ResStock 2024 Release 2 models lack the dual-fuel measure and run as baseline in the dm group: https://natlabrockies.github.io/ResStock.github.io/docs/resources/explanations/Issue_2024_2_Measure_Applicability.html.
 - `ev_lvl2_perc` changes only the number of EV session rows.
