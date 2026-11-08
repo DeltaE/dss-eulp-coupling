@@ -14,6 +14,13 @@ level1_kw:
   stress: 1.0
   source: "U.S. Department of Transportation, Level 1 charging at about 1 kW: https://www.transportation.gov/node/211431"
 
+# Highest power of Level 2 charging equipment, kW. build_evwatts_extract.py drops the
+# sessions whose mean power (energy_kwh / charge_duration) is above it.
+level2_max_kw:
+  typical: 19.2
+  stress: 19.2
+  source: "U.S. Department of Energy, Alternative Fuels Data Center: Electric Vehicle Charging Stations (a Level 2 unit can range from 2.9 to 19.2 kW power output): https://afdc.energy.gov/fuels/electricity-stations"
+
 # kWh per mile = kwh_per_gallon_equivalent / mpge_bev, computed in ev_cars.py.
 kwh_per_gallon_equivalent:
   typical: 33.7

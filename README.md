@@ -194,11 +194,9 @@ The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_ci
 
 ## Known limitations
 
-- The simulation horizon is one day of 96 fifteen-minute steps. The deploy script, the `pfs_*` modules and the max-day script keep their names until the horizon becomes configurable.
+- The simulation horizon is one day of 96 fifteen-minute steps. The deploy script, `pfs_ev_base_profiles.py` and the max-day script keep their names until the horizon becomes configurable.
 - Homes use EULP ResStock profiles on TMY3 weather. Commercial buildings use EULP ComStock profiles on 2018 weather, and SMART-DS solar data is for 2018.
-- The EV charging profiles in `7_circuit_instantiation/data_ev/` are an illustrative home Level 2 shape. Their origin is not documented in the repository.
 - Storage and PV sizes follow assumed ratios and minimums. See `der_sizing` in `pipeline_config.yaml`.
-- EVs at commercial customers use the home Level 2 profile.
 - Each case takes its PV daily shape from one SMART-DS solar site of the donor's region, on the day the circuit runs on: the feeder's baseline peak day under `per_group`, the circuit's day under `per_circuit`. See `pv_profile` in `configs/donor_registry.yaml`.
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
 - Heating labels are dealt per customer, but customers in one building share its profile, so the realized building shares can differ from the mix by a few points.
@@ -218,6 +216,7 @@ The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_ci
 - NHTS vehicle-days that drive but neither end nor start at home are left out of the draw.
 - A plug-in window that runs past midnight wraps onto the first intervals of the same day.
 - The check curve of `session_rows` is UK home charging behaviour.
+- The check curves in `7_circuit_instantiation/data_ev/` come from the UK Electric Nation trial, processed by the University of Melbourne for an Australian project (Team-Nando EV-Demand-Profiles).
 - An EV WATTS Level 2 car charges at its session's mean power, which can differ from 7.2 kW.
 - Under `per_circuit`, a case-season takes about twice as long and needs more disk than under `per_group`.
 - The source monitor m1 reads the source voltage setpoint. Load voltages come from the per-load record (`load_voltages.parquet`, see `docs/outputs.md`).

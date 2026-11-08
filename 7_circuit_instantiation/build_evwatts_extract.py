@@ -14,7 +14,7 @@ Inputs
   https://livewire.energy.gov/ds/evwatts/evwatts.public) and evwatts_extract_dir (where
   the extract goes; outside the repository).
 - 7_circuit_instantiation/data_ev_cars/ev_inputs.yaml: census_division (typical), the
-  divisions kept.
+  divisions kept, and level2_max_kw (typical), the highest Level 2 power.
 
 Rules, in this order (each filter's dropped rows are counted):
 1. sessions joined to the evse table on evse_id; sessions without a match are left out;
@@ -26,7 +26,8 @@ Rules, in this order (each filter's dropped rows are counted):
 7. flag_id 0 (an empty flag_id counts as 0);
 8. end_datetime - start_datetime above 0;
 9. energy_kwh above 0;
-10. charge_duration above 0 and at most end_datetime - start_datetime plus one minute.
+10. charge_duration above 0 and at most end_datetime - start_datetime plus one minute;
+11. energy_kwh / charge_duration (the session's mean power) at most level2_max_kw.
 Timestamps are read as the local clock time of the charger: the database gives no time
 zone (ASSUMPTION in ev_cars.py).
 
@@ -36,8 +37,8 @@ Outputs (in evwatts_extract_dir)
   month, start_min (clock minute of start_datetime with seconds as decimals), plug_min
   (end_datetime - start_datetime in minutes), charge_h (charge_duration, hours),
   energy_kwh.
-- evwatts_extract.yaml: sources, input file names and bytes, build time UTC, filters,
-  rows dropped by each filter, rows kept per division and venue.
+- evwatts_extract.yaml: sources, input file names and bytes, build time UTC,
+  level2_max_kw, filters, rows dropped by each filter, rows kept per division and venue.
 
 Stops (exit 1): a key missing from configs/local.yaml, an input file missing, or the
 extract folder inside the repository.
@@ -68,6 +69,7 @@ FILTERS = [
     "end_datetime - start_datetime above 0",
     "energy_kwh above 0",
     "charge_duration above 0 and at most end_datetime - start_datetime plus one minute",
+    "energy_kwh / charge_duration at most level2_max_kw",
 ]
 
 
@@ -82,8 +84,8 @@ def local_value(local, key):
     return local[key]
 
 
-def apply_filters(s, evse, divisions):
-    """Apply the ten rules to one session table s (columns of the session file) and the
+def apply_filters(s, evse, divisions, level2_max_kw):
+    """Apply the eleven rules to one session table s (columns of the session file) and the
     evse table (indexed by evse_id). Returns (kept rows with the extract columns, list
     of rows dropped by each rule)."""
     dropped = []
@@ -110,6 +112,7 @@ def apply_filters(s, evse, divisions):
     s = keep(s, s["energy_kwh"] > 0)
     plug_h = (s["t1"] - s["t0"]).dt.total_seconds() / 3600.0
     s = keep(s, (s["charge_duration"] > 0) & (s["charge_duration"] <= plug_h + 1.0 / 60.0))
+    s = keep(s, s["energy_kwh"] / s["charge_duration"] <= level2_max_kw)
     t0 = s["t0"]
     out = pd.DataFrame({
         "session_id": s["session_id"],
@@ -135,7 +138,9 @@ def main():
     if os.path.abspath(out_dir).lower().startswith(REPO_ROOT.lower()):
         fail(f"evwatts_extract_dir {out_dir} is inside the repository; set a folder outside it.")
     with open(INPUTS, encoding="utf-8") as f:
-        divisions = sorted(set(yaml.safe_load(f)["census_division"]["typical"].values()))
+        inputs = yaml.safe_load(f)
+    divisions = sorted(set(inputs["census_division"]["typical"].values()))
+    level2_max_kw = float(inputs["level2_max_kw"]["typical"])
     paths = {name: os.path.join(raw_dir, name) for name in (SESSION_FILE, EVSE_FILE)}
     for p in paths.values():
         if not os.path.exists(p):
@@ -146,7 +151,7 @@ def main():
                           usecols=["session_id", "evse_id", "start_datetime", "end_datetime",
                                    "charge_duration", "energy_kwh", "flag_id"]):
         n_read += len(ch)
-        kept, d, bf = apply_filters(ch, evse, divisions)
+        kept, d, bf = apply_filters(ch, evse, divisions, level2_max_kw)
         dropped = [a + b for a, b in zip(dropped, d)]
         for k, v in bf.items():
             before_flag[k] = before_flag.get(k, 0) + int(v)
@@ -167,6 +172,7 @@ def main():
         "input_files": {name: os.path.getsize(p) for name, p in paths.items()},
         "built_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "divisions": divisions,
+        "level2_max_kw": level2_max_kw,
         "session_rows_read": n_read,
         "filters": rows_after,
         "rows_before_flag_rule_by_division": dict(sorted(before_flag.items())),

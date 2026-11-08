@@ -31,8 +31,10 @@ Rules
    the day and can change which trip is the last arrival home.
 4. Home is WHYFROM or WHYTO 01 (regular home activities) or 02 (work from home).
    Class (i): arrival_min = ENDTIME of the last trip with WHYTO home, departure_min =
-   STRTTIME of the first trip with WHYFROM home, window_min = min(1440, d' + 1440 - a')
-   with x' = (x - 240) mod 1440. Class (ii): no driver trip. Class (iii): driver trips,
+   STRTTIME of the first trip with WHYFROM home, window_min = d' - a' when d' >= a',
+   else d' + 1440 - a', with x' = (x - 240) mod 1440: the car is home from its last
+   arrival to its first departure, and on a day that starts away from home this is the
+   same day's span. Class (ii): no driver trip. Class (iii): driver trips,
    but none ending or none starting at home (with a valid time).
 5. driver_miles = sum of TRPMILES of the driver trips; a negative TRPMILES is counted in
    n_miles_missing and taken as 0.
@@ -41,7 +43,8 @@ Outputs (in 7_circuit_instantiation/data_ev_cars/)
 - <ST>_nhts2017_vehicle_days.csv for NC and TX, sorted by HOUSEID and VEHID, columns
   HOUSEID, VEHID, TDAYDATE, TRAVDAY, WTHHFIN, day_class, arrival_min, departure_min,
   window_min, driver_miles, n_driver_trips, n_miles_missing.
-- nhts2017_extract.yaml: source URLs, build time UTC, filters, rows per state and class.
+- nhts2017_extract.yaml: source URLs, build time UTC, filters, window rule, rows per
+  state and class.
 
 Stops (exit 1): nhts2017_csv_dir missing from configs/local.yaml, or an input file
 missing.
@@ -112,7 +115,7 @@ def vehicle_days(veh, trips):
     v["day_class"] = np.where(v["n_driver_trips"] == 0, "ii", np.where(has_window, "i", "iii"))
     a1 = (v["arrival_min"] - DAY_START_MIN) % 1440
     d1 = (v["departure_min"] - DAY_START_MIN) % 1440
-    v["window_min"] = np.minimum(1440, d1 + 1440 - a1).where(v["day_class"] == "i")
+    v["window_min"] = (d1 - a1).where(d1 >= a1, d1 + 1440 - a1).where(v["day_class"] == "i")
     v.loc[v["day_class"] != "i", ["arrival_min", "departure_min"]] = np.nan
     for col in ("arrival_min", "departure_min", "window_min"):
         v[col] = v[col].astype("Int64")
@@ -163,6 +166,7 @@ def main():
             "home: WHYFROM or WHYTO 01 or 02",
             "trips ordered by (start minute - 240) mod 1440",
         ],
+        "window_rule": "class i: window_min = d' - a' when d' >= a', else d' + 1440 - a', with x' = (x - 240) mod 1440, a the last arrival home and d the first departure from home",
         "rows_per_state_and_class": counts,
     }
     with open(os.path.join(OUT_DIR, "nhts2017_extract.yaml"), "w", encoding="utf-8") as f:

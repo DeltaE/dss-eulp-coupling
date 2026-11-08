@@ -91,8 +91,8 @@ def _trip(hid, vid, start, end, wfrom, wto, miles=1.0, drv="01"):
 
 
 def test_nhts_day_classes_and_windows():
-    veh = pd.DataFrame({"HOUSEID": ["1", "1", "2", "3"], "VEHID": ["01", "02", "01", "01"],
-                        "TDAYDATE": ["201608"] * 4, "TRAVDAY": ["03"] * 4, "WTHHFIN": [1.0, 2.0, 3.0, 4.0]})
+    veh = pd.DataFrame({"HOUSEID": ["1", "1", "2", "3", "4"], "VEHID": ["01", "02", "01", "01", "01"],
+                        "TDAYDATE": ["201608"] * 5, "TRAVDAY": ["03"] * 5, "WTHHFIN": [1.0, 2.0, 3.0, 4.0, 5.0]})
     trips = pd.DataFrame([
         # house 1 vehicle 1: leaves home 07:00, a stop, home at 02:00 (after midnight)
         _trip("1", "01", "0700", "0730", "01", "03", 5.0),
@@ -105,6 +105,9 @@ def test_nhts_day_classes_and_windows():
         # house 3: drives from and to home, departure after the last arrival home
         _trip("3", "01", "0500", "0530", "03", "01", 1.0),
         _trip("3", "01", "1000", "1030", "01", "03", 1.0),
+        # house 4: home at 23:00, leaves home at 02:00 after midnight and does not return
+        _trip("4", "01", "2200", "2300", "03", "01", 1.0),
+        _trip("4", "01", "0200", "0230", "01", "03", 1.0),
     ])
     days = vehicle_days(veh, trips).set_index(["HOUSEID", "VEHID"])
     a = days.loc[("1", 1)]
@@ -115,7 +118,9 @@ def test_nhts_day_classes_and_windows():
     b = days.loc[("1", 2)]
     assert b["day_class"] == "ii" and b["n_driver_trips"] == 0 and pd.isna(b["window_min"])
     assert days.loc[("2", 1), "day_class"] == "iii"
-    assert days.loc[("3", 1), "window_min"] == 1440   # min(1440, d' + 1440 - a')
+    assert days.loc[("3", 1), "window_min"] == 270    # d' - a' when d' >= a'
+    c = days.loc[("4", 1)]
+    assert (c["arrival_min"], c["departure_min"], c["window_min"]) == (1380, 120, 180)
 
 
 def test_evwatts_extract_filters():
@@ -138,16 +143,17 @@ def test_evwatts_extract_filters():
         dict(good, end_datetime="2024-01-03 18:00:00"),          # 8 zero duration
         dict(good, energy_kwh=0.0),                               # 9 no energy
         dict(good, end_datetime="2024-01-03 19:00:00", charge_duration=1.1),  # 10 charging past plug-out
+        dict(good, energy_kwh=60.0),                              # 11 mean power 20 kW above 19.2
         good,
     ]
     s = pd.DataFrame(rows)
     s.insert(0, "session_id", range(1, len(rows) + 1))
-    out, dropped, before_flag = apply_filters(s, evse, ["South Atlantic", "West South Central"])
-    assert dropped == [1] * 10
-    assert list(out["session_id"]) == [11]
+    out, dropped, before_flag = apply_filters(s, evse, ["South Atlantic", "West South Central"], 19.2)
+    assert dropped == [1] * 11
+    assert list(out["session_id"]) == [12]
     r = out.iloc[0]
     assert (r["start_date"], r["weekday"], r["month"], r["start_min"], r["plug_min"]) == ("2024-01-03", 2, 1, 1080.0, 780.0)
-    assert before_flag == {"South Atlantic": 5}
+    assert before_flag == {"South Atlantic": 6}
 
 
 def test_repaired_generator():
