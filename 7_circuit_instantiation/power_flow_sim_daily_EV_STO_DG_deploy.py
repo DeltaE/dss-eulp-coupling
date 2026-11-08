@@ -30,18 +30,22 @@ Inputs
   configs/donor_registry.yaml).
 - voltage_band in pipeline_config.yaml: low_pu and high_pu for the load voltage
   summaries.
+- ev_control and ev_valley_base in pipeline_config.yaml: the rule for controlled EVs
+  and what the no-EV base solve of the valley rules holds.
+- Under ev_control offpeak_start: <repo>/7_circuit_instantiation/data_tariffs/
+  <STATE>_urdb_rate.json, the donor state's saved URDB time-of-use rate
+  (fetch_tou_rates.py).
 - Environment: SC_KW_TARGET_FACTOR (0.8), SC_KW_TARGET_LOW (0.0), SC_RESERVE_PCT (20).
 
 Steps
 1. Builds one 96-point EV base curve (pfs_ev_base_profiles) and
    N = int(n_base_loads * ev_perc * l2_perc) uncontrolled session rows (n_base_loads
-   counts every base load, all phases). Controlled rows are the same rows with each
-   row's energy spread evenly over its non-zero intervals. Rows are truncated or
-   tiled to the number of EV hosts.
+   counts every base load, all phases). Rows are truncated or tiled to the number of
+   EV hosts; controlled car j starts from the same session row as uncontrolled car j.
 2. Copies every .dss file of the feeder (except *_original*) into ModifiedCircuitData/
    and points LoadShapes.dss at ../../profiles_use_bench/<circuit>/.
-3. Writes LoadShapes_EV.dss (EVu_i, EVc_i, 4 decimals) and appends two EV loads per host
-   (EVu_<host>_1 and _2, or EVc_, kW=0.5 each, pf=1) to ModifiedCircuitData/Loads.dss:
+3. Appends two EV loads per host (EVu_<host>_1 and _2, or EVc_, kW=0.5 each, pf=1)
+   to ModifiedCircuitData/Loads.dss:
    on the host's legs <host>_1 and <host>_2 when both exist, else both on the host
    load itself with its own bus1, kV, conn and phases (a balanced three-phase EV load
    at a three-phase host).
@@ -62,6 +66,23 @@ Steps
 7. Writes Monitors_LoadVoltage.dss: one mode=0 Monitor vl_<load> per Load in
    ModifiedCircuitData/Loads.dss (load_voltage.py), and adds
    "Redirect Monitors_LoadVoltage.dss" just before the first Solve line.
+7a. Makes the controlled rows with the ev_control rule (ev_control.py):
+   - uncontrolled: the session rows unchanged.
+   - valley_fill_feeder: solves the circuit without EVs in EVControl/base_solve/
+     (run_base_solve; buildings only, or also PV and storage under ev_valley_base
+     after_pv_storage), takes feeder-head P from Monitor m2, adds every uncontrolled
+     car's kW, and places each controlled car in host order on the intervals where
+     that curve is lowest, keeping its energy and its number of charging intervals.
+   - valley_fill_transformer: the same on the terminal-1 P of each car's service
+     transformer (service_transformers; one Monitor mt_<n> per transformer that hosts
+     a controlled car), plus the uncontrolled cars on it; a car whose host has no
+     service transformer uses the feeder curve. Every placed car also joins the feeder
+     curve.
+   - offpeak_start: on the simulated day's month row of the weekday schedule of the
+     saved tariff (the EV session curve is the weekday curve), each car starts at the
+     first cheap interval at or after its first charging interval and charges at
+     EV_NOMINAL_POWER_KW until its energy is delivered.
+   Then writes LoadShapes_EV.dss (EVu_i, EVc_i, 4 decimals).
 8. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
    and reads Solution.Converged.
 9. When converged, reads every load Monitor through the engine (no Export lines) and
@@ -71,13 +92,19 @@ Outputs
 - ModifiedCircuitData/: copied and edited .dss files, LoadShapes_EV.dss, Storage.dss,
   PVSystems.dss, LoadShapes_PV.dss and the monitor CSVs OpenDSS exports.
 - ModifiedCircuitData/Monitors_LoadVoltage.dss, load_voltages.parquet (one row per
-  load, step and phase conductor), load_voltage_steps.csv (one row per step) and
-  load_voltage_loads.csv (one row per load). Columns in docs/outputs.md.
+  load, step and phase conductor), load_voltage_steps.csv (one row per step, customer
+  loads only) and load_voltage_loads.csv (one row per load). The parquet and the load
+  table mark EV legs in ev_leg. Columns in docs/outputs.md.
 - <circuit>/data_ev/df_enatd.csv (written by process_vehicle_data on every run).
+- <circuit>/EVControl/ (when the circuit has controlled cars and ev_control is not
+  uncontrolled): ev_control_cars.csv (one row per controlled car); under the valley
+  rules also ev_control_curves.csv (one row per curve and step) and base_solve/ (the
+  .dss files and monitor CSVs of the no-EV solve). Columns in docs/outputs.md.
 - Console counts: the ev_loads split when used, storage and PV raised to their
   minimum, peaks taken from Loads_original.dss, and EV hosts placed on their own
   bus (with how many carry a commercial com_ profile); load monitors, steps and the
-  loads whose bus has no base voltage.
+  loads whose bus has no base voltage; under valley_fill_transformer the loads with
+  one, no or several service transformers and the controlled cars on the feeder curve.
 
 Fallbacks and floors
 - ev_loads_uncontrolled and ev_loads_controlled both empty: ev_loads split in half.
@@ -89,7 +116,8 @@ Stops (exit 1 unless noted)
 - No feeder subfolder.
 - scenario_assignments.json missing, unparsable or not a JSON object.
 - der_sizing key missing from pipeline_config.yaml.
-- A .dss copy into ModifiedCircuitData/ fails.
+- A .dss copy into ModifiedCircuitData/ (or EVControl/base_solve/) fails, or the
+  profiles_use_bench/<circuit>/ folder its LoadShapes.dss points at does not exist.
 - A storage or PV target is not a load in Loads.dss.
 - An EV host has neither both _1 and _2 legs nor a load of its own in Loads.dss.
 - PV shape: season not summer or winter, peak-day record or row missing, solar file,
@@ -100,7 +128,12 @@ Stops (exit 1 unless noted)
   Energymeter; a DER Redirect line is missing; a monitor export CSV is missing; the
   loads of the compiled circuit differ from the monitored loads, or a load monitor
   does not match its load.
-- voltage_band missing from pipeline_config.yaml.
+- voltage_band missing from pipeline_config.yaml; ev_control or ev_valley_base missing
+  or unknown.
+- EV base solve: no yearly solve line or no Monitor m2 in Master.dss, no convergence,
+  or a monitor without 96 steps.
+- offpeak_start: the tariff file missing; a car's energy longer than the day at
+  EV_NOMINAL_POWER_KW (ValueError).
 - Uncaught exception: for example data_ev/ missing (FileNotFoundError).
 - Solution.Converged is not True after Compile, or the circuit was not compiled.
 - exit 0 otherwise.
@@ -188,14 +221,17 @@ from pfs_ev_base_profiles import process_vehicle_data
 from pfs_hp_base_profiles import generate_heatpump_profiles
 from dss_engine import create_dss_engine
 from load_voltage import monitor_lines, read_load_monitors, load_voltage_frame, step_table, load_table
+from ev_control import valley_fill, valley_fill_curves, monitor_p_kw, service_transformers, cheap_intervals, offpeak_start
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
-from pipeline_utils import load_config, peak_day_rule
+from pipeline_utils import load_config, peak_day_rule, ev_control, ev_valley_base
 sys.path.append(ROOT)
 from heating_split import is_baseline_only
 CFG = load_config()
 PEAK_DAY_RULE = peak_day_rule(CFG)
+EV_CONTROL = ev_control(CFG)
+EV_VALLEY_BASE = ev_valley_base(CFG)
 DER_SIZING = CFG.get("der_sizing") or {}
 def der_sizing(key):
     if key not in DER_SIZING:
@@ -530,18 +566,15 @@ def peak_kw_for_load(full_name):
 
 PV_KW_COLUMN = "kW Generated (1000 kW Array)"
 
-def pv_daily_shape(feeder, season):
+def simulated_day(feeder, season):
     """
-    Return the PV daily shape of feeder for season: the IRRADIANCE_NPTS values of
-    PV_KW_COLUMN divided by 1000 (rounded to 9 decimals) in the donor's SMART-DS solar file
-    (PIPELINE_PV_PROFILE_FILE), on the month and day of the feeder's baseline peak
-    day for that season in <work_root>/5b_profile_generation/<STATE>_peak_days.csv.
+    Return (month, day) of the simulated day of feeder for season: the feeder's
+    baseline peak day for that season in <work_root>/5b_profile_generation/<STATE>_peak_days.csv.
     With peak_day_rule per_circuit and a circuit mix that is not 100 % baseline, the
     date is the row of the feeder, season and mix in
-    <work_root>/mix_days/<STATE>_circuit_days.csv instead.
-    The file's year is ignored. Stops if the season, the peak day, the file, the
-    column or the IRRADIANCE_NPTS rows of that date are missing, or under per_circuit
-    if the circuit's mix is not in mixes.json.
+    <work_root>/mix_days/<STATE>_circuit_days.csv instead. The records hold no year.
+    Stops if the season or the peak day is missing, or under per_circuit if the
+    circuit's mix is not in mixes.json.
     """
     if season not in ("summer", "winter"):
         print(f"[FAIL] scenario_assignments.json season is {season!r}; expected summer or winter.")
@@ -573,7 +606,17 @@ def pv_daily_shape(feeder, season):
         sys.exit(1)
     if mix_name:
         print(f"PV day -> peak_day_rule per_circuit, mix {mix_name}, from {peak_days_path}")
-    month, day = int(rows[0]["Month"]), int(rows[0]["Day"])
+    return int(rows[0]["Month"]), int(rows[0]["Day"])
+
+def pv_daily_shape(feeder, season):
+    """
+    Return the PV daily shape of feeder for season: the IRRADIANCE_NPTS values of
+    PV_KW_COLUMN divided by 1000 (rounded to 9 decimals) in the donor's SMART-DS solar file
+    (PIPELINE_PV_PROFILE_FILE), on the month and day of simulated_day(feeder, season).
+    The file's year is ignored. Stops as simulated_day does, or if the file, the
+    column or the IRRADIANCE_NPTS rows of that date are missing.
+    """
+    month, day = simulated_day(feeder, season)
     pv_file = CFG["pv_profile_file"]
     if not os.path.exists(pv_file):
         print(f"[FAIL] PV profile file not found: {pv_file}")
@@ -660,30 +703,11 @@ if ACTIVATE_EV:
                     sessions[idx, nz] = (avg_profile[nz].sum() / len(nz))
         return sessions
 
-    # Generate base set (uncontrolled); make a controlled version by equal-energy reshaping
+    # Generate the session rows (uncontrolled); controlled rows come from the ev_control rule
     arr_ev_all_unctl = generate_ev_profiles(avg_15, len(unique_loads_list), ev_perc, lvl2_charger_perc,
                                            EV_NOMINAL_POWER_KW, EV_MAX_EVENTS, EV_ERROR_TOL)
-
-    def equal_energy_realloc(profiles):
-        """Return an array of the same shape where each row's total energy is spread
-        evenly over that row's non-zero intervals; all-zero rows stay zero. Makes the
-        controlled EV rows from the uncontrolled ones (row i of each comes from the
-        same session row)."""
-        P = profiles.copy()
-        out = np.zeros_like(P)
-        for i in range(P.shape[0]):
-            row = P[i, :]
-            nz  = np.flatnonzero(row)
-            if len(nz) == 0:
-                continue
-            e = row.sum()
-            out[i, nz] = e / len(nz)
-        return out
-
-    arr_ev_all_ctl = equal_energy_realloc(arr_ev_all_unctl)
 else:
     arr_ev_all_unctl = np.zeros((0, IRRADIANCE_NPTS))
-    arr_ev_all_ctl   = np.zeros((0, IRRADIANCE_NPTS))
 
 # ---------------- EV host lists from JSON ----------------
 json_ev_un = ASSIGN.get("ev_loads_uncontrolled", []) if isinstance(ASSIGN, dict) else []
@@ -718,7 +742,8 @@ def ensure_rows(mat, N_target):
     return tiled[:N_target, :]
 
 arr_u = ensure_rows(arr_ev_all_unctl, N_u)
-arr_c = ensure_rows(arr_ev_all_ctl,   N_c)
+arr_c_sessions = ensure_rows(arr_ev_all_unctl, N_c)  # controlled car j: the same session row as uncontrolled car j
+arr_c = arr_c_sessions                               # replaced by the ev_control rule before LoadShapes_EV.dss is written
 
 EV_HOSTS_OWN_BUS = []  # EV hosts without _1/_2 legs (three-phase loads): EV on the host's own bus
 
@@ -747,41 +772,44 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # created by the instantiation script.
 dss_files = [f for f in os.listdir(CIRCUIT_DIR)
              if f.lower().endswith('.dss') and '_original' not in f.lower()]
-master_dss_path = None
-for fn in dss_files:
-    src = os.path.join(CIRCUIT_DIR, fn)
-    dst = os.path.join(OUT_DIR, fn)
-    try:
-        shutil.copy2(src, dst)
-    except Exception as e:
-        print(f"[FAIL] Could not copy {src} to {dst}: {e}")
-        sys.exit(1)
-    if fn.lower() == 'master.dss':
-        master_dss_path = dst
-    if fn.lower() == 'loadshapes.dss':
-        lines = read_lines(dst)
-        upd = []
-        needle = f"file=../profiles_use_bench/{CIRCUIT_FOLDER}/"
-        repl   = f"file=../../profiles_use_bench/{CIRCUIT_FOLDER}/"
-        for ln in lines:
-            upd.append(ln.replace(needle, repl))
-        write_lines(dst, upd)
 
-# ---------------- Write EV shapes & loads ----------------
+def copy_feeder_dss(dst_dir, up):
+    """Copy every file of dss_files from the feeder folder into dst_dir, point
+    LoadShapes.dss at <up>profiles_use_bench/<circuit>/ (up climbs from dst_dir to the
+    folder that holds the circuit folders: "../../" for ModifiedCircuitData/,
+    "../../../" for EVControl/base_solve/), and return the path of the Master.dss copy.
+    Stops if a copy fails or that profiles folder does not exist."""
+    if not os.path.isdir(os.path.join(dst_dir, up, "profiles_use_bench", CIRCUIT_FOLDER)):
+        print(f"[FAIL] {up}profiles_use_bench/{CIRCUIT_FOLDER}/ does not exist from {dst_dir}.")
+        sys.exit(1)
+    master_path = None
+    for fn in dss_files:
+        src = os.path.join(CIRCUIT_DIR, fn)
+        dst = os.path.join(dst_dir, fn)
+        try:
+            shutil.copy2(src, dst)
+        except Exception as e:
+            print(f"[FAIL] Could not copy {src} to {dst}: {e}")
+            sys.exit(1)
+        if fn.lower() == 'master.dss':
+            master_path = dst
+        if fn.lower() == 'loadshapes.dss':
+            lines = read_lines(dst)
+            upd = []
+            needle = f"file=../profiles_use_bench/{CIRCUIT_FOLDER}/"
+            repl   = f"file={up}profiles_use_bench/{CIRCUIT_FOLDER}/"
+            for ln in lines:
+                upd.append(ln.replace(needle, repl))
+            write_lines(dst, upd)
+    return master_path
+
+master_dss_path = copy_feeder_dss(OUT_DIR, "../../")
+
+# ---------------- Write EV loads (EV shapes after the ev_control rule, below) ----------------
 loads_ev_path      = resolve_dss_file(OUT_DIR, "Loads.dss")      # append into existing (copied above, case preserved)
 loadshapes_ev_path = os.path.join(OUT_DIR, "LoadShapes_EV.dss")  # new EV shapes file
 
 if ACTIVATE_EV and (N_u + N_c) > 0:
-    # EV loadshapes: uncontrolled -> EVu_i, controlled -> EVc_i
-    with open(loadshapes_ev_path, "w", encoding="utf-8") as f_ls:
-        f_ls.write("! EV LoadShapes (uncontrolled + controlled)\n\n")
-        for i in range(N_u):
-            row = arr_u[i, :]
-            f_ls.write(f"New Loadshape.EVu_{i} npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
-        for i in range(N_c):
-            row = arr_c[i, :]
-            f_ls.write(f"New Loadshape.EVc_{i} npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
-
     # Append EV loads (two legs _1/_2) using attributes from parsed_loads_map
     with open(loads_ev_path, "a", encoding="utf-8") as f_ld:
         f_ld.write("\n! EV Loads (mixed types)\n\n")
@@ -977,6 +1005,163 @@ for ln in read_lines(loads_ev_path):
     if m_ld:
         LV_LOADS.append(m_ld.group(1))
 write_lines(os.path.join(OUT_DIR, LV_MONITORS_FILE), monitor_lines(LV_LOADS))
+
+# ---------------- EV control (ev_control in pipeline_config.yaml) ----------------
+EVC_DIR = os.path.join(CURRENT_DIR, "EVControl")
+EV_VALLEY_RULES = ("valley_fill_feeder", "valley_fill_transformer")
+
+def ev_host_leg(base):
+    """The load whose bus carries the EV legs of host base (as in ev_leg_infos):
+    <base>_1 when both <base>_1 and <base>_2 are loads, else base itself."""
+    n1, n2 = base + "_1", base + "_2"
+    return n1 if (n1 in parsed_loads_map and n2 in parsed_loads_map) else base
+
+def first_interval(row):
+    """The first non-zero interval of row, 1 to 96, or None for an all-zero row."""
+    nz = np.flatnonzero(row)
+    return int(nz[0]) + 1 if nz.size else None
+
+def run_base_solve(transformer_names):
+    """
+    Solve the circuit without EVs in EVControl/base_solve/ and return (feeder-head P,
+    {transformer name: terminal-1 P}), each 96 kW values. The folder holds the same
+    .dss copies as ModifiedCircuitData/ (copy_feeder_dss; it sits one level deeper, so
+    LoadShapes.dss points at ../../../profiles_use_bench/), so Loads.dss has no EV load,
+    and no LoadShapes_EV.dss or Monitors_LoadVoltage.dss. Under ev_valley_base
+    after_pv_storage it also holds Storage.dss, PVSystems.dss and LoadShapes_PV.dss of
+    ModifiedCircuitData/. Master.dss is retargeted to the daily solve and its Redirect
+    lines placed as in the main Master.dss. With transformer_names, one mode=1 Monitor
+    mt_<n> per transformer (n from 1 in the given order) in Monitors_Transformers.dss,
+    redirected just before the first Solve. P per step from monitor_p_kw. Stops if
+    Master.dss has no yearly solve line or no Monitor m2, or the solve does not converge.
+    """
+    base_dir = os.path.join(EVC_DIR, "base_solve")
+    os.makedirs(base_dir, exist_ok=True)
+    base_master = copy_feeder_dss(base_dir, "../../../")
+    if EV_VALLEY_BASE == "after_pv_storage":
+        for fn in ("Storage.dss", "PVSystems.dss", "LoadShapes_PV.dss"):
+            if os.path.exists(os.path.join(OUT_DIR, fn)):
+                shutil.copy2(os.path.join(OUT_DIR, fn), os.path.join(base_dir, fn))
+    if not base_master or not retarget_master_to_daily(base_master, npts=96, stepsize="15m"):
+        print(f"[FAIL] No 'Solve mode=yearly stepsize=15m number=35040' line to retarget in the base solve Master.dss of {base_dir}.")
+        sys.exit(1)
+    if not re.search(r'(?im)^\s*new\s+monitor\.m2\b', read_text(base_master)):
+        print(f"[FAIL] {base_master} has no Monitor.m2 for the feeder-head load of the EV base solve.")
+        sys.exit(1)
+    ensure_redirects_before_solve(base_master)
+    if transformer_names:
+        write_lines(os.path.join(base_dir, "Monitors_Transformers.dss"),
+                    [f"New Monitor.mt_{n} element=Transformer.{name} terminal=1 mode=1\n"
+                     for n, name in enumerate(transformer_names, start=1)])
+        add_redirect_before_solve(base_master, "Monitors_Transformers.dss")
+    engine = create_dss_engine()
+    engine.AllowForms = False
+    engine.Start(0)
+    engine.Text.Command = f'Compile "{base_master}"'
+    circuit = engine.ActiveCircuit
+    if not bool(circuit.Solution.Converged):
+        print(f"[FAIL] The EV base solve did not converge: {base_master}")
+        sys.exit(1)
+    def read_p(name):
+        mon = circuit.Monitors
+        mon.Name = name
+        p = monitor_p_kw(list(mon.Header), mon.Channel)
+        if len(p) != IRRADIANCE_NPTS:
+            print(f"[FAIL] Monitor {name} of the EV base solve holds {len(p)} steps; expected {IRRADIANCE_NPTS}.")
+            sys.exit(1)
+        return p
+    feeder_p = read_p("m2")
+    trans_p = {name: read_p(f"mt_{n}") for n, name in enumerate(transformer_names, start=1)}
+    return feeder_p, trans_p
+
+if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
+    os.makedirs(EVC_DIR, exist_ok=True)
+    car_curve = [""] * N_c
+    starts = None
+    if EV_CONTROL in EV_VALLEY_RULES:
+        # ASSUMPTION: uncontrolled cars are added to the base curve as their own kW,
+        # without the line losses they cause; losses at the feeder head are a small
+        # share of EV kW.
+        unc_total = arr_u.sum(axis=0) if N_u else np.zeros(IRRADIANCE_NPTS)
+        tr_names, tr_monitor, unc_on = [], {}, {}
+        if EV_CONTROL == "valley_fill_transformer":
+            dss_texts = [read_text(os.path.join(OUT_DIR, fn)) for fn in dss_files]
+            tr_map, tr_status = service_transformers(dss_texts, {n: i["bus1"] for n, i in parsed_loads_map.items()})
+            n_status = {s: sum(1 for v in tr_status.values() if v == s) for s in ("one", "none", "several")}
+            print(f"Service transformers -> loads with one: {n_status['one']}, none: {n_status['none']}, "
+                  f"several: {n_status['several']}")
+            ctl_tr = [tr_map.get(ev_host_leg(b)) for b in json_ev_ct]
+            car_curve = [t if t else "feeder_fallback" for t in ctl_tr]
+            tr_names = sorted({t for t in ctl_tr if t})
+            tr_monitor = {t: f"mt_{n}" for n, t in enumerate(tr_names, start=1)}
+            unc_tr = [tr_map.get(ev_host_leg(b)) for b in json_ev_un]
+            for t in tr_names:
+                rows_t = [i for i, ut in enumerate(unc_tr) if ut == t]
+                unc_on[t] = arr_u[rows_t, :].sum(axis=0) if rows_t else np.zeros(IRRADIANCE_NPTS)
+            print(f"Controlled cars on the feeder curve (host without one service transformer): "
+                  f"{car_curve.count('feeder_fallback')} of {N_c}")
+        else:
+            car_curve = ["feeder"] * N_c
+        feeder_p, trans_p = run_base_solve(tr_names)
+        if EV_CONTROL == "valley_fill_feeder":
+            arr_c, _ = valley_fill(arr_c_sessions, feeder_p + unc_total)
+        else:
+            start_curves = {"feeder": feeder_p + unc_total}
+            start_curves.update({t: trans_p[t] + unc_on[t] for t in tr_names})
+            keys = [c if c in tr_monitor else "feeder" for c in car_curve]
+            arr_c, _ = valley_fill_curves(arr_c_sessions, start_curves, keys, "feeder")
+        curve_rows = []
+        for name in ["feeder"] + tr_names:
+            on = [j for j in range(N_c) if name == "feeder" or car_curve[j] == name]
+            base_kw = feeder_p if name == "feeder" else trans_p[name]
+            unc_kw = unc_total if name == "feeder" else unc_on[name]
+            ctl_kw = arr_c[on, :].sum(axis=0)
+            for i in range(IRRADIANCE_NPTS):
+                curve_rows.append({"curve": name, "monitor": "m2" if name == "feeder" else tr_monitor[name],
+                                   "step": i + 1, "base_kw": base_kw[i], "uncontrolled_ev_kw": unc_kw[i],
+                                   "controlled_ev_kw": ctl_kw[i]})
+        pd.DataFrame(curve_rows).to_csv(os.path.join(EVC_DIR, "ev_control_curves.csv"), index=False)
+    else:  # offpeak_start
+        tariff_path = os.path.join(ROOT, "data_tariffs", f"{CFG['state']}_urdb_rate.json")
+        if not os.path.exists(tariff_path):
+            print(f"[FAIL] Tariff file not found: {tariff_path}. Run fetch_tou_rates.py first.")
+            sys.exit(1)
+        tariff = json.loads(read_text(tariff_path))
+        month, _ = simulated_day(CIRCUIT_NAME, (ASSIGN.get("season") or "").lower())
+        cheap_period, cheap = cheap_intervals(tariff["rate"], month)
+        print(f"Off-peak start -> {tariff['rate'].get('label')} month {month}: period {cheap_period}, "
+              f"{len(cheap)} cheap intervals")
+        arr_c, starts = offpeak_start(arr_c_sessions, cheap, EV_NOMINAL_POWER_KW)
+    car_rows = []
+    for j, host in enumerate(json_ev_ct):
+        s_row, c_row = arr_c_sessions[j, :], arr_c[j, :]
+        # Under offpeak_start a car's charging can wrap past midnight, so its first
+        # charging interval is its start, not its lowest non-zero interval.
+        if starts is not None:
+            first_ctl = starts[j] + 1 if starts[j] is not None else None
+        else:
+            first_ctl = first_interval(c_row)
+        car_rows.append({
+            "car": f"EVc_{j}", "host": host, "rule": EV_CONTROL, "curve": car_curve[j],
+            "energy_kw_intervals": s_row.sum(), "n_intervals": int(np.count_nonzero(c_row)),
+            "first_interval_uncontrolled": first_interval(s_row), "first_interval_controlled": first_ctl,
+            "max_kw_uncontrolled": s_row.max(), "max_kw_controlled": c_row.max()})
+    cars_df = pd.DataFrame(car_rows)
+    for col in ("first_interval_uncontrolled", "first_interval_controlled"):
+        cars_df[col] = cars_df[col].astype("Int64")
+    cars_df.to_csv(os.path.join(EVC_DIR, "ev_control_cars.csv"), index=False)
+    print(f"EV control -> {EV_CONTROL}: {N_c} controlled cars")
+
+if ACTIVATE_EV and (N_u + N_c) > 0:
+    # EV loadshapes: uncontrolled -> EVu_i, controlled -> EVc_i
+    with open(loadshapes_ev_path, "w", encoding="utf-8") as f_ls:
+        f_ls.write("! EV LoadShapes (uncontrolled + controlled)\n\n")
+        for i in range(N_u):
+            row = arr_u[i, :]
+            f_ls.write(f"New Loadshape.EVu_{i} npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
+        for i in range(N_c):
+            row = arr_c[i, :]
+            f_ls.write(f"New Loadshape.EVc_{i} npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
 
 # patch Master
 if master_dss_path:

@@ -4,8 +4,9 @@ test_load_voltage.py
 --------------------
 load_voltage.py (Phase 7 deploy, voltage at every load) on synthetic arrays at 96 and
 672 steps (one and seven days): a split-phase load (legs _1 and _2 on nodes 1 and 2),
-a three-phase wye load and a one-phase load on a bus with no base voltage. Also reads
-load monitors of a small circuit solved through dss_engine.
+a three-phase wye load and a one-phase load on a bus with no base voltage. EV legs
+(EVu_, EVc_) are marked in ev_leg and left out of the step table and the circuit
+summary. Also reads load monitors of a small circuit solved through dss_engine.
 
 Run directly (no pytest needed): python tests/test_load_voltage.py
 Or under pytest: pytest tests/test_load_voltage.py
@@ -49,7 +50,8 @@ def _records(n):
 
 def _check(n):
     frame, no_base = load_voltage_frame(_records(n))
-    assert list(frame.columns) == ["load", "bus", "step", "conductor", "v_volts", "v_pu"]
+    assert list(frame.columns) == ["load", "bus", "step", "conductor", "v_volts", "v_pu", "ev_leg"]
+    assert not frame["ev_leg"].any()
     # node 0 left out: 1 + 1 + 3 + 1 conductors per step
     assert len(frame) == 6 * n
     assert sorted(frame["step"].unique()) == list(range(1, n + 1))
@@ -94,6 +96,39 @@ def test_three_phase_bus_without_base_uses_line_to_line_kv():
     frame, no_base = load_voltage_frame([rec])
     assert no_base == ["load_b"]
     assert np.allclose(frame[frame["step"] == 1]["v_pu"], 277.0 / (480.0 / math.sqrt(3.0)))
+
+
+def test_ev_legs_marked_and_left_out_of_the_counts():
+    recs = _records(96)
+    # Two EV legs on the bus of load_a_1, below the band at every step, and an EV leg
+    # whose name sorts first and ties with load_a_1 at step 1.
+    ev_low = dict(recs[0], load="EVu_load_a_1", v=np.full((96, 2), 100.0))
+    ev_low["v"][:, 1] = 0.0
+    ev_c = dict(recs[0], load="evc_load_a_2", v=np.full((96, 2), 100.0))
+    ev_c["v"][:, 1] = 0.0
+    ev_tie = dict(recs[0], load="EVc_a_tie", v=np.full((96, 2), 120.0))
+    ev_tie["v"][:, 1] = 0.0
+    ev_tie["v"][0, 0] = 110.0
+    frame, _ = load_voltage_frame(recs + [ev_low, ev_c, ev_tie])
+    assert list(frame.columns)[-1] == "ev_leg"
+    marked = frame.groupby("load")["ev_leg"].first().to_dict()
+    assert marked == {"EVc_a_tie": True, "EVu_load_a_1": True, "evc_load_a_2": True, "load_a_1": False,
+                      "load_a_2": False, "load_b": False, "load_c_1": False}
+    customer, _ = load_voltage_frame(recs)
+    steps = step_table(frame, LOW, HIGH)
+    assert steps.equals(step_table(customer, LOW, HIGH))
+    assert steps.iloc[0]["v_pu_min_load"] == "load_a_1"
+    loads = load_table(frame, LOW, HIGH)
+    assert list(loads.columns)[-1] == "ev_leg"
+    assert int(loads["ev_leg"].sum()) == 3 and int((~loads["ev_leg"]).sum()) == 4
+    assert circuit_summary(loads, LOW, HIGH) == circuit_summary(load_table(customer, LOW, HIGH), LOW, HIGH)
+    # the same after a round trip through load_voltage_loads.csv
+    import io
+    import pandas as pd
+    buf = io.StringIO()
+    loads.to_csv(buf, index=False)
+    buf.seek(0)
+    assert circuit_summary(pd.read_csv(buf), LOW, HIGH)["n_loads_below"] == 1
 
 
 def test_monitor_lines_and_header():

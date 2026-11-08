@@ -11,8 +11,11 @@ Voltage at every load of a solved circuit, from one mode=0 Monitor per Load.
 - read_load_monitors(circuit, loads): reads each load's Monitor through the circuit
   object of dss_engine (the same interface on Windows and Linux) and returns one plain
   record per load for load_voltage_frame.
-- load_voltage_frame(records): one row per load, step and phase conductor.
-- step_table, load_table, circuit_summary: the summaries of that frame.
+- load_voltage_frame(records): one row per load, step and phase conductor; ev_leg
+  marks the EV loads the deploy adds (is_ev_leg).
+- step_table, load_table, circuit_summary: the summaries of that frame. step_table and
+  circuit_summary count customer loads only (ev_leg False); EV legs sit on their
+  host's bus and repeat its voltage.
 
 Per-unit base: the line-to-neutral base kV of the load's bus that OpenDSS reports after
 the solve. A bus with no base voltage (0) takes the base from the load's own kV and
@@ -26,6 +29,13 @@ import numpy as np
 import pandas as pd
 
 V_CHANNEL_RE = re.compile(r"^\s*V(\d+)\s*$")
+EV_LEG_RE = re.compile(r"^ev[uc]_", re.IGNORECASE)
+
+
+def is_ev_leg(load):
+    """True for the EV loads the deploy adds: names starting with EVu_ or EVc_
+    (case-insensitive)."""
+    return EV_LEG_RE.match(str(load)) is not None
 
 
 def monitor_name(load):
@@ -95,8 +105,8 @@ def read_load_monitors(circuit, loads):
 
 def load_voltage_frame(records):
     """Return (frame, no_base_loads). frame has one row per load, step (1..N) and phase
-    conductor, columns load, bus, step, conductor, v_volts, v_pu; neutral and ground
-    conductors (node 0) are left out. no_base_loads lists the loads whose bus has no
+    conductor, columns load, bus, step, conductor, v_volts, v_pu, ev_leg (is_ev_leg);
+    neutral and ground conductors (node 0) are left out. no_base_loads lists the loads whose bus has no
     base voltage (base from the load, see base_kv)."""
     parts = []
     no_base = []
@@ -116,13 +126,16 @@ def load_voltage_frame(records):
     cols = ["load", "bus", "step", "conductor", "v_volts", "v_pu"]
     frame = pd.concat(parts, ignore_index=True) if parts else pd.DataFrame(columns=cols)
     frame = frame.sort_values(["load", "conductor", "step"], kind="mergesort").reset_index(drop=True)
-    return frame[cols], no_base
+    frame = frame[cols]
+    frame["ev_leg"] = frame["load"].map(is_ev_leg).astype(bool)
+    return frame, no_base
 
 
 def step_table(frame, low_pu, high_pu):
-    """One row per step: lowest and highest v_pu with their load, and the count of load
-    conductors below low_pu and above high_pu. Ties go to the first load by name."""
-    f = frame.sort_values(["step", "load", "conductor"], kind="mergesort")
+    """One row per step over customer loads only (ev_leg False): lowest and highest
+    v_pu with their load, and the count of load conductors below low_pu and above
+    high_pu. Ties go to the first load by name."""
+    f = frame[~frame["ev_leg"]].sort_values(["step", "load", "conductor"], kind="mergesort")
     g = f.groupby("step", sort=True)
     lo = f.loc[g["v_pu"].idxmin()]
     hi = f.loc[g["v_pu"].idxmax()]
@@ -139,8 +152,8 @@ def step_table(frame, low_pu, high_pu):
 
 def load_table(frame, low_pu, high_pu):
     """One row per load: lowest and highest v_pu over the day with their steps, and the
-    number of steps at which any of the load's conductors is outside the band. Ties go
-    to the first step."""
+    number of steps at which any of the load's conductors is outside the band, and
+    ev_leg. Ties go to the first step."""
     f = frame.sort_values(["load", "step", "conductor"], kind="mergesort")
     g = f.groupby("load", sort=True)
     lo = f.loc[g["v_pu"].idxmin()]
@@ -155,13 +168,15 @@ def load_table(frame, low_pu, high_pu):
         "v_pu_max": hi["v_pu"].to_numpy(),
         "v_pu_max_step": hi["step"].to_numpy(),
         "n_steps_outside": n_out.reindex(lo["load"]).astype(int).to_numpy(),
+        "ev_leg": lo["ev_leg"].astype(bool).to_numpy(),
     })
 
 
 def circuit_summary(loads, low_pu, high_pu):
-    """One circuit's summary from its load table (load_voltage_loads.csv): lowest and
-    highest load v_pu of the day, loads ever below the band, loads ever above, and
-    load-steps outside the band."""
+    """One circuit's summary from its load table (load_voltage_loads.csv), over
+    customer loads only (ev_leg False): lowest and highest load v_pu of the day, loads
+    ever below the band, loads ever above, and load-steps outside the band."""
+    loads = loads[~loads["ev_leg"].astype(bool)]
     return {
         "v_pu_min": float(loads["v_pu_min"].min()),
         "v_pu_max": float(loads["v_pu_max"].max()),

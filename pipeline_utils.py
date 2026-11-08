@@ -84,6 +84,32 @@ def peak_day_rule(cfg):
     return rule
 
 
+EV_CONTROL_RULES = ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start")
+EV_VALLEY_BASES = ("buildings_only", "after_pv_storage")
+
+
+def ev_control(cfg):
+    """Return ev_control from the loaded pipeline_config.yaml. A missing or unknown
+    value prints [FAIL] and exits 1."""
+    rule = cfg.get("ev_control")
+    if rule not in EV_CONTROL_RULES:
+        print(f"[FAIL] ev_control in pipeline_config.yaml is {rule!r}; "
+              f"expected one of {', '.join(EV_CONTROL_RULES)}.")
+        sys.exit(1)
+    return rule
+
+
+def ev_valley_base(cfg):
+    """Return ev_valley_base from the loaded pipeline_config.yaml. A missing or unknown
+    value prints [FAIL] and exits 1."""
+    base = cfg.get("ev_valley_base")
+    if base not in EV_VALLEY_BASES:
+        print(f"[FAIL] ev_valley_base in pipeline_config.yaml is {base!r}; "
+              f"expected one of {', '.join(EV_VALLEY_BASES)}.")
+        sys.exit(1)
+    return base
+
+
 def resolve_dss_file(directory, filename):
     """Case-insensitive file lookup within `directory`. ext4 is genuinely
     case-sensitive (unlike the Windows machines SMART-DS exports were

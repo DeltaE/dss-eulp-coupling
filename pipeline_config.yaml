@@ -56,3 +56,18 @@ peak_day_rule: per_circuit
 voltage_band:
   low_pu: 0.95
   high_pu: 1.05
+
+# How the Phase 7 deploy shapes the charging of controlled EVs.
+# uncontrolled: controlled cars keep their session rows.
+# valley_fill_feeder: each controlled car fills the valleys of the feeder-head load.
+# valley_fill_transformer: each controlled car fills the valleys of its own service
+# transformer's load (the feeder-head load when the car has no service transformer).
+# offpeak_start: each controlled car starts at the cheap period of the donor state's
+# saved time-of-use rate (7_circuit_instantiation/data_tariffs/).
+# Main runs use the default, valley_fill_feeder.
+ev_control: valley_fill_feeder
+
+# What the no-EV solve behind the two valley rules holds besides the circuit.
+# buildings_only: building loads only. after_pv_storage: also PV and storage.
+# Main runs use the default, buildings_only.
+ev_valley_base: buildings_only

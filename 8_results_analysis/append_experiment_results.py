@@ -90,8 +90,9 @@ def combine_and_save(base_dir: Path, output_dir: Path,
 def load_voltage_summary(circuits_dir: Path, output_dir: Path) -> pd.DataFrame:
     """
     One row per circuit folder (<substation>_circuit_<n>_<scenario>) of circuits_dir,
-    from its ModifiedCircuitData/load_voltage_loads.csv: lowest and highest load v_pu
-    of the day, loads ever below and above voltage_band, and load-steps outside it.
+    from its ModifiedCircuitData/load_voltage_loads.csv, over customer loads only
+    (ev_leg False, see circuit_summary): lowest and highest load v_pu of the day, loads
+    ever below and above voltage_band, and load-steps outside it.
     Saves load_voltage_summary.csv in output_dir. Stops if a circuit has no file.
     """
     band = cfg.get("voltage_band") or {}
