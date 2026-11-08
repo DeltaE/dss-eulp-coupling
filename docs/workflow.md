@@ -95,8 +95,10 @@ To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `
 - `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.json`) byte for byte to `<ws>/7_circuit_instantiation/mixes.json`, and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
 - `7b` runs `instantiate_circuits.py`. It reads `<ws>/7_circuit_instantiation/mixes.json`. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
 - `7c` runs `run_circuits.py --root <ws>/7_circuit_instantiation`. It runs the patched runner in each circuit folder and logs to `<ws>/7_circuit_instantiation/run_log.txt`. No phase runs the runner in the repository folder.
+- In each circuit, the runner builds one car per EV host from the source `ev_cars` names (README, "EV cars") and writes `<circuit>/EVControl/ev_cars.csv`. Under `evwatts_sessions` and `session_rows` it reads the EV WATTS extract in `PIPELINE_EVWATTS_EXTRACT_DIR` and stops when it is missing; under `nhts_days` and `session_rows` it reads `7_circuit_instantiation/data_ev_cars/<STATE>_nhts2017_vehicle_days.csv` in the repository.
 - In each circuit, the runner shapes the controlled EVs with the rule `ev_control` names (README, "EV control"). Under `valley_fill_feeder` and `valley_fill_transformer` it first solves the circuit without EVs in `<circuit>/EVControl/base_solve/`, then solves the circuit with EVs in `ModifiedCircuitData/` as before. Under `offpeak_start` it reads `7_circuit_instantiation/data_tariffs/<STATE>_urdb_rate.json` in the repository and stops when it is missing. It writes `ev_control_cars.csv` and, under the valley rules, `ev_control_curves.csv` to `<circuit>/EVControl/` (see `docs/outputs.md`). Phase 8 reads only `ModifiedCircuitData/`.
 - `fetch_tou_rates.py` is a maintainer step outside `--all`. It saves one URDB time-of-use rate per donor state to `7_circuit_instantiation/data_tariffs/`. It reads the OpenEI API key from the file that `openei_api_key_file` in `configs/local.yaml` names, and never prints or writes the key.
+- `build_nhts_extract.py` and `build_evwatts_extract.py` are maintainer steps outside `--all`. The first writes the tracked 2017 NHTS weekday vehicle-day extracts of NC and TX and `nhts2017_extract.yaml` to `7_circuit_instantiation/data_ev_cars/`, from the folder `nhts2017_csv_dir` names. The second writes `evwatts_residential_l2_weekday.csv` and `evwatts_extract.yaml` to the folder `evwatts_extract_dir` names, outside the repository, from the EV WATTS tables in `evwatts_raw_dir`.
 
 ### Phase 8: results analysis
 
@@ -119,6 +121,7 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 | `mixed` | 20% | 10% | 10% | 0.5 / 0.3 / 0.2 |
 | `stress` | 30% | 15% | 15% | 0.2 / 0.2 / 0.6 |
 
+- **EV cars:** `ev_cars` in `pipeline_config.yaml` (default `evwatts_sessions`; also `nhts_days`, `session_rows`) and `ev_home_window` (default `true`). Main runs use the defaults. See README, "EV cars".
 - **EV control:** `ev_control` in `pipeline_config.yaml` (default `valley_fill_feeder`; also `uncontrolled`, `valley_fill_transformer`, `offpeak_start`) and `ev_valley_base` (default `buildings_only`; also `after_pv_storage`). Main runs use the defaults. See README, "EV control".
 - **Storage control:** The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes and controls storage. Phase 7b picks the storage hosts and writes them as `storage_targets`.
 
@@ -136,7 +139,7 @@ This section describes what `python run_case.py --case <case> --all` runs. `conf
 
 ### Setup
 
-Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths: `smart_ds_base` for the SMART-DS data root and `eulp_metadata_root` for the EULP metadata data root. Both are required.
+Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths: `smart_ds_base` for the SMART-DS data root and `eulp_metadata_root` for the EULP metadata data root. Both are required. Under the default `ev_cars: evwatts_sessions` and under `session_rows`, also set `evwatts_extract_dir` (README, "Prerequisites for a cold clone").
 
 ### Configuration
 
@@ -156,6 +159,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 | `PIPELINE_EULP_METADATA_ROOT` | Folder of the four EULP baseline metadata CSVs, from `eulp_metadata_root` in `configs/local.yaml`. Phase 1 reads them. |
 | `PIPELINE_EULP_DOWNLOAD_DATE` | Date stamp in the EULP download folder names, from `eulp_download_date` of the donor in `configs/donor_registry.yaml`. |
 | `PIPELINE_MIXES_FILE` | Mixes file that Phase 7a copies, from `mixes_file` in `configs/defaults.yaml`, absolute, with forward slashes. |
+| `PIPELINE_EVWATTS_EXTRACT_DIR` | Folder of the EV WATTS extract, from `evwatts_extract_dir` in `configs/local.yaml`; set only when that key is present. The Phase 7 deploy reads it under `ev_cars` `evwatts_sessions` and `session_rows`. |
 
 `pipeline_config.yaml` holds only the method parameters:
 

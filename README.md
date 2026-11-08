@@ -7,10 +7,10 @@ Load Profiles (EULP) for distribution system planning under uncertainty.
 
 Each value has one owner:
 
-- `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root` and `runs_root`, and `openei_api_key_file` for the tariff fetch only (see "EV control"). Copy it from `configs/local.yaml.example`.
+- `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root`, `runs_root` and `evwatts_extract_dir` (see "EV cars"), `openei_api_key_file` for the tariff fetch only (see "EV control"), and `nhts2017_csv_dir` and `evwatts_raw_dir` for the two extract scripts only. Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
-- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing`, `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `voltage_band` (the band for the load voltage summaries), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing`, `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `voltage_band` (the band for the load voltage summaries), `ev_cars` and `ev_home_window` (defaults `evwatts_sessions` and `true`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
@@ -61,6 +61,8 @@ Place the four EULP baseline metadata CSVs at these paths under `eulp_metadata_r
 - `Metadata_TX_Commercial/TX_baseline_metadata_and_annual_results.csv`
 
 Keep the file names exactly as downloaded, because Phase 1 writes them into its outputs.
+
+The EV cars of the default `ev_cars: evwatts_sessions`, and of `session_rows`, need the EV WATTS public database (https://doi.org/10.15483/1970735). Create a free account at https://livewire.energy.gov/ds/evwatts/evwatts.public and download its session and evse tables (`evwatts.public.session.csv`, `evwatts.public.evse.csv`). Set `evwatts_raw_dir` to their folder and `evwatts_extract_dir` to a folder outside the repository, then run `python 7_circuit_instantiation/build_evwatts_extract.py` once from the repository root. The EV WATTS data stays outside the repository. The 2017 NHTS extract in `7_circuit_instantiation/data_ev_cars/` is tracked; `python 7_circuit_instantiation/build_nhts_extract.py` rebuilds it from https://nhts.ornl.gov/assets/2016/download/Csv.zip, unpacked into the folder that `nhts2017_csv_dir` names.
 
 Each CSV downloads directly from OEDI. Each URL returns the exact bytes the pipeline uses:
 
@@ -161,14 +163,30 @@ The saved time-of-use rates in `7_circuit_instantiation/data_tariffs/` are track
 
 To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on.
 
+## EV cars
+
+The Phase 7 deploy builds one car per EV host, with its own uncontrolled row of kW over the 96 intervals of the day (`7_circuit_instantiation/deployer_modules/ev_cars.py`). `ev_cars` in `pipeline_config.yaml` sets where each car comes from. Main runs use the defaults, `ev_cars: evwatts_sessions` and `ev_home_window: true`.
+
+- `evwatts_sessions`, the default: each car draws one measured weekday home Level 2 charging session of EV WATTS, from chargers in the donor state's census division. The car plugs in at the session's start, stays plugged in until its end and charges the session's energy.
+- `nhts_days`: each car draws one 2017 NHTS weekday vehicle-day of the donor state, weighted by the household weight. A car that drove arrives home at its last arrival and leaves at its first departure; it charges the miles it drove times 33.7 / 99.9 kWh per mile. A car that did not drive does not charge.
+- `session_rows`: the repaired 2024 generator, kept as a check. Each charging car charges the daily energy of the Team-Nando weekday Level 2 median curve as one block, started where the fleet is furthest below that curve.
+
+`ev_lvl2_perc` of the mix is the share of a group's cars with a Level 2 charger (7.2 kW); the rest charge at Level 1 (1 kW). Under `evwatts_sessions` a Level 2 car charges at its session's mean power. Under `evwatts_sessions` and `session_rows`, the share of cars that charge on the day is measured from the EV WATTS extract every run; the other cars do not charge. Every draw is seeded from the mix's `ev_seed`, the feeder and the draw's name, so the baseline, mixed and stress circuits of one feeder share their draws and a rerun repeats them.
+
+`ev_home_window: true` keeps the charging of each controlled car inside the intervals it is plugged in at home: its EV WATTS session, its NHTS vehicle-day, or under `session_rows` a drawn NHTS vehicle-day. Energy that does not fit is left over. With `false`, controlled cars may charge in any interval of the day.
+
+The inputs and their sources are in `7_circuit_instantiation/data_ev_cars/ev_inputs.yaml`. The deploy writes one row per car to `<circuit>/EVControl/ev_cars.csv` (see `docs/outputs.md`).
+
 ## EV control
 
-`ev_control` in `pipeline_config.yaml` sets how the Phase 7 deploy shapes the charging of controlled EVs. Every circuit has uncontrolled and controlled cars, and controlled car j starts from the same session row as uncontrolled car j. Main runs use the defaults, `ev_control: valley_fill_feeder` and `ev_valley_base: buildings_only`.
+`ev_control` in `pipeline_config.yaml` sets how the Phase 7 deploy shapes the charging of controlled EVs. Every circuit has uncontrolled and controlled cars, and each controlled car starts from its own uncontrolled row (see "EV cars"). Main runs use the defaults, `ev_control: valley_fill_feeder` and `ev_valley_base: buildings_only`.
 
 - `uncontrolled`: controlled cars keep their session rows.
 - `valley_fill_feeder`, the default: the deploy solves the circuit without EVs, adds every uncontrolled car's kW to the feeder-head load, and places each controlled car, in host order, on the intervals where that load is lowest. A car keeps its daily energy and its number of charging intervals.
 - `valley_fill_transformer`: the same, on the load of each car's own service transformer, plus the uncontrolled cars on it. A car whose host has no single service transformer uses the feeder-head load.
-- `offpeak_start`: each controlled car starts at its first session interval when that interval is in the cheap period of the donor state's time-of-use rate, else at the next start of the cheap period. It charges at 7.36 kW until its daily energy is delivered. The rate is the weekday schedule of the simulated day's month, because the EV session curve is the weekday curve.
+- `offpeak_start`: each controlled car starts at the first interval of its plug-in window that is in the cheap period of the donor state's time-of-use rate, or at plug-in when none is. It charges at its own power until its daily energy is delivered or the window ends. A car without a window starts at the first cheap interval at or after its first charging interval. The rate is the weekday schedule of the simulated day's month, because the cars draw weekdays.
+
+The valley rules and `offpeak_start` keep each car inside its window when `ev_home_window` is true. The service transformer map leaves out lines switched out with `enabled=n`, as OpenDSS does when it solves.
 
 `ev_valley_base` sets what the no-EV solve of the two valley rules holds: `buildings_only` (the default) or `after_pv_storage` (also PV and storage). The feeder and transformer rules compare a feeder view with a local view of where charging lands.
 
@@ -185,15 +203,22 @@ The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_ci
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
 - Heating labels are dealt per customer, but customers in one building share its profile, so the realized building shares can differ from the mix by a few points.
 - Some commercial loadshapes have no matched building and run at the load's nominal kW all day, for example `com_kw_14257_pu` (case `NC_GSO_urban__TX`, feeder `udt4015`) and `com_kw_42051_pu` (topology TX_AUS, feeder `p2udt5222`).
-- EV charging has no plug-in window: valley filling may place charging while a car is away from home.
 - The valley rules assume the aggregator knows the day's base curve exactly.
 - Controlled cars are placed one at a time in host order, so later cars get the valleys that earlier cars leave.
 - Under `offpeak_start`, every controlled car whose session starts outside the cheap period starts when the cheap period starts, so the fleet switches on at once.
 - The tariff is the weekday schedule of one utility per donor state. The saved file records whether the rate was current when it was fetched, and `offpeak_start` uses a rate that is no longer current as it is.
-- Controlled car j and uncontrolled car j are built from the same session row.
 - Workplace and public EV charging are not modelled.
 - Some ResStock 2024 Release 2 models lack the dual-fuel measure and run as baseline in the dm group: https://natlabrockies.github.io/ResStock.github.io/docs/resources/explanations/Issue_2024_2_Measure_Applicability.html.
-- `ev_lvl2_perc` changes only the number of EV session rows.
+- NC cars draw EV WATTS sessions of chargers in the South Atlantic census division and TX cars of chargers in the West South Central division, because EV WATTS gives no state.
+- EV WATTS sessions are from 2019 to 2022 and come from early adopters.
+- NHTS drivers are from 2016 and 2017 and drove all vehicle types (car, van, SUV, pickup).
+- kWh per mile is the average of the model year 2024 new battery EVs.
+- The share of cars charging counts one car per residential charger.
+- EV WATTS timestamps are read as the charger's local clock time.
+- NHTS vehicle-days that drive but neither end nor start at home are left out of the draw.
+- A plug-in window that runs past midnight wraps onto the first intervals of the same day.
+- The check curve of `session_rows` is UK home charging behaviour.
+- An EV WATTS Level 2 car charges at its session's mean power, which can differ from 7.2 kW.
 - Under `per_circuit`, a case-season takes about twice as long and needs more disk than under `per_group`.
 - The source monitor m1 reads the source voltage setpoint. Load voltages come from the per-load record (`load_voltages.parquet`, see `docs/outputs.md`).
 

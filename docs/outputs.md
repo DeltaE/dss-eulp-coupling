@@ -48,11 +48,30 @@ Phase 8 (`append_experiment_results.py`) writes it to `8_results_analysis/`, nex
 
 The band is `voltage_band` in `pipeline_config.yaml`: 0.95 to 1.05 per unit, ANSI C84.1 Range A at the service point, as described in NREL/TP-5D00-77156 (2021), section 2.2: https://www.nrel.gov/docs/fy21osti/77156.pdf. The source monitor m1 reads the source voltage setpoint, so it does not measure voltage along the feeder.
 
+### EV car file
+
+When a circuit has EV cars, the Phase 7 deploy writes `<circuit>/EVControl/ev_cars.csv`, beside `ModifiedCircuitData/`: one row per car, uncontrolled cars first. Phase 8 does not read it. Intervals are 1 to 96.
+
+- `car`: `EVu_<i>` or `EVc_<j>`, its shape in `LoadShapes_EV.dss`.
+- `host`: the EV host load. `group`: `uncontrolled` or `controlled`.
+- `ev_cars`: the `ev_cars` value. `level`: `L1` or `L2`.
+- `power_kw`: the car's charging power: `level1_kw` or `level2_kw` of `ev_inputs.yaml`, or under `evwatts_sessions` a Level 2 car's session mean power (energy over charge duration).
+- `charges_today`: whether the car charges on the simulated day.
+- `source_id`: the EV WATTS `session_id`, or the NHTS `HOUSEID-VEHID`; empty for a car that does not charge under `evwatts_sessions` and for every car under `session_rows`.
+- `day_class`: under `nhts_days`, the NHTS vehicle-day class: `i` (drove, with a home arrival and departure) or `ii` (did not drive).
+- `window_source_id`: under `session_rows`, the NHTS `HOUSEID-VEHID` of a controlled car's window.
+- `plug_in_interval`: the interval the car plugs in at home; empty without a window and for a whole-day window (NHTS class `ii`).
+- `window_intervals`: the number of intervals of the plug-in window (96 for a whole day); empty without a window.
+- `energy_kwh`: the energy the car needs: the session's energy, the miles driven times kWh per mile, or the check curve's daily energy.
+- `first_interval`: the interval its uncontrolled charging starts (it can wrap past midnight); `n_intervals`: its non-zero intervals.
+- `delivered_kwh`: the uncontrolled row's energy (sum / 4); `leftover_kwh`: `energy_kwh` minus `delivered_kwh`, the energy that does not fit in the window.
+- `charging_share`: the measured share of cars charging under `evwatts_sessions` and `session_rows`; empty under `nhts_days`.
+
 ### EV control files
 
-When a circuit has controlled cars and `ev_control` is not `uncontrolled`, the Phase 7 deploy writes `<circuit>/EVControl/`, beside `ModifiedCircuitData/`. Phase 8 does not read it.
+When a circuit has controlled cars and `ev_control` is not `uncontrolled`, the Phase 7 deploy writes these files to `<circuit>/EVControl/`. Phase 8 does not read them.
 
-- `ev_control_cars.csv`: one row per controlled car. Columns `car` (`EVc_<j>`, its shape in `LoadShapes_EV.dss`), `host`, `rule` (the `ev_control` value), `curve` (`feeder`, `feeder_fallback` for a car whose host has no single service transformer, or the transformer name; empty under `offpeak_start`), `energy_kw_intervals` (the sum of the car's session row, kW over 15-minute intervals), `n_intervals` (non-zero intervals of the controlled shape), `first_interval_uncontrolled` and `first_interval_controlled` (1 to 96; under `offpeak_start` the start interval, since charging can wrap past midnight), `max_kw_uncontrolled`, `max_kw_controlled`.
+- `ev_control_cars.csv`: one row per controlled car. Columns `car` (`EVc_<j>`, its shape in `LoadShapes_EV.dss`), `host`, `rule` (the `ev_control` value), `curve` (`feeder`, `feeder_fallback` for a car whose host has no single service transformer, or the transformer name; empty under `offpeak_start`), `energy_kw_intervals` (the sum of the car's session row, kW over 15-minute intervals), `n_intervals` (non-zero intervals of the controlled shape), `first_interval_uncontrolled` and `first_interval_controlled` (1 to 96; under `offpeak_start` the start interval, since charging can wrap past midnight), `max_kw_uncontrolled`, `max_kw_controlled`, `window_on` (whether the rule kept the car inside a plug-in window), `power_kw` (as in `ev_cars.csv`), `delivered_kwh_controlled` (the controlled shape's energy, sum / 4), `leftover_kwh_controlled` (the session row's energy minus the controlled shape's, in kWh).
 - `ev_control_curves.csv`, under the two valley rules: one row per curve and step. Columns `curve` (`feeder` or a transformer name), `monitor` (`m2`, or `mt_<n>` in `base_solve/Monitors_Transformers.dss`), `step` (1 to 96), `base_kw` (real power of the no-EV solve), `uncontrolled_ev_kw` (the uncontrolled cars on that curve), `controlled_ev_kw` (the controlled cars placed on it; every controlled car for `feeder`).
 - `base_solve/`, under the two valley rules: the `.dss` files and the monitor CSVs of the no-EV solve.
 
