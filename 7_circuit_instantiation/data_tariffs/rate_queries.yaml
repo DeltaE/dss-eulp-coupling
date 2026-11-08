@@ -1,0 +1,14 @@
+# Queries of fetch_tou_rates.py to the OpenEI U.S. Utility Rate Database (URDB),
+# one per donor state: https://apps.openei.org/services/doc/rest/util_rates
+#
+# ASSUMPTION: the residential time-of-use rate of each donor state is taken from the
+# utility that serves the city of that state's PV site (Greensboro for NC, Austin for
+# TX); another city in the state could have another utility and another cheap period.
+#
+# utility is the URDB utility field of the rates kept. The address lookup for
+# Greensboro returns the rates of EIA utility number 5416, which URDB files under
+# "Duke Energy Carolinas, LLC" and also under Progress Energy Carolinas names, some for
+# South Carolina. ASSUMPTION: Greensboro is served by Duke Energy Carolinas, LLC and
+# Austin by Austin Energy; naming another utility changes the rate and its cheap period.
+NC: {address: "Greensboro, NC", utility: "Duke Energy Carolinas, LLC"}
+TX: {address: "Austin, TX", utility: "Austin Energy"}
