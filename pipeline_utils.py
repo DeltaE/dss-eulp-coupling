@@ -22,6 +22,7 @@ RUN_VALUES = {
     "eulp_download_date": "PIPELINE_EULP_DOWNLOAD_DATE",
     "mixes_file": "PIPELINE_MIXES_FILE",
     "pv_profile_file": "PIPELINE_PV_PROFILE_FILE",
+    "evwatts_extract_dir": "PIPELINE_EVWATTS_EXTRACT_DIR",
 }
 
 
@@ -108,6 +109,30 @@ def ev_valley_base(cfg):
               f"expected one of {', '.join(EV_VALLEY_BASES)}.")
         sys.exit(1)
     return base
+
+
+EV_CARS_SOURCES = ("evwatts_sessions", "nhts_days", "session_rows")
+
+
+def ev_cars(cfg):
+    """Return ev_cars from the loaded pipeline_config.yaml. A missing or unknown value
+    prints [FAIL] and exits 1."""
+    source = cfg.get("ev_cars")
+    if source not in EV_CARS_SOURCES:
+        print(f"[FAIL] ev_cars in pipeline_config.yaml is {source!r}; "
+              f"expected one of {', '.join(EV_CARS_SOURCES)}.")
+        sys.exit(1)
+    return source
+
+
+def ev_home_window(cfg):
+    """Return ev_home_window from the loaded pipeline_config.yaml. A missing or
+    non-boolean value prints [FAIL] and exits 1."""
+    value = cfg.get("ev_home_window")
+    if not isinstance(value, bool):
+        print(f"[FAIL] ev_home_window in pipeline_config.yaml is {value!r}; expected true or false.")
+        sys.exit(1)
+    return value
 
 
 def resolve_dss_file(directory, filename):

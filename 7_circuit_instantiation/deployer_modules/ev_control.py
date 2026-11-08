@@ -6,16 +6,19 @@ The rules of ev_control (pipeline_config.yaml) that shape the charging of contro
 EVs in the Phase 7 deploy. Each car is one row of kW over the 96 fifteen-minute
 intervals of the day (its session row).
 
-- place_car(row, curve) and valley_fill(rows, curve): valley filling, after Gan, Topcu
-  and Low (2013), "Optimal decentralized protocol for electric vehicle charging", IEEE
-  Transactions on Power Systems, https://doi.org/10.1109/TPWRS.2012.2210288.
-- valley_fill_curves(rows, curves, car_curves, feeder): valley filling where each car
-  fills its own curve (its service transformer, or the feeder).
+- place_car(row, curve, window) and valley_fill(rows, curve, windows): valley filling,
+  after Gan, Topcu and Low (2013), "Optimal decentralized protocol for electric vehicle
+  charging", IEEE Transactions on Power Systems,
+  https://doi.org/10.1109/TPWRS.2012.2210288.
+- valley_fill_curves(rows, curves, car_curves, feeder, windows): valley filling where
+  each car fills its own curve (its service transformer, or the feeder).
 - monitor_p_kw(header, channels): real power per step of a mode=1 Monitor.
 - read_dss_elements(texts), service_transformers(texts, load_buses): the service
   transformer of each load.
-- cheap_intervals(rate, month) and offpeak_start(rows, cheap, nominal_kw): a start
-  timer at the cheap period of a URDB time-of-use rate.
+- cheap_intervals(rate, month) and offpeak_start(rows, cheap, nominal_kw, windows): a
+  start timer at the cheap period of a URDB time-of-use rate.
+A window is the list of intervals a car is plugged in at home, in plug order (ev_cars.py);
+None means every interval of the day.
 """
 import re
 
@@ -24,11 +27,14 @@ import numpy as np
 N_INTERVALS = 96
 
 
-def place_car(row, curve):
+def place_car(row, curve, window=None):
     """Return the controlled row of one car: its daily energy (row sum) split evenly
-    over as many intervals as the row has non-zero intervals, placed on the intervals
-    where curve is lowest. Equal curve values go to the earlier interval. An all-zero
-    row stays zero.
+    over as many intervals as the row has non-zero intervals (k), placed on the
+    intervals where curve is lowest. Equal curve values go to the earlier interval. An
+    all-zero row stays zero. With a window, the candidates are the window's intervals
+    in ascending order and the k with the lowest curve are chosen; with fewer than k
+    candidates all of them are chosen, each still getting row sum / k, and the rest of
+    the energy is left over.
 
     ASSUMPTION: controlled cars are placed one at a time in host order, each into the
     intervals where the load it sees is lowest, keeping its daily energy and its number
@@ -39,25 +45,31 @@ def place_car(row, curve):
     k = np.count_nonzero(row)
     if k == 0:
         return out
-    chosen = np.argsort(np.asarray(curve, dtype=float), kind="stable")[:k]
+    if window is None:
+        chosen = np.argsort(np.asarray(curve, dtype=float), kind="stable")[:k]
+    else:
+        cand = np.array(sorted(set(int(i) for i in window)), dtype=int)
+        chosen = cand[np.argsort(np.asarray(curve, dtype=float)[cand], kind="stable")[:k]]
     out[chosen] = row.sum() / k
     return out
 
 
-def valley_fill(rows, curve):
-    """Place every row of rows, in order, on curve (place_car), adding each placed car
-    to the curve before the next. Returns (controlled rows, curve after every car)."""
+def valley_fill(rows, curve, windows=None):
+    """Place every row of rows, in order, on curve (place_car, with windows[j] when
+    windows is given), adding each placed car to the curve before the next. Returns
+    (controlled rows, curve after every car)."""
     rows = np.asarray(rows, dtype=float)
     combined = np.asarray(curve, dtype=float).copy()
     out = np.zeros_like(rows)
     for j in range(rows.shape[0]):
-        out[j, :] = place_car(rows[j, :], combined)
+        out[j, :] = place_car(rows[j, :], combined, None if windows is None else windows[j])
         combined += out[j, :]
     return out, combined
 
 
-def valley_fill_curves(rows, curves, car_curves, feeder):
-    """Place every row of rows, in order, on its own curve: curves[car_curves[j]].
+def valley_fill_curves(rows, curves, car_curves, feeder, windows=None):
+    """Place every row of rows, in order, on its own curve: curves[car_curves[j]]
+    (place_car, with windows[j] when windows is given).
     Each placed car is added to its own curve and to curves[feeder], because every car
     loads the feeder head. Returns (controlled rows, {name: curve after every car})."""
     rows = np.asarray(rows, dtype=float)
@@ -65,7 +77,7 @@ def valley_fill_curves(rows, curves, car_curves, feeder):
     out = np.zeros_like(rows)
     for j in range(rows.shape[0]):
         name = car_curves[j]
-        out[j, :] = place_car(rows[j, :], combined[name])
+        out[j, :] = place_car(rows[j, :], combined[name], None if windows is None else windows[j])
         combined[name] += out[j, :]
         if name != feeder:
             combined[feeder] += out[j, :]
@@ -129,10 +141,13 @@ def _array(value):
     return [v for v in re.split(r"[\s,]+", value.strip("[]()\"' ")) if v]
 
 
-def read_dss_elements(texts):
+def read_dss_elements(texts, skipped=None):
     """Read the Line and Transformer elements of the .dss texts. Returns (line_buses,
     transformers): a list of (bus1, bus2) pairs, and {transformer name: list of
-    (bus, kV) per winding}. Bus names are lower case without node suffixes."""
+    (bus, kV) per winding}. Bus names are lower case without node suffixes. A Line
+    whose enabled value starts with n or f (enabled=n, no, false; any case) is left
+    out, because OpenDSS solves without a switched-out line; its name is appended to
+    skipped when a list is given."""
     line_buses, transformers = [], {}
     for text in texts:
         for st in _logical_lines(text):
@@ -143,6 +158,10 @@ def read_dss_elements(texts):
             props = [(k.lower(), v) for k, v in _PROP_RE.findall(rest)]
             if kind == "line":
                 d = dict(props)
+                if d.get("enabled", "y").strip("\"' ").lower()[:1] in ("n", "f"):
+                    if skipped is not None:
+                        skipped.append(name)
+                    continue
                 if "bus1" in d and "bus2" in d:
                     line_buses.append((_bus(d["bus1"]), _bus(d["bus2"])))
                 continue
@@ -173,7 +192,7 @@ def secondary_bus(windings):
     return bus_last if kv_last < kv_first else None
 
 
-def service_transformers(texts, load_buses):
+def service_transformers(texts, load_buses, skipped=None):
     """Map each load to its service transformer.
 
     1. An undirected graph of the buses joined by Line elements of texts.
@@ -181,9 +200,10 @@ def service_transformers(texts, load_buses):
     3. A load's service transformer is the one transformer whose secondary bus lies in
        the graph component of the load's bus; with none or several, the load has none.
 
-    load_buses: {load name: bus1}. Returns (mapping, status): mapping {load: transformer
-    name or None}, status {load: "one", "none" or "several"}."""
-    line_buses, transformers = read_dss_elements(texts)
+    load_buses: {load name: bus1}. skipped: passed to read_dss_elements. Returns
+    (mapping, status): mapping {load: transformer name or None}, status {load: "one",
+    "none" or "several"}."""
+    line_buses, transformers = read_dss_elements(texts, skipped)
     parent = {}
 
     def find(b):
@@ -228,15 +248,20 @@ def cheap_intervals(rate, month):
     return period, [i for i in range(N_INTERVALS) if row[i // 4] == period]
 
 
-def offpeak_row(row, cheap, nominal_kw):
+def offpeak_row(row, cheap, nominal_kw, window=None):
     """Return (controlled row, start interval or None) of one car under offpeak_start.
 
-    The start is the first cheap interval at or after the car's first charging interval
-    in its session row, searching forward and wrapping from the last interval to the
-    first. The car charges at nominal_kw in consecutive intervals from the start,
-    wrapping past the last interval, until its daily energy (row sum, kW-intervals) is
-    delivered; the last interval takes the remainder. An all-zero row stays zero.
-    Raises ValueError if the energy needs more than every interval of the day."""
+    Without a window: the start is the first cheap interval at or after the car's first
+    charging interval in its session row, searching forward and wrapping from the last
+    interval to the first. The car charges at nominal_kw in consecutive intervals from
+    the start, wrapping past the last interval, until its daily energy (row sum,
+    kW-intervals) is delivered; the last interval takes the remainder. Raises
+    ValueError if the energy needs more than every interval of the day.
+    With a window (intervals in plug order): the start is the first cheap interval met
+    going forward through the window, or the window's first interval if none is cheap;
+    the car charges at nominal_kw in the window's consecutive intervals from the start
+    until its energy is delivered or the window ends; the rest is left over.
+    An all-zero row stays zero."""
     row = np.asarray(row, dtype=float)
     n = row.size
     out = np.zeros(n)
@@ -244,6 +269,18 @@ def offpeak_row(row, cheap, nominal_kw):
     if nz.size == 0:
         return out, None
     cheap_set = set(int(i) for i in cheap)
+    if window is not None:
+        window = [int(i) for i in window]
+        pos = next((k for k, i in enumerate(window) if i in cheap_set), 0)
+        slots = window[pos:]
+        energy = row.sum()
+        n_full = int(energy // nominal_kw)
+        remainder = energy - n_full * nominal_kw
+        for i in slots[:n_full]:
+            out[i] = nominal_kw
+        if n_full < len(slots) and remainder > 0:
+            out[slots[n_full]] = remainder
+        return out, slots[0]
     start = next(((nz[0] + k) % n for k in range(n) if (nz[0] + k) % n in cheap_set), None)
     if start is None:
         raise ValueError("No cheap interval in the day.")
@@ -259,12 +296,15 @@ def offpeak_row(row, cheap, nominal_kw):
     return out, int(start)
 
 
-def offpeak_start(rows, cheap, nominal_kw):
-    """offpeak_row for every row. Returns (controlled rows, list of start intervals)."""
+def offpeak_start(rows, cheap, nominal_kw, windows=None):
+    """offpeak_row for every row, with power nominal_kw (one value for every car, or
+    one per car) and windows[j] when windows is given. Returns (controlled rows, list
+    of start intervals)."""
     rows = np.asarray(rows, dtype=float)
     out = np.zeros_like(rows)
     starts = []
     for j in range(rows.shape[0]):
-        out[j, :], s = offpeak_row(rows[j, :], cheap, nominal_kw)
+        kw = nominal_kw[j] if np.ndim(nominal_kw) else nominal_kw
+        out[j, :], s = offpeak_row(rows[j, :], cheap, kw, None if windows is None else windows[j])
         starts.append(s)
     return out, starts

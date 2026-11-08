@@ -71,3 +71,17 @@ ev_control: valley_fill_feeder
 # buildings_only: building loads only. after_pv_storage: also PV and storage.
 # Main runs use the default, buildings_only.
 ev_valley_base: buildings_only
+
+# Where each EV car of the Phase 7 deploy comes from (deployer_modules/ev_cars.py).
+# evwatts_sessions: each car draws one measured weekday home Level 2 session from EV
+# WATTS (needs evwatts_extract_dir in configs/local.yaml).
+# nhts_days: each car draws one weighted 2017 NHTS weekday vehicle-day of the donor state.
+# session_rows: the repaired 2024 generator on the Team-Nando check curve (needs the
+# EV WATTS extract for the share of cars charging).
+# Main runs use the default, evwatts_sessions.
+ev_cars: evwatts_sessions
+
+# true: controlled charging stays inside the time the car is plugged in at home.
+# false: controlled cars may charge in any interval of the day.
+# Main runs use the default, true.
+ev_home_window: true

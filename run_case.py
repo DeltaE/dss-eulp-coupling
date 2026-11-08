@@ -171,6 +171,8 @@ def build_env(resolved: dict, season: str) -> dict:
     env["PIPELINE_EULP_DOWNLOAD_DATE"] = str(resolved["eulp_download_date"])  # donor registry
     env["PIPELINE_MIXES_FILE"] = resolved["mixes_file"]  # mixes_file in defaults.yaml, Phase 7a
     env["PIPELINE_PV_PROFILE_FILE"] = resolved["pv_profile_file"]  # donor pv_profile, Phase 7c
+    if resolved["local"].get("evwatts_extract_dir"):  # EV WATTS extract, Phase 7 deploy (ev_cars)
+        env["PIPELINE_EVWATTS_EXTRACT_DIR"] = Path(resolved["local"]["evwatts_extract_dir"]).as_posix()
     return env
 
 

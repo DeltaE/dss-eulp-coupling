@@ -33,10 +33,11 @@ EV_PROFILE_FOLDER = 'data_ev/with_daily_plug_in_factor_70'
 EV_PROFILE_FILE = 'Weekday - Level 2 - Diversified (75th percentile) of 100 EVs.csv'
 
 
-def process_vehicle_data(CURRENT_DIR, write_comparison_csv=True):
+def process_vehicle_data(CURRENT_DIR, write_comparison_csv=True, profile_folder=EV_PROFILE_FOLDER,
+                         profile_file=EV_PROFILE_FILE):
     """
-    Return the EV base curve: the 96 fifteen-minute means of EV_PROFILE_FILE in
-    EV_PROFILE_FOLDER under CURRENT_DIR. Each mean is sum(values[i:i+15]) / 15
+    Return the EV base curve: the 96 fifteen-minute means of profile_file in
+    profile_folder under CURRENT_DIR (by default EV_PROFILE_FILE in EV_PROFILE_FOLDER). Each mean is sum(values[i:i+15]) / 15
     for i = 0, 15, ..., 1425, over the file's value column.
 
     Parameters:
@@ -48,18 +49,21 @@ def process_vehicle_data(CURRENT_DIR, write_comparison_csv=True):
       write all 24 frames stacked to CURRENT_DIR/data_ev/df_enatd.csv
       (columns 'Unnamed: 0', 'Values', 'Differentiator'), replacing any
       existing file. The returned values are the same either way.
+    - profile_folder, profile_file (str, optional): the folder (relative to
+      CURRENT_DIR) and file of the curve; ev_cars session_rows passes the check curve
+      of ev_inputs.yaml.
 
     Returns:
     - list_vals_use_ev_15 (list): the 96 means.
 
     Stops:
-    - FileNotFoundError if data_ev/ or EV_PROFILE_FILE is missing, or, with
+    - FileNotFoundError if data_ev/ or the profile file is missing, or, with
       write_comparison_csv, if a file has no counterpart in the second folder.
     """
     list_vals_use_ev_15 = []
 
     # The base curve is the 70 % plug-in factor file
-    l_ev_use = pd.read_csv(os.path.join(CURRENT_DIR, EV_PROFILE_FOLDER, EV_PROFILE_FILE))
+    l_ev_use = pd.read_csv(os.path.join(CURRENT_DIR, profile_folder, profile_file))
     l_ev_use.columns.values[1] = 'Values'
     list_vals_use = l_ev_use['Values'].tolist()
     # Calculate the 15-minute averages

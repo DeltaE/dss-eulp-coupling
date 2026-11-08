@@ -9,6 +9,13 @@ runs_root: "runs"           # per-case provenance output (repo-relative or absol
 # Only for 7_circuit_instantiation/fetch_tou_rates.py, a maintainer step outside --all:
 # a text file that holds an OpenEI API key.
 openei_api_key_file: "path/to/OPENEI_API_KEY.txt"
+# Only for 7_circuit_instantiation/build_nhts_extract.py: the unpacked 2017 NHTS Csv.zip.
+nhts2017_csv_dir: "path/to/nhts2017/csv"
+# Only for 7_circuit_instantiation/build_evwatts_extract.py: the EV WATTS public tables.
+evwatts_raw_dir: "path/to/evwatts.public"
+# The EV WATTS extract folder, outside the repository; the Phase 7 deploy reads it
+# under ev_cars evwatts_sessions (the default) and session_rows.
+evwatts_extract_dir: "path/to/evwatts_extract"
 
 # run_case.py derives the parquet roots from topology_registry.yaml (the parquet_data
 # folder beside each topology's opendss tree). local.yaml holds no parquet path.

@@ -12,10 +12,18 @@ Inputs
 - <circuit>/<feeder>/: the first subfolder other than ModifiedCircuitData that holds
   Loads.dss, LoadShapes.dss and Master.dss. Loads.dss gives load names, buses, kV,
   phases, conn and daily shapes; Loads_original.dss gives the original kW.
-- <circuit>/scenario_assignments.json: ev.perc, ev.lvl2_perc, ev_loads_uncontrolled,
-  ev_loads_controlled (or ev_loads, split in half when both are empty),
-  storage_targets, pv_targets, season.
-- <circuit>/data_ev/: EV charging profiles (see pfs_ev_base_profiles).
+- <circuit>/scenario_assignments.json: ev.lvl2_perc, ev.effective_seed,
+  ev_loads_uncontrolled, ev_loads_controlled (or ev_loads, split in half when both are
+  empty), storage_targets, pv_targets, season.
+- <circuit>/data_ev/: the Team-Nando EV charging profiles (see pfs_ev_base_profiles);
+  under ev_cars session_rows the check curve of ev_inputs.yaml.
+- ev_cars and ev_home_window in pipeline_config.yaml: the source of the EV cars and
+  whether controlled charging stays inside each car's plug-in window at home.
+- <repo>/7_circuit_instantiation/data_ev_cars/ev_inputs.yaml (typical values) and,
+  under nhts_days and session_rows, <STATE>_nhts2017_vehicle_days.csv there.
+- Under ev_cars evwatts_sessions and session_rows: PIPELINE_EVWATTS_EXTRACT_DIR
+  (evwatts_extract_dir in configs/local.yaml), the folder of
+  evwatts_residential_l2_weekday.csv (build_evwatts_extract.py).
 - <circuit>/../profiles_use_bench/<circuit>/<daily>.csv: one-column kW profiles, used
   for storage and PV sizing.
 - der_sizing in pipeline_config.yaml: storage and PV ratios and minimums.
@@ -38,10 +46,13 @@ Inputs
 - Environment: SC_KW_TARGET_FACTOR (0.8), SC_KW_TARGET_LOW (0.0), SC_RESERVE_PCT (20).
 
 Steps
-1. Builds one 96-point EV base curve (pfs_ev_base_profiles) and
-   N = int(n_base_loads * ev_perc * l2_perc) uncontrolled session rows (n_base_loads
-   counts every base load, all phases). Rows are truncated or tiled to the number of
-   EV hosts; controlled car j starts from the same session row as uncontrolled car j.
+1. Builds one car per EV host with ev_cars.py, uncontrolled hosts then controlled
+   hosts, each group with its own seeded draws: Level 2 (level2_kw) for the
+   ev.lvl2_perc share of the group's cars, Level 1 (level1_kw) for the rest; under
+   evwatts_sessions and session_rows the measured share of cars charges today. Each
+   car's uncontrolled row comes from its own EV WATTS session (evwatts_sessions), NHTS
+   vehicle-day (nhts_days) or block on the check curve (session_rows), with its
+   plug-in window at home. Writes data_ev/df_enatd.csv (process_vehicle_data).
 2. Copies every .dss file of the feeder (except *_original*) into ModifiedCircuitData/
    and points LoadShapes.dss at ../../profiles_use_bench/<circuit>/.
 3. Appends two EV loads per host (EVu_<host>_1 and _2, or EVc_, kW=0.5 each, pf=1)
@@ -66,7 +77,10 @@ Steps
 7. Writes Monitors_LoadVoltage.dss: one mode=0 Monitor vl_<load> per Load in
    ModifiedCircuitData/Loads.dss (load_voltage.py), and adds
    "Redirect Monitors_LoadVoltage.dss" just before the first Solve line.
-7a. Makes the controlled rows with the ev_control rule (ev_control.py):
+7a. Makes the controlled rows with the ev_control rule (ev_control.py). Each
+   controlled car starts from its own uncontrolled row. With ev_home_window true, a
+   car with a window charges only inside it (energy that does not fit is left over);
+   a car without one, and every car with ev_home_window false, may use every interval.
    - uncontrolled: the session rows unchanged.
    - valley_fill_feeder: solves the circuit without EVs in EVControl/base_solve/
      (run_base_solve; buildings only, or also PV and storage under ev_valley_base
@@ -74,14 +88,16 @@ Steps
      car's kW, and places each controlled car in host order on the intervals where
      that curve is lowest, keeping its energy and its number of charging intervals.
    - valley_fill_transformer: the same on the terminal-1 P of each car's service
-     transformer (service_transformers; one Monitor mt_<n> per transformer that hosts
-     a controlled car), plus the uncontrolled cars on it; a car whose host has no
+     transformer (service_transformers, without switched-out enabled=n lines; one
+     Monitor mt_<n> per transformer that hosts a controlled car), plus the
+     uncontrolled cars on it; a car whose host has no
      service transformer uses the feeder curve. Every placed car also joins the feeder
      curve.
    - offpeak_start: on the simulated day's month row of the weekday schedule of the
-     saved tariff (the EV session curve is the weekday curve), each car starts at the
-     first cheap interval at or after its first charging interval and charges at
-     EV_NOMINAL_POWER_KW until its energy is delivered.
+     saved tariff (the cars draw weekdays), each car starts at the first cheap
+     interval of its window (its plug-in interval when none is cheap), or without a
+     window at the first cheap interval at or after its first charging interval, and
+     charges at its own power until its energy is delivered or the window ends.
    Then writes LoadShapes_EV.dss (EVu_i, EVc_i, 4 decimals).
 8. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
    and reads Solution.Converged.
@@ -96,6 +112,7 @@ Outputs
   loads only) and load_voltage_loads.csv (one row per load). The parquet and the load
   table mark EV legs in ev_leg. Columns in docs/outputs.md.
 - <circuit>/data_ev/df_enatd.csv (written by process_vehicle_data on every run).
+- <circuit>/EVControl/ev_cars.csv (when the circuit has EV cars): one row per car.
 - <circuit>/EVControl/ (when the circuit has controlled cars and ev_control is not
   uncontrolled): ev_control_cars.csv (one row per controlled car); under the valley
   rules also ev_control_curves.csv (one row per curve and step) and base_solve/ (the
@@ -128,12 +145,15 @@ Stops (exit 1 unless noted)
   Energymeter; a DER Redirect line is missing; a monitor export CSV is missing; the
   loads of the compiled circuit differ from the monitored loads, or a load monitor
   does not match its load.
-- voltage_band missing from pipeline_config.yaml; ev_control or ev_valley_base missing
-  or unknown.
+- voltage_band missing from pipeline_config.yaml; ev_control, ev_valley_base or
+  ev_cars missing or unknown; ev_home_window not true or false.
+- EV cars: ev.effective_seed missing; charging_share or months of ev_inputs.yaml other
+  than measured and all; under evwatts_sessions and session_rows, evwatts_extract_dir
+  unset or without the extract file, or no census_division for the donor state.
 - EV base solve: no yearly solve line or no Monitor m2 in Master.dss, no convergence,
   or a monitor without 96 steps.
-- offpeak_start: the tariff file missing; a car's energy longer than the day at
-  EV_NOMINAL_POWER_KW (ValueError).
+- offpeak_start: the tariff file missing; without a window, a car's energy longer
+  than the day at its power (ValueError).
 - Uncaught exception: for example data_ev/ missing (FileNotFoundError).
 - Solution.Converged is not True after Compile, or the circuit was not compiled.
 - exit 0 otherwise.
@@ -148,9 +168,6 @@ from copy import deepcopy
 # -----------------------
 DEFAULT_EV_PERC      = 0.10
 DEFAULT_EV_L2_PERC   = 0.80
-EV_NOMINAL_POWER_KW  = 7.36
-EV_MAX_EVENTS        = 2
-EV_ERROR_TOL         = 1e-6
 
 # Storage sizing vs load peak (ratios and minimums: der_sizing in pipeline_config.yaml)
 STORAGE_PF           = 0.90
@@ -213,7 +230,6 @@ ROOT        = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
 sys.path.insert(0, os.path.join(ROOT, 'deployer_modules'))
 from pfs_parsing_misc import parse_transformers, parse_lines, parse_loads, can_add_more, update_target_sums, linear_interpolate
 from pfs_file_processing import modify_master_file, modify_dss_files
-from pfs_ev_modeling import generate_initial_charging_sessions, adjust_charging_sessions, balance_demand_with_zero_sessions, adjust_charging_sessions_2, count_charging_cycles
 from pfs_ev_plotting import plot_calibration, plot_sessions_heatmap, plot_combined_profile_sessions
 from pfs_heatpump_plotting import plot_combined_heatpump_sessions
 from pfs_write_csv_1 import write_simulation_results_to_csv
@@ -225,13 +241,18 @@ from ev_control import valley_fill, valley_fill_curves, monitor_p_kw, service_tr
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
-from pipeline_utils import load_config, peak_day_rule, ev_control, ev_valley_base
+from pipeline_utils import load_config, peak_day_rule, ev_control, ev_valley_base, ev_home_window
+from pipeline_utils import ev_cars as ev_cars_source
 sys.path.append(ROOT)
 from heating_split import is_baseline_only
+from ev_cars import (load_inputs, read_evwatts_pool, charging_share, read_nhts_pool, evwatts_cars,
+                     nhts_cars, session_rows_cars, cars_frame, EVWATTS_EXTRACT_FILE, NHTS_EXTRACT_FILE)
 CFG = load_config()
 PEAK_DAY_RULE = peak_day_rule(CFG)
 EV_CONTROL = ev_control(CFG)
 EV_VALLEY_BASE = ev_valley_base(CFG)
+EV_CARS = ev_cars_source(CFG)
+EV_HOME_WINDOW = ev_home_window(CFG)
 DER_SIZING = CFG.get("der_sizing") or {}
 def der_sizing(key):
     if key not in DER_SIZING:
@@ -667,47 +688,12 @@ def assert_monitor_exports(master_path, monitor_names, search_dir):
             f"(circuit={circuit_name}, dir={search_dir})"
         )
 
-# ---------------- EV profiles (both types) ----------------
+# ---------------- EV comparison file ----------------
 if ACTIVATE_EV:
-    # Base EV curve: the 96 fifteen-minute means of
-    # data_ev/with_daily_plug_in_factor_70/Weekday - Level 2 - Diversified (75th percentile) of 100 EVs.csv
-    # (data_ev/ is copied into the circuit folder by instantiate_circuits.py).
-    # write_comparison_csv=True also writes data_ev/df_enatd.csv (all 24 input files stacked).
-    avg_15 = process_vehicle_data(CURRENT_DIR, write_comparison_csv=True)
-
-    def generate_ev_profiles(avg_demand, load_number_resi, ev_p, l2_p, nominal_power, max_events, err_tol):
-        """
-        Return an N x T array of EV charging power (kW) whose interval means follow
-        avg_demand, with N = int(load_number_resi * ev_p * l2_p) and T = len(avg_demand).
-
-        Calls generate_initial_charging_sessions, adjust_charging_sessions and
-        adjust_charging_sessions_2 with min_power = 0.9 * nominal_power (seed 555 inside
-        each), then gives each all-zero row the average non-zero value of the mean
-        profile on every interval where that mean is non-zero. The caller passes the
-        count of all base loads (every phase) as load_number_resi.
-        """
-        avg_demand = np.array(deepcopy(avg_demand))
-        N = int(load_number_resi * ev_p * l2_p)
-        min_power = nominal_power * 0.9
-        T = len(avg_demand)
-        sessions = generate_initial_charging_sessions(N, T, nominal_power, min_power, max_events, avg_demand)
-        sessions = adjust_charging_sessions(sessions, avg_demand, N, nominal_power, T, err_tol)
-        sessions = adjust_charging_sessions_2(sessions, avg_demand, N, nominal_power, T, err_tol, max_events, min_power)
-        # Fill completely zero rows if any (simple equal-energy fill on available intervals)
-        zero_rows = np.where(np.all(sessions == 0, axis=1))[0]
-        if len(zero_rows) > 0:
-            avg_profile = np.mean(sessions, axis=0)
-            nz = np.flatnonzero(avg_profile)
-            for idx in zero_rows:
-                if nz.size > 0:
-                    sessions[idx, nz] = (avg_profile[nz].sum() / len(nz))
-        return sessions
-
-    # Generate the session rows (uncontrolled); controlled rows come from the ev_control rule
-    arr_ev_all_unctl = generate_ev_profiles(avg_15, len(unique_loads_list), ev_perc, lvl2_charger_perc,
-                                           EV_NOMINAL_POWER_KW, EV_MAX_EVENTS, EV_ERROR_TOL)
-else:
-    arr_ev_all_unctl = np.zeros((0, IRRADIANCE_NPTS))
+    # write_comparison_csv=True writes data_ev/df_enatd.csv (all 24 data_ev/ files stacked;
+    # data_ev/ is copied into the circuit folder by instantiate_circuits.py). The returned
+    # curve is not used by the cars.
+    process_vehicle_data(CURRENT_DIR, write_comparison_csv=True)
 
 # ---------------- EV host lists from JSON ----------------
 json_ev_un = ASSIGN.get("ev_loads_uncontrolled", []) if isinstance(ASSIGN, dict) else []
@@ -727,23 +713,61 @@ if (not json_ev_un) and (not json_ev_ct):
 N_u = len(json_ev_un)
 N_c = len(json_ev_ct)
 
-# If instantiate bumped to 2 EVs (to get both types), we may need to replicate profiles
-def ensure_rows(mat, N_target):
-    """Return exactly N_target rows: the first N_target rows of mat if it has enough;
-    mat tiled and cut if it has fewer; an N_target x 96 array of zeros if mat has
-    no rows."""
-    if mat.shape[0] >= N_target:
-        return mat[:N_target, :]
-    if mat.shape[0] == 0:
-        return np.zeros((N_target, IRRADIANCE_NPTS))
-    # replicate rows as needed
-    reps = int(np.ceil(N_target / mat.shape[0]))
-    tiled = np.tile(mat, (reps, 1))
-    return tiled[:N_target, :]
-
-arr_u = ensure_rows(arr_ev_all_unctl, N_u)
-arr_c_sessions = ensure_rows(arr_ev_all_unctl, N_c)  # controlled car j: the same session row as uncontrolled car j
+# ---------------- EV cars (ev_cars in pipeline_config.yaml, deployer_modules/ev_cars.py) ----------------
+EV_INPUTS = load_inputs(os.path.join(ROOT, "data_ev_cars", "ev_inputs.yaml"))
+cars = []
+if ACTIVATE_EV and (N_u + N_c) > 0:
+    if EV_INPUTS["charging_share"] != "measured" or EV_INPUTS["months"] != "all":
+        print(f"[FAIL] ev_inputs.yaml: charging_share {EV_INPUTS['charging_share']!r} and months "
+              f"{EV_INPUTS['months']!r}; this deploy supports measured and all.")
+        sys.exit(1)
+    ev_effective_seed = ASSIGN.get("ev", {}).get("effective_seed")
+    if ev_effective_seed is None:
+        print(f"[FAIL] ev.effective_seed is missing from {ASSIGN_PATH}.")
+        sys.exit(1)
+    ev_state = CFG["state"]
+    if EV_CARS in ("evwatts_sessions", "session_rows"):
+        ev_extract_dir = CFG["evwatts_extract_dir"] if "evwatts_extract_dir" in CFG else None
+        if not ev_extract_dir or not os.path.exists(os.path.join(ev_extract_dir, EVWATTS_EXTRACT_FILE)):
+            print(f"[FAIL] ev_cars {EV_CARS} needs evwatts_extract_dir in configs/local.yaml, a folder "
+                  f"holding {EVWATTS_EXTRACT_FILE} (build_evwatts_extract.py); got {ev_extract_dir!r}.")
+            sys.exit(1)
+        if ev_state not in EV_INPUTS["census_division"]:
+            print(f"[FAIL] No census_division for {ev_state} in ev_inputs.yaml.")
+            sys.exit(1)
+        ev_pool = read_evwatts_pool(ev_extract_dir, EV_INPUTS["census_division"][ev_state])
+        ev_share = charging_share(ev_pool)
+        print(f"EV cars -> EV WATTS pool: {len(ev_pool)} sessions of {EV_INPUTS['census_division'][ev_state]}, "
+              f"share of cars charging {ev_share:.6f}")
+    if EV_CARS in ("nhts_days", "session_rows"):
+        ev_nhts_pool = read_nhts_pool(os.path.join(ROOT, "data_ev_cars", NHTS_EXTRACT_FILE.format(state=ev_state)))
+    if EV_CARS == "session_rows":
+        ev_check_curve = process_vehicle_data(CURRENT_DIR, write_comparison_csv=False,
+                                              profile_folder=EV_INPUTS["check_curve_folder"],
+                                              profile_file=EV_INPUTS["check_curve_file"])
+    for group, hosts in (("uncontrolled", json_ev_un), ("controlled", json_ev_ct)):
+        if EV_CARS == "evwatts_sessions":
+            group_cars = evwatts_cars(group, hosts, ev_pool, ev_share, lvl2_charger_perc, EV_INPUTS, ev_effective_seed)
+        elif EV_CARS == "nhts_days":
+            group_cars = nhts_cars(group, hosts, ev_nhts_pool, lvl2_charger_perc, EV_INPUTS, ev_effective_seed)
+        else:
+            group_cars = session_rows_cars(group, hosts, ev_check_curve, ev_share, lvl2_charger_perc, EV_INPUTS,
+                                           ev_effective_seed, ev_nhts_pool if group == "controlled" else None)
+        print(f"EV cars -> {EV_CARS}, {group}: {len(group_cars)} cars, Level 2 "
+              f"{sum(c['level'] == 'L2' for c in group_cars)}, charging today {sum(c['charges_today'] for c in group_cars)}")
+        cars += group_cars
+cars_u = [c for c in cars if c["group"] == "uncontrolled"]
+cars_c = [c for c in cars if c["group"] == "controlled"]
+arr_u = np.zeros((N_u, IRRADIANCE_NPTS))
+arr_c_sessions = np.zeros((N_c, IRRADIANCE_NPTS))  # controlled cars' own uncontrolled rows
+for j, c in enumerate(cars_u):
+    arr_u[j, :] = c["row"]
+for j, c in enumerate(cars_c):
+    arr_c_sessions[j, :] = c["row"]
 arr_c = arr_c_sessions                               # replaced by the ev_control rule before LoadShapes_EV.dss is written
+# Controlled cars' windows (None: every interval) and charging power for the ev_control rules
+windows_c = [c["window"] if EV_HOME_WINDOW else None for c in cars_c]
+power_c = [c["power_kw"] for c in cars_c]
 
 EV_HOSTS_OWN_BUS = []  # EV hosts without _1/_2 legs (three-phase loads): EV on the host's own bus
 
@@ -1010,6 +1034,10 @@ write_lines(os.path.join(OUT_DIR, LV_MONITORS_FILE), monitor_lines(LV_LOADS))
 EVC_DIR = os.path.join(CURRENT_DIR, "EVControl")
 EV_VALLEY_RULES = ("valley_fill_feeder", "valley_fill_transformer")
 
+if ACTIVATE_EV and (N_u + N_c) > 0:
+    os.makedirs(EVC_DIR, exist_ok=True)
+    cars_frame(cars).to_csv(os.path.join(EVC_DIR, "ev_cars.csv"), index=False)
+
 def ev_host_leg(base):
     """The load whose bus carries the EV legs of host base (as in ev_leg_infos):
     <base>_1 when both <base>_1 and <base>_2 are loads, else base itself."""
@@ -1086,7 +1114,10 @@ if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
         tr_names, tr_monitor, unc_on = [], {}, {}
         if EV_CONTROL == "valley_fill_transformer":
             dss_texts = [read_text(os.path.join(OUT_DIR, fn)) for fn in dss_files]
-            tr_map, tr_status = service_transformers(dss_texts, {n: i["bus1"] for n, i in parsed_loads_map.items()})
+            skipped_lines = []
+            tr_map, tr_status = service_transformers(dss_texts, {n: i["bus1"] for n, i in parsed_loads_map.items()},
+                                                     skipped_lines)
+            print(f"Service transformers -> switched-out lines (enabled=n) left out of the map: {len(skipped_lines)}")
             n_status = {s: sum(1 for v in tr_status.values() if v == s) for s in ("one", "none", "several")}
             print(f"Service transformers -> loads with one: {n_status['one']}, none: {n_status['none']}, "
                   f"several: {n_status['several']}")
@@ -1104,12 +1135,12 @@ if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
             car_curve = ["feeder"] * N_c
         feeder_p, trans_p = run_base_solve(tr_names)
         if EV_CONTROL == "valley_fill_feeder":
-            arr_c, _ = valley_fill(arr_c_sessions, feeder_p + unc_total)
+            arr_c, _ = valley_fill(arr_c_sessions, feeder_p + unc_total, windows_c)
         else:
             start_curves = {"feeder": feeder_p + unc_total}
             start_curves.update({t: trans_p[t] + unc_on[t] for t in tr_names})
             keys = [c if c in tr_monitor else "feeder" for c in car_curve]
-            arr_c, _ = valley_fill_curves(arr_c_sessions, start_curves, keys, "feeder")
+            arr_c, _ = valley_fill_curves(arr_c_sessions, start_curves, keys, "feeder", windows_c)
         curve_rows = []
         for name in ["feeder"] + tr_names:
             on = [j for j in range(N_c) if name == "feeder" or car_curve[j] == name]
@@ -1131,7 +1162,7 @@ if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
         cheap_period, cheap = cheap_intervals(tariff["rate"], month)
         print(f"Off-peak start -> {tariff['rate'].get('label')} month {month}: period {cheap_period}, "
               f"{len(cheap)} cheap intervals")
-        arr_c, starts = offpeak_start(arr_c_sessions, cheap, EV_NOMINAL_POWER_KW)
+        arr_c, starts = offpeak_start(arr_c_sessions, cheap, power_c, windows_c)
     car_rows = []
     for j, host in enumerate(json_ev_ct):
         s_row, c_row = arr_c_sessions[j, :], arr_c[j, :]
@@ -1145,7 +1176,10 @@ if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
             "car": f"EVc_{j}", "host": host, "rule": EV_CONTROL, "curve": car_curve[j],
             "energy_kw_intervals": s_row.sum(), "n_intervals": int(np.count_nonzero(c_row)),
             "first_interval_uncontrolled": first_interval(s_row), "first_interval_controlled": first_ctl,
-            "max_kw_uncontrolled": s_row.max(), "max_kw_controlled": c_row.max()})
+            "max_kw_uncontrolled": s_row.max(), "max_kw_controlled": c_row.max(),
+            "window_on": windows_c[j] is not None, "power_kw": power_c[j],
+            "delivered_kwh_controlled": c_row.sum() / 4.0,
+            "leftover_kwh_controlled": (s_row.sum() - c_row.sum()) / 4.0})
     cars_df = pd.DataFrame(car_rows)
     for col in ("first_interval_uncontrolled", "first_interval_controlled"):
         cars_df[col] = cars_df[col].astype("Int64")
