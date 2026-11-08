@@ -1,0 +1,61 @@
+# Inputs of the EV cars of the Phase 7 deploy (deployer_modules/ev_cars.py) and of
+# build_evwatts_extract.py. Each input holds a typical and a stress value and its
+# source. The deploy reads the typical values.
+
+# Charging power of a Level 2 home charger, kW.
+level2_kw:
+  typical: 7.2
+  stress: 7.2
+  source: "U.S. Department of Energy, Alternative Fuels Data Center: Electric Vehicle Charging Stations (most residential Level 2 chargers deliver 7.2 kW): https://afdc.energy.gov/fuels/electricity-stations"
+
+# Charging power of a Level 1 home charger, kW.
+level1_kw:
+  typical: 1.0
+  stress: 1.0
+  source: "U.S. Department of Transportation, Level 1 charging at about 1 kW: https://www.transportation.gov/node/211431"
+
+# kWh per mile = kwh_per_gallon_equivalent / mpge_bev, computed in ev_cars.py.
+kwh_per_gallon_equivalent:
+  typical: 33.7
+  stress: 33.7
+  source: "U.S. Environmental Protection Agency, Fuel Economy and EV Range Testing (a gallon of gasoline has the energy of 33.7 kWh of electricity): https://epa.gov/greenvehicles/fuel-economy-and-ev-range-testing"
+
+mpge_bev:
+  typical: 99.9
+  stress: 99.9
+  source: "U.S. Environmental Protection Agency, The 2025 EPA Automotive Trends Report, EPA-420-R-26-001, Table 4.1, average model year 2024 battery electric vehicle, 99.9 mpge: https://www.epa.gov/system/files/documents/2026-02/420r26001.pdf"
+  assumption: "ASSUMPTION: every EV car uses 33.7 / 99.9 = 0.337 kWh per mile driven, in every case and season, the average of the model year 2024 new battery EVs; the cars on the feeders are of mixed model years and include larger vehicles, and a lower mpge raises the energy of every NHTS vehicle-day car and its leftover kWh."
+
+# Share of cars that charge on the simulated weekday.
+# measured: from the EV WATTS extract (ev_cars.charging_share); all: every car.
+charging_share:
+  typical: measured
+  stress: all
+  source: "EV WATTS public database, U.S. Department of Energy, https://doi.org/10.15483/1970735"
+  assumption: "ASSUMPTION: each residential charger serves one car and is in service on every weekday between its first and last recorded session; s is the share of those weekdays with a session."
+
+# Months of the year the cars draw from. all: every month; season: the simulated season.
+months:
+  typical: all
+  stress: season
+  source: "EV WATTS public database, https://doi.org/10.15483/1970735; 2017 National Household Travel Survey, https://nhts.ornl.gov/assets/2016/download/Csv.zip"
+  assumption: "ASSUMPTION: cars draw EV WATTS sessions or NHTS vehicle-days of every month of the year, in summer and winter runs alike, so the draw pools hold every recorded weekday; drawing from the simulated season only would follow seasonal travel and charging more closely with fewer rows, and it moves plug-in times, energies and the share of cars charging."
+
+# Check curve of ev_cars: session_rows, under data_ev/ (a copy of the Team-Nando files).
+check_curve:
+  folder: data_ev/without_daily_plug_in_factor
+  typical: "Weekday - Level 2 - Diversified (Median) of 100 EVs.csv"
+  stress: "Weekday - Level 2 - Diversified (75th percentile) of 100 EVs.csv"
+  source: "Team-Nando, EV-Demand-Profiles, at commit 348e1413753ed21c10535706ed8fc3cb5bab0ec9: https://github.com/Team-Nando/EV-Demand-Profiles/tree/348e1413753ed21c10535706ed8fc3cb5bab0ec9"
+  assumption: "ASSUMPTION: under session_rows each charging car takes the daily energy per plugged-in EV of the Team-Nando weekday Level 2 diversified curve without a daily plug-in factor (21.48 kWh for the median of 100 EVs); the curve comes from UK home charging and serves as a check on the measured US sources, and a higher curve raises the energy of every charging car."
+
+# Census division of each donor state; EV WATTS records the division of each charger, not its state.
+census_division:
+  typical:
+    NC: South Atlantic
+    TX: West South Central
+  stress:
+    NC: South Atlantic
+    TX: West South Central
+  source: "U.S. Department of Energy, Table 2: U.S. Geographic Areas and Census Regions: https://www.energy.gov/fecm/articles/table-2-us-geographic-areas-and-census-regions"
+  assumption: "ASSUMPTION: NC cars draw EV WATTS sessions of chargers in the South Atlantic division and TX cars of chargers in the West South Central division, because EV WATTS gives no state; the division's other states (for example Florida and Georgia, or Oklahoma and Louisiana) shape the sessions, and a state-level source would move plug-in times, energies and the share of cars charging."
