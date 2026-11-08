@@ -178,7 +178,7 @@ print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
 print(f"  Mixes defined: {list(mixes.keys())}")
 
 # Show what the instantiation will produce
-print(f"\n  Expected circuit folders after instantiation:")
+print("\n  Expected circuit folders after instantiation:")
 try:
     reg_path = REGISTRY_PATH
     with reg_path.open("r", encoding="utf-8") as f:
@@ -208,8 +208,6 @@ else:
     print("  EXPECTED STRUCTURE:")
     print("    7_circuit_instantiation/data_ev/")
     print("      without_daily_plug_in_factor/")
-    print("        *.csv  (EV charging profile CSVs)")
-    print("      with_daily_plug_in_factor_70/")
     print("        *.csv  (EV charging profile CSVs)")
     print()
     print("  WORKAROUND (if you can't locate them right now):")
@@ -242,11 +240,11 @@ for label, ok in checks.items():
     print(f"  {status} {label}")
 
 if all_ok:
-    print(f"\n  🎉 ALL CHECKS PASS — ready to run Phase 7!")
+    print("\n  🎉 ALL CHECKS PASS - ready to run Phase 7!")
 else:
-    print(f"\n  ⚠️  Some checks failed — resolve before running Phase 7")
+    print("\n  ⚠️  Some checks failed - resolve before running Phase 7")
     if not data_ev_target.is_dir():
-        print(f"    → data_ev: copy from another machine OR set ACTIVATE_EV=False")
+        print("    → data_ev: copy from another machine OR set ACTIVATE_EV=False")
 
 print(f"\n{SEP}")
 print(f"  Preparation complete: {datetime.now().isoformat()}")

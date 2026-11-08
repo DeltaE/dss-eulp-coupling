@@ -209,9 +209,8 @@ def _make_scenario_dicts_from_unit(U, case_ids, fixed_case0, bounds, ev_split_fi
     n = len(case_ids)
     col = 0
 
-    # shares
-    shares = _dirichlet_from_uniform(U[:, col:col+3]); col += 3
-    # baseline = shares[:, 0]; dm = shares[:, 1]; un = shares[:, 2]
+    # shares: the first three columns of U are skipped; the shares are fixed below
+    col += 3
     '''
     Here we will add the shares of heat pumps that keep a fuel backup (dm) to look at the impact
     '''

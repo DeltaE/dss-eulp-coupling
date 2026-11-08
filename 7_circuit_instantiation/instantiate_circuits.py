@@ -18,12 +18,10 @@ instantiate_circuits.py  (procedural; mixes with EV split)
 Keeps the procedural style and your working behaviors.
 """
 
-import os, re, sys, time, json, pickle, shutil, csv, hashlib
-from copy import deepcopy
+import os, re, sys, time, json, shutil, csv, hashlib
 from pathlib import Path
 from typing import Optional, Iterable
 from collections import defaultdict
-import math, random
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import load_config, load_feeder_registry, peak_day_rule, resolve_work_path
@@ -778,7 +776,6 @@ try:
         "n_daily_baseline","n_daily_dm","n_daily_un","N_daily_total",
         "n_base_baseline","n_base_dm","n_base_un","N_base_total",
     ]
-    import csv, json
     with open(sum_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=sum_fields)
         w.writeheader()

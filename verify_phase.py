@@ -96,7 +96,6 @@ def phase_header(name):
 
 def _run_phase(phase_key, func):
     """Execute a phase function with timing and per-phase result tracking."""
-    global _pass, _fail
     p0, f0 = _pass, _fail
     t0 = time.perf_counter()
     func()
@@ -510,7 +509,7 @@ def main():
     # ── Anchor all relative paths to the workspace root, or the mix's subtree ──
     os.chdir(os.path.join(WORK_ROOT, "mix_days", args.mix) if args.mix else WORK_ROOT)
 
-    print(f"\n  verify_phase.py")
+    print("\n  verify_phase.py")
     print(f"  Config: State={STATE}  Season={SEASON}  Scenario={SCENARIO}"
           f"{'  Mix=' + args.mix if args.mix else ''}")
     print(f"  Parquet root: {PARQUET_ROOT}")

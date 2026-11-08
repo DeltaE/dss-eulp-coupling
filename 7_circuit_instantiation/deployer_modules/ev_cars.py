@@ -31,7 +31,6 @@ from heating_split import _stable_seed_offset
 
 N_INTERVALS = 96
 VALUE_SET = "typical"
-GROUPS = ("uncontrolled", "controlled")
 EVWATTS_EXTRACT_FILE = "evwatts_residential_l2_weekday.csv"
 NHTS_EXTRACT_FILE = "{state}_nhts2017_vehicle_days.csv"
 EPS = 1e-9

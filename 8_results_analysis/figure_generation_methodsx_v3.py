@@ -100,14 +100,6 @@ def load_aggregate(path):
     return df
 
 
-def load_circuit_summary(path):
-    """Load circuit summary with transformer ratings."""
-    cs = pd.read_csv(path)
-    cs.columns = cs.columns.str.strip()
-    cs["state"] = cs["design"].map(PROV_TO_STATE)
-    return cs
-
-
 def load_matching_csvs(file_dict):
     """
     Load commercial matching CSVs from the Stage 3B pipeline.
@@ -140,7 +132,7 @@ def load_matching_csvs(file_dict):
         frames.append(out)
 
     if missing:
-        print(f"\n  !  Missing or invalid matching files:")
+        print("\n  !  Missing or invalid matching files:")
         for st, fp in missing:
             print(f"     {st}: {fp}")
 

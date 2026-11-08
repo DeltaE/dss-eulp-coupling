@@ -115,7 +115,6 @@ def sec1_structural(df, data, summ, peaks):
           f"(columns are redundant)")
     ts_map = df.groupby("topology")["substation"].nunique()
     print(f"topology -> substation is 1:1     : {'OK' if (ts_map==1).all() else 'MISMATCH'}")
-    cf_map = df.groupby("circuit_folder").size()
     n_cf = df['circuit_folder'].nunique()
     print(f"circuit_folder values             : found {n_cf} of {EXPECT_CIRCUIT_FOLDERS} "
           f"(subst x feeder x scenario)  {'OK' if n_cf >= EXPECT_CIRCUIT_FOLDERS else 'MISSING'}")
@@ -316,7 +315,7 @@ def sec7_anomalies(df, data, summ, peaks):
     xf = summ[["case", "season", "scenario", "feeder", CAP_COL]]
     m = peaks.merge(xf, on=["case", "season", "scenario", "feeder"], how="left")
     m["loading_pct"] = 100 * m["peak_kVA"] / m[CAP_COL]
-    print(f"\n[f] Feeder-head peak_kVA vs feeder_head_kva thermal capacity:")
+    print("\n[f] Feeder-head peak_kVA vs feeder_head_kva thermal capacity:")
     print(m.groupby(["topology", "feeder"])
           .agg(feeder_head_kva=(CAP_COL, "first"),
                peak_kVA_max=("peak_kVA", "max"),

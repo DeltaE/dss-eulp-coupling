@@ -82,32 +82,6 @@ def make_session():
     s.headers.update({"User-Agent": "oedi-s3-fetch/1.0"})
     return s
 
-def s3_list_common_prefixes(bucket, prefix, delimiter="/", session=None):
-    """
-    Returns a list of 'folder-like' prefixes directly under `prefix`.
-    Uses ListObjectsV2 with delimiter to emulate directories.
-    """
-    if session is None:
-        session = make_session()
-    base = f"https://{bucket}.s3.amazonaws.com/?list-type=2&delimiter={quote(delimiter)}&prefix={quote(prefix)}"
-    ns = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
-    results = []
-    token = None
-    while True:
-        url = base if token is None else f"{base}&continuation-token={quote(token)}"
-        r = session.get(url, timeout=REQUEST_TIMEOUT)
-        r.raise_for_status()
-        root = ET.fromstring(r.text)
-        for cp in root.findall("s3:CommonPrefixes", ns):
-            p = cp.find("s3:Prefix", ns).text
-            results.append(p)
-        trunc = root.find("s3:IsTruncated", ns)
-        if trunc is not None and trunc.text == "true":
-            token = root.find("s3:NextContinuationToken", ns).text
-        else:
-            break
-    return results
-
 def s3_list_objects(bucket, prefix, session=None, suffix=None):
     """
     Returns a list of Keys under prefix. If suffix is given, filters by it.

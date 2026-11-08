@@ -15,8 +15,8 @@ Inputs
 - <circuit>/scenario_assignments.json: ev.lvl2_perc, ev.effective_seed,
   ev_loads_uncontrolled, ev_loads_controlled (or ev_loads, split in half when both are
   empty), storage_targets, pv_targets, season.
-- <circuit>/data_ev/: the Team-Nando EV charging profiles (see pfs_ev_base_profiles);
-  under ev_cars session_rows the check curve of ev_inputs.yaml.
+- <circuit>/data_ev/: two Team-Nando EV charging profiles; under ev_cars session_rows
+  the check curve of ev_inputs.yaml (pfs_ev_base_profiles).
 - ev_cars and ev_home_window in pipeline_config.yaml: the source of the EV cars and
   whether controlled charging stays inside each car's plug-in window at home.
 - <repo>/7_circuit_instantiation/data_ev_cars/ev_inputs.yaml (typical values) and,
@@ -52,7 +52,7 @@ Steps
    evwatts_sessions and session_rows the measured share of cars charges today. Each
    car's uncontrolled row comes from its own EV WATTS session (evwatts_sessions), NHTS
    vehicle-day (nhts_days) or block on the check curve (session_rows), with its
-   plug-in window at home. Writes data_ev/df_enatd.csv (process_vehicle_data).
+   plug-in window at home.
 2. Copies every .dss file of the feeder (except *_original*) into ModifiedCircuitData/
    and points LoadShapes.dss at ../../profiles_use_bench/<circuit>/.
 3. Appends two EV loads per host (EVu_<host>_1 and _2, or EVc_, kW=0.5 each, pf=1)
@@ -111,7 +111,6 @@ Outputs
   load, step and phase conductor), load_voltage_steps.csv (one row per step, customer
   loads only) and load_voltage_loads.csv (one row per load). The parquet and the load
   table mark EV legs in ev_leg. Columns in docs/outputs.md.
-- <circuit>/data_ev/df_enatd.csv (written by process_vehicle_data on every run).
 - <circuit>/EVControl/ev_cars.csv (when the circuit has EV cars): one row per car.
 - <circuit>/EVControl/ (when the circuit has controlled cars and ev_control is not
   uncontrolled): ev_control_cars.csv (one row per controlled car); under the valley
@@ -154,19 +153,18 @@ Stops (exit 1 unless noted)
   or a monitor without 96 steps.
 - offpeak_start: the tariff file missing; without a window, a car's energy longer
   than the day at its power (ValueError).
-- Uncaught exception: for example data_ev/ missing (FileNotFoundError).
+- Uncaught exception: for example the check curve in data_ev/ missing under
+  session_rows (FileNotFoundError).
 - Solution.Converged is not True after Compile, or the circuit was not compiled.
 - exit 0 otherwise.
 """
 
-import os, re, sys, csv, time, json, math, shutil, random, cmath
+import os, re, sys, csv, time, json, shutil
 import numpy as np, pandas as pd
-from copy import deepcopy
 
 # -----------------------
 # Knobs
 # -----------------------
-DEFAULT_EV_PERC      = 0.10
 DEFAULT_EV_L2_PERC   = 0.80
 
 # Storage sizing vs load peak (ratios and minimums: der_sizing in pipeline_config.yaml)
@@ -228,13 +226,7 @@ def resolve_dss_file(directory, filename):
 CURRENT_DIR = os.path.dirname(os.path.realpath(__file__))
 ROOT        = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
 sys.path.insert(0, os.path.join(ROOT, 'deployer_modules'))
-from pfs_parsing_misc import parse_transformers, parse_lines, parse_loads, can_add_more, update_target_sums, linear_interpolate
-from pfs_file_processing import modify_master_file, modify_dss_files
-from pfs_ev_plotting import plot_calibration, plot_sessions_heatmap, plot_combined_profile_sessions
-from pfs_heatpump_plotting import plot_combined_heatpump_sessions
-from pfs_write_csv_1 import write_simulation_results_to_csv
 from pfs_ev_base_profiles import process_vehicle_data
-from pfs_hp_base_profiles import generate_heatpump_profiles
 from dss_engine import create_dss_engine
 from load_voltage import monitor_lines, read_load_monitors, load_voltage_frame, step_table, load_table
 from ev_control import valley_fill, valley_fill_curves, monitor_p_kw, service_transformers, cheap_intervals, offpeak_start
@@ -310,9 +302,8 @@ if not isinstance(ASSIGN, dict):
 print(f"[OK] Loaded scenario assignments: {ASSIGN_PATH}")
 
 # EV params
-ev_perc           = clamp01(ASSIGN.get("ev", {}).get("perc", DEFAULT_EV_PERC))
 lvl2_charger_perc = clamp01(ASSIGN.get("ev", {}).get("lvl2_perc", DEFAULT_EV_L2_PERC))
-print(f"EV params -> perc={ev_perc:.2f}, L2 share={lvl2_charger_perc:.2f}")
+print(f"EV params -> L2 share={lvl2_charger_perc:.2f}")
 
 # Read Loads.dss (for bases + daily mapping)
 PATH_LOADS_DSS = resolve_dss_file(CIRCUIT_DIR, 'Loads.dss')
@@ -688,13 +679,6 @@ def assert_monitor_exports(master_path, monitor_names, search_dir):
             f"(circuit={circuit_name}, dir={search_dir})"
         )
 
-# ---------------- EV comparison file ----------------
-if ACTIVATE_EV:
-    # write_comparison_csv=True writes data_ev/df_enatd.csv (all 24 data_ev/ files stacked;
-    # data_ev/ is copied into the circuit folder by instantiate_circuits.py). The returned
-    # curve is not used by the cars.
-    process_vehicle_data(CURRENT_DIR, write_comparison_csv=True)
-
 # ---------------- EV host lists from JSON ----------------
 json_ev_un = ASSIGN.get("ev_loads_uncontrolled", []) if isinstance(ASSIGN, dict) else []
 json_ev_ct = ASSIGN.get("ev_loads_controlled",   []) if isinstance(ASSIGN, dict) else []
@@ -742,7 +726,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
     if EV_CARS in ("nhts_days", "session_rows"):
         ev_nhts_pool = read_nhts_pool(os.path.join(ROOT, "data_ev_cars", NHTS_EXTRACT_FILE.format(state=ev_state)))
     if EV_CARS == "session_rows":
-        ev_check_curve = process_vehicle_data(CURRENT_DIR, write_comparison_csv=False,
+        ev_check_curve = process_vehicle_data(CURRENT_DIR,
                                               profile_folder=EV_INPUTS["check_curve_folder"],
                                               profile_file=EV_INPUTS["check_curve_file"])
     for group, hosts in (("uncontrolled", json_ev_un), ("controlled", json_ev_ct)):
