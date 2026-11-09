@@ -8,7 +8,8 @@ counts by largest remainder, labels that match those counts, and the same labels
 second call with the same inputs. On eight loads that share five loadshapes: the
 building unit (exact counts over loadshapes, one label per loadshape) and the customer
 unit (the labels of the rule before heating_label_unit). load_segment on residential,
-commercial, mixed and missing loadshapes. Also checks that pipeline_utils.peak_day_rule
+commercial, mixed and missing loadshapes. line_shares on hand-written Load lines: even
+and uneven legs, a one-line load, a kvar fallback, a kW sum of 0 and exponents. Also checks that pipeline_utils.peak_day_rule
 and heating_label_unit stop on a missing or unknown value, and that
 pipeline_config.yaml holds per_circuit and building.
 
@@ -23,7 +24,7 @@ import yaml
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation"))
-from heating_split import is_baseline_only, load_segment, split_heating  # noqa: E402
+from heating_split import is_baseline_only, line_shares, load_segment, split_heating  # noqa: E402
 from pipeline_utils import heating_label_unit, peak_day_rule  # noqa: E402
 
 with open(os.path.join(REPO_ROOT, "0_experimental_design", "mixes_fixed.yaml"), encoding="utf-8") as _f:
@@ -162,6 +163,37 @@ def test_heating_label_unit_setting():
             raise AssertionError(cfg)
     with open(os.path.join(REPO_ROOT, "pipeline_config.yaml"), encoding="utf-8") as f:
         assert heating_label_unit(yaml.safe_load(f)) == "building"
+
+
+def _load(name, kw, kvar):
+    return (f"New Load.{name} conn=wye bus1=b.1 kV=0.12 Vminpu=0.8 Vmaxpu=1.2 model=1 "
+            f"kW={kw} kvar={kvar} Phases=1 yearly=res_kw_1_pu\n")
+
+
+def test_line_shares():
+    lines = [_load("load_a_1", 5.99, 1.67), _load("load_a_2", 5.99, 1.67), "\n",
+             _load("load_b_1", 4, 1), _load("load_b_2", 8, 3),
+             _load("load_c", 33.5, 6.8),
+             _load("load_d_1", 2, 0), _load("load_d_2", 6, 0),
+             _load("load_e_1", "5.99e+00", "1.5E-01"), _load("load_e_2", "1.198e1", "4.5e-1")]
+    shares, n_fallback = line_shares(lines)
+    assert shares["load_a_1"] == (0.5, 0.5) and shares["load_a_2"] == (0.5, 0.5)
+    assert abs(shares["load_b_1"][0] - 1 / 3) < 1e-12 and abs(shares["load_b_2"][0] - 2 / 3) < 1e-12
+    assert shares["load_b_1"][1] == 0.25 and shares["load_b_2"][1] == 0.75
+    assert shares["load_c"] == (1.0, 1.0)
+    assert shares["load_d_1"] == (0.25, 0.25) and shares["load_d_2"] == (0.75, 0.75)
+    assert n_fallback == 2
+    assert abs(shares["load_e_1"][0] - 1 / 3) < 1e-12 and abs(shares["load_e_2"][1] - 0.75) < 1e-12
+    assert len(shares) == 9
+
+
+def test_line_shares_kw_sum_zero_stops():
+    try:
+        line_shares([_load("load_z_1", 0, 1), _load("load_z_2", 0.0, 1)])
+    except SystemExit as e:
+        assert e.code == 1
+    else:
+        raise AssertionError("kW sum of 0 did not stop")
 
 
 if __name__ == "__main__":

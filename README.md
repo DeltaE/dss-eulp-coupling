@@ -169,6 +169,8 @@ Phase 7b and phase `mix_days` deal the heating groups (baseline, dm, uncontrolle
 
 Phase 7b and phase `mix_days` stop on any other value. Every load runs on a building profile: Phase 7b stops with `[FAIL]` and the loadshape name when a loadshape has no kW or kvar CSV, and `missing_files_report.json` stays empty.
 
+SMART-DS writes a customer on a 120/240 V service as two Load lines, `<customer>_1` and `<customer>_2`, one on each 120 V leg, for example `load_p1ulv10415_1` and `load_p1ulv10415_2` in https://oedi-data-lake.s3.amazonaws.com/SMART-DS/v1.0/2018/GSO/urban-suburban/scenarios/base_timeseries/opendss/uhs13_1247/uhs13_1247--udt4819/Loads.dss. Phase 7b splits each customer's building curve over its Load lines: each line takes as kW its share of the customer's SMART-DS kW (the line's kW in the feeder's `Loads.dss` over the sum over the customer's lines) and as kvar its share of the customer's SMART-DS kvar (`heating_split.line_shares`). A customer on two 120 V legs draws its building once, half on each leg, and a one-line load takes its whole building curve. A customer whose kvar sum is 0 takes its kW shares as kvar shares; a customer whose kW sum is 0 stops Phase 7b with `[FAIL]`. Phase 7b prints the count of customers by number of lines per circuit.
+
 Phase 7b classes each load as residential when every loadshape of the load starts `res_`, commercial when every one starts `com_`, and prints the counts per circuit. EV hosts are drawn among the residential loads only, so `ev_perc` of a mix is the share of homes with an EV.
 
 ## EV cars

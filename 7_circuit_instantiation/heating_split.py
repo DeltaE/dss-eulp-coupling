@@ -8,12 +8,15 @@ and mix; find_max_day_curve_impl.py --mix (phase mix_days) calls read_loads and
 split_heating on the same Loads.dss to find the circuit's peak day. load_segment classes
 a load name as residential or commercial from its loadshape names; Phase 7b draws EV
 hosts among the residential ones.
+line_shares gives every Load line its share of its customer's SMART-DS kW and kvar;
+Phase 7b writes those shares as the line's kW and kvar.
 """
 
 import hashlib
 import math
 import random
 import re
+import sys
 
 
 def _stable_seed_offset(key: str) -> int:
@@ -64,6 +67,45 @@ def load_segment(base, base_to_daily):
     if names and all(ls.startswith('com_') for ls in names):
         return 'commercial'
     return None
+
+
+def line_shares(lines):
+    """Share of every Load line in its customer's SMART-DS kW and kvar. lines are the
+    New Load. lines of one feeder's SMART-DS Loads.dss; a customer is the load name
+    without its _<n> leg suffix. Returns ({load name: (kw_share, kvar_share)}, n_fallback):
+    kw_share is the line's kW over the customer's kW sum, kvar_share the same for kvar.
+    A customer whose kvar sum is 0 or missing takes its kW shares; n_fallback counts
+    those lines. A customer whose kW sum is 0 or missing stops the run."""
+    num = r"\s*([-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)"
+    by_base = {}
+    for raw in lines:
+        line = raw.strip()
+        if not line.lower().startswith('new load.'):
+            continue
+        m_name = re.search(r"New\s+Load\.(\S+)", line, flags=re.IGNORECASE)
+        if not m_name: continue
+        full = m_name.group(1)
+        base = re.sub(r"_[0-9]+$", "", full)
+        m_kw = re.search(r"\bkW=" + num, line, flags=re.IGNORECASE)
+        m_kvar = re.search(r"\bkvar=" + num, line, flags=re.IGNORECASE)
+        by_base.setdefault(base, []).append((full, float(m_kw.group(1)) if m_kw else 0.0,
+                                             float(m_kvar.group(1)) if m_kvar else 0.0))
+    shares = {}
+    n_fallback = 0
+    for base, rows in by_base.items():
+        kw_sum = sum(r[1] for r in rows)
+        kvar_sum = sum(r[2] for r in rows)
+        if kw_sum == 0:
+            print(f"[FAIL] customer {base} has a SMART-DS kW sum of 0 or no kW over its Load lines.")
+            sys.exit(1)
+        for full, kw, kvar in rows:
+            kw_share = kw / kw_sum
+            if kvar_sum == 0:
+                shares[full] = (kw_share, kw_share)
+                n_fallback += 1
+            else:
+                shares[full] = (kw_share, kvar / kvar_sum)
+    return shares, n_fallback
 
 
 def split_heating(unique_bases, base_to_daily, shares, heating_seed, substation_name, feeder_name,

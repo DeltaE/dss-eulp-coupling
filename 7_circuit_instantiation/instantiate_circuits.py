@@ -6,7 +6,8 @@ instantiate_circuits.py  (procedural; mixes with EV split)
 - For each feeder × mix:
     * Copies feeder into <substation>_circuit_<idx>_<mix_name>/
     * Rewrites LoadShapes.dss to consolidated ../profiles_use_bench/<circuit>/
-    * Normalizes Loads.dss (yearly->daily, kW=1, kvar=1); a loadshape without CSVs stops the run
+    * Normalizes Loads.dss (yearly->daily; kW and kvar = the line's share of its customer's
+      SMART-DS kW and kvar, heating_split.line_shares); a loadshape without CSVs stops the run
     * Assigns EV/PV/Storage:
          - EV hosts drawn among residential loads (heating_split.load_segment)
          - EV split into *uncontrolled* and *controlled* disjoint sets
@@ -30,7 +31,7 @@ from typing import Optional, Iterable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
                             peak_day_rule, resolve_work_path)
-from heating_split import is_baseline_only, load_segment, split_heating
+from heating_split import is_baseline_only, line_shares, load_segment, split_heating
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deployer_modules'))
 from der_sizing import SEGMENTS, der_choice, der_switch, pick_hosts, segment_count
 
@@ -521,16 +522,31 @@ for feeder in feeders:
         with lshp_path.open('w', encoding='utf-8') as f:
             f.writelines(new_lines)
 
-        # Normalize Loads.dss
+        # Normalize Loads.dss: each line's kW and kvar are its share of the customer's
+        # SMART-DS kW and kvar (heating_split.line_shares), so a customer draws its building once
         with loads_path.open('r', encoding='utf-8') as f:
             orig = f.readlines()
+        shares_kw, n_kvar_fallback = line_shares(orig)
+        n_lines = {}
+        for full in shares_kw:
+            b = re.sub(r"_[0-9]+$", "", full)
+            n_lines[b] = n_lines.get(b, 0) + 1
+        by_count = {}
+        for k in n_lines.values():
+            by_count[k] = by_count.get(k, 0) + 1
+        print(f"  • Load lines per customer ({dst_folder_name}): "
+              + ", ".join(f"{k} line(s)={by_count[k]}" for k in sorted(by_count))
+              + f"; kvar fallbacks={n_kvar_fallback}")
+        num = r"\s*[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
         upd = []
         for line in orig:
             if line.lower().startswith('new load.'):
                 if 'yearly=' in line:
                     line = re.sub(r'yearly=', 'daily=', line, flags=re.IGNORECASE)
-                if 'kW='   in line: line = re.sub(r"kW=\s*\d+(\.\d+)?",   "kW=1", line)
-                if 'kvar=' in line: line = re.sub(r"kvar=\s*\d+(\.\d+)?", "kvar=1", line)
+                m_name = re.search(r"New\s+Load\.(\S+)", line, flags=re.IGNORECASE)
+                kw_share, kvar_share = shares_kw[m_name.group(1)]
+                if 'kW='   in line: line = re.sub(r"kW=" + num,   f"kW={format(kw_share, '.10g')}", line)
+                if 'kvar=' in line: line = re.sub(r"kvar=" + num, f"kvar={format(kvar_share, '.10g')}", line)
             upd.append(line)
         with loads_path.open('w', encoding='utf-8') as f:
             f.writelines(upd)
