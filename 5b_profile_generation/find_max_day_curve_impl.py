@@ -89,8 +89,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import (load_config, load_feeder_registry, load_mixes, peak_day_rule,
-                            resolve_config_path, resolve_work_path)
+from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
+                            peak_day_rule, resolve_config_path, resolve_work_path)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation'))
 from heating_split import is_baseline_only, read_loads, split_heating
 
@@ -254,6 +254,7 @@ def run_mix(mix_name):
     mix_cfg = mixes[mix_name]
     shares = mix_cfg['shares']
     heating_seed = int(mix_cfg.get('heating_seed', 123))  # same default as Phase 7b
+    label_unit = heating_label_unit(cfg)
 
     # Feeders as Phase 7b finds them
     registry = load_feeder_registry()
@@ -298,7 +299,7 @@ def run_mix(mix_name):
         # 1) Labels, as Phase 7b gives them
         unique_bases, base_to_daily = read_loads(loads_src)
         heat = split_heating(unique_bases, base_to_daily, shares, heating_seed,
-                             substation_name, feeder_name)
+                             substation_name, feeder_name, unit=label_unit)
         daily_to_scen = heat["daily_to_scen"]
         loads_of = {}
         for base in sorted(base_to_daily):

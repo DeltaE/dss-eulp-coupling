@@ -4,7 +4,8 @@ test_ev_cars.py
 ---------------
 ev_cars.py (Phase 7 deploy, the EV cars) and the two extract scripts on small
 hand-made data: the seeds, the level and charging draws, charge_shape and the plug-in
-window, the share of cars charging, the NHTS day classes and windows, the EV WATTS
+window, the share of cars charging, the NHTS day classes and windows, the NHTS speed
+check (class iv), the EV WATTS
 extract filters, the repaired 2024 generator, and the ev_cars, ev_home_window and
 ev_day settings.
 
@@ -109,7 +110,7 @@ def test_nhts_day_classes_and_windows():
         _trip("4", "01", "2200", "2300", "03", "01", 1.0),
         _trip("4", "01", "0200", "0230", "01", "03", 1.0),
     ])
-    days = vehicle_days(veh, trips).set_index(["HOUSEID", "VEHID"])
+    days = vehicle_days(veh, trips, 85).set_index(["HOUSEID", "VEHID"])
     a = days.loc[("1", 1)]
     assert a["day_class"] == "i"
     assert (a["arrival_min"], a["departure_min"], a["window_min"]) == (120, 420, 300)
@@ -121,6 +122,36 @@ def test_nhts_day_classes_and_windows():
     assert days.loc[("3", 1), "window_min"] == 270    # d' - a' when d' >= a'
     c = days.loc[("4", 1)]
     assert (c["arrival_min"], c["departure_min"], c["window_min"]) == (1380, 120, 180)
+
+
+def test_nhts_speed_check():
+    # Each house leaves home and returns home (class i unless a trip is too fast).
+    # speed = miles / ((end - start, plus 1440 when negative, + 1) / 60), limit 85 mph.
+    legs = {
+        "1": ("0800", "0830", 30.0),     # 30 / (31/60) = 58.1 mph: passes
+        "2": ("0800", "0830", 60.0),     # 60 / (31/60) = 116.1 mph: class iv
+        "3": ("0800", "0900", 400.0),    # 400 / (61/60) = 393.4 mph: class iv
+        "4": ("2350", "0010", 10.0),     # across midnight, 20 min: 28.6 mph, passes
+        "5": ("2350", "0010", 40.0),     # across midnight, 20 min: 114.3 mph, class iv
+        "6": ("-9", "0900", 400.0),      # missing start time: not tested
+        "7": ("0800", "0830", -9.0),     # missing miles: not tested
+    }
+    veh = pd.DataFrame({"HOUSEID": list(legs), "VEHID": ["01"] * 7, "TDAYDATE": ["201608"] * 7,
+                        "TRAVDAY": ["03"] * 7, "WTHHFIN": [1.0] * 7})
+    trips = []
+    for hid, (start, end, miles) in legs.items():
+        trips.append(_trip(hid, "01", start, end, "01", "03", miles))
+        trips.append(_trip(hid, "01", "1700", "1730", "03", "01", 5.0))
+    days = vehicle_days(veh, pd.DataFrame(trips), 85).set_index("HOUSEID")
+    assert days.loc["1", "day_class"] == "i" and days.loc["4", "day_class"] == "i"
+    for hid in ("2", "3", "5"):
+        d = days.loc[hid]
+        assert d["day_class"] == "iv", hid
+        assert pd.isna(d["arrival_min"]) and pd.isna(d["departure_min"]) and pd.isna(d["window_min"]), hid
+    # missing start time: not tested; its departure from home has no time, so class iii
+    assert days.loc["6", "day_class"] == "iii"
+    assert days.loc["7", "day_class"] == "i"      # missing miles: not tested
+    assert np.isclose(days.loc["3", "driver_miles"], 405.0)
 
 
 def test_evwatts_extract_filters():

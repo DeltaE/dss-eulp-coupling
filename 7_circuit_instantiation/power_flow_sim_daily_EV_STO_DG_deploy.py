@@ -56,7 +56,8 @@ Steps
    WATTS session (evwatts_sessions), NHTS vehicle-day (nhts_days) or block on the check
    curve (session_rows), with its plug-in window at home. Under months season the EV
    WATTS and NHTS pools keep the season_months of the simulated season only; under
-   charging_share all the nhts_days pool keeps class (i) days only.
+   charging_share all the NHTS pool of nhts_days and session_rows keeps class (i) days
+   only.
 2. Copies every .dss file of the feeder (except *_original*) into ModifiedCircuitData/
    and points LoadShapes.dss at ../../profiles_use_bench/<circuit>/.
 3. Appends two EV loads per host (EVu_<host>_1 and _2, or EVc_, kW=0.5 each, pf=1)
@@ -105,13 +106,13 @@ Steps
      service transformer uses the feeder curve. Every placed car also joins the feeder
      curve.
    - offpeak_start: on the simulated day's month row of the weekday schedule of the
-     saved tariff (the cars draw weekdays), each car starts at the first cheap
-     interval of its window (its plug-in interval when none is cheap), or without a
-     window at the first cheap interval at or after its first charging interval. A car
-     whose start is cheap moves it by round(z x start_spread_min / 15) intervals
-     (start_offsets, z from rng(start_spread_controlled)), clamped into its window or
-     wrapped modulo 96 without one. It charges at its own power until its energy is
-     delivered or the window ends.
+     saved tariff (the cars draw weekdays), each car whose window holds a cheap
+     interval (or that has no window) has a schedule time: the start of the cheap
+     period it meets, moved by round(z x start_spread_min / 15) intervals
+     (start_offsets, z from rng(start_spread_controlled)). It starts at the later of its
+     schedule time and its plug-in, capped at the end of its window (ev_control.offpeak_row);
+     a window with no cheap interval starts at plug-in. It charges at its own power until
+     its energy is delivered or the window ends.
    Then writes LoadShapes_EV.dss (EVu_i, EVc_i, 4 decimals).
 8. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
    and reads Solution.Converged.
@@ -751,7 +752,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
               f"{ev_months_text}, measured share of cars charging {ev_share_measured:.6f}, "
               f"share used {ev_share:.6f}")
     if EV_CARS in ("nhts_days", "session_rows"):
-        ev_nhts_classes = ("i",) if (EV_CARS == "nhts_days" and EV_INPUTS["charging_share"] == "all") else ("i", "ii")
+        ev_nhts_classes = ("i",) if EV_INPUTS["charging_share"] == "all" else ("i", "ii")
         ev_nhts_pool = read_nhts_pool(os.path.join(ROOT, "data_ev_cars", NHTS_EXTRACT_FILE.format(state=ev_state)),
                                       ev_months, ev_nhts_classes)
         print(f"EV cars -> NHTS pool: {len(ev_nhts_pool)} vehicle-days of {ev_state}, {ev_months_text}, "

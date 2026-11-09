@@ -6,7 +6,7 @@ input_files:
 - hhpub.csv
 - trippub.csv
 - vehpub.csv
-built_utc: '2026-11-08T22:52:19Z'
+built_utc: '2026-11-09T05:42:50Z'
 filters:
 - HHSTATE NC or TX
 - VEHTYPE 01 to 04
@@ -18,12 +18,16 @@ filters:
 window_rule: 'class i: window_min = d'' - a'' when d'' >= a'', else d'' + 1440 - a'',
   with x'' = (x - 240) mod 1440, a the last arrival home and d the first departure
   from home'
+speed_rule: 'class iv: a driver trip with a valid start, end and miles faster than
+  85 mph, speed = miles / ((end - start, plus 1440 when negative, + 1) / 60)'
 rows_per_state_and_class:
   NC:
-    i: 8182
+    i: 8096
     ii: 5509
-    iii: 932
+    iii: 913
+    iv: 105
   TX:
-    i: 23634
+    i: 23448
     ii: 12655
-    iii: 2527
+    iii: 2498
+    iv: 215

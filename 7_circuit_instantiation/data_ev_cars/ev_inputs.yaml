@@ -99,4 +99,12 @@ start_spread_min:
   typical: 60
   stress: 15
   source: "Uplight, What Does EV Charging Data Tell Us About TOU Program Effectiveness? (users often start charging right at the beginning of the off-peak period, often within the first minute): https://uplight.com/blog/what-does-ev-charging-data-tell-us-about-tou-program-effectiveness/"
-  assumption: "ASSUMPTION: Cars on a time-of-use timer start around the start of the cheap period, normally distributed with a standard deviation of 60 minutes on a typical day and 15 minutes on a stress day, when more cars start at the same moment; field data report clustered timer starts at the start of off-peak periods (Uplight), and a narrower spread raises the fleet's peak at that moment."
+  assumption: "ASSUMPTION: cars on a time-of-use schedule set their start around the start of the cheap period, normally distributed with a standard deviation of 60 minutes on a typical day and 15 minutes on a stress day, when more cars start at the same moment; field data show many users start charging at the beginning of the off-peak period (Uplight), and a narrower spread raises the fleet's peak at that moment. A scheduled car starts at the later of its schedule time and its plug-in time, so a car plugged in after its schedule time starts at once, not the next day."
+
+# Highest average speed of an NHTS driver trip, mph. build_nhts_extract.py makes a
+# vehicle-day with a faster driver trip class (iv); it reads the typical value.
+nhts_max_trip_speed_mph:
+  typical: 85
+  stress: 85
+  source: "Insurance Institute for Highway Safety, Maximum posted speed limits (Texas rural interstates: 75; 80 or 85 on specified segments of road; State Highway 130 (portions toll) has a posted limit of 85 mph; every other state 80 or below; North Carolina 70): https://iihs.org/topics/speed/speed-limit-laws"
+  assumption: "ASSUMPTION: a driver trip whose average speed, miles over clock duration plus one minute, exceeds 85 mph, the highest posted speed limit in the United States, is a recording error, and its vehicle-day leaves every draw pool as class iv; the one minute added to the duration covers clock times recorded to the whole minute, so a short trip is not flagged by rounding."

@@ -5,7 +5,9 @@ heating_split.py
 The heating split of Phase 7b: which heating group (baseline, dm, un) every load of a
 circuit draws. instantiate_circuits.py (Phase 7b) calls split_heating for every feeder
 and mix; find_max_day_curve_impl.py --mix (phase mix_days) calls read_loads and
-split_heating on the same Loads.dss to find the circuit's peak day.
+split_heating on the same Loads.dss to find the circuit's peak day. load_segment classes
+a load name as residential or commercial from its loadshape names; Phase 7b draws EV
+hosts among the residential ones.
 """
 
 import hashlib
@@ -53,20 +55,37 @@ def is_baseline_only(shares):
     return tot <= 0 or (p_dm / tot == 0.0 and p_un / tot == 0.0)
 
 
-def split_heating(unique_bases, base_to_daily, shares, heating_seed, substation_name, feeder_name):
+def load_segment(base, base_to_daily):
+    """'residential' when every yearly loadshape of the load name starts res_,
+    'commercial' when every one starts com_, else None (mixed, other or none)."""
+    names = base_to_daily.get(base, set())
+    if names and all(ls.startswith('res_') for ls in names):
+        return 'residential'
+    if names and all(ls.startswith('com_') for ls in names):
+        return 'commercial'
+    return None
+
+
+def split_heating(unique_bases, base_to_daily, shares, heating_seed, substation_name, feeder_name,
+                  unit="customer"):
     """
     Label every load of one feeder and mix with a heating group.
 
     1. Normalizes the baseline, dm and un shares (all 0 -> 1, 0, 0).
-    2. Counts per group from the sorted load names by largest remainder, then moves one
-       load to any group with a positive share and a count of 0.
-    3. Shuffles the labels, then the load names, with
+    2. Counts per group by largest remainder, then moves one unit to any group with a
+       positive share and a count of 0. The units are the sorted load names under
+       unit="customer", and the sorted yearly loadshape names of those loads (one per
+       building profile) under unit="building".
+    3. Shuffles the labels, then the units, with
        random.Random(heating_seed + _stable_seed_offset("<substation>|<feeder>")).
-    4. Pairs names and labels; every yearly loadshape of a name takes its label, so a
-       loadshape shared by several names keeps the label of the last one.
+    4. Pairs units and labels. Under "customer" every yearly loadshape of a name takes its
+       label, so a loadshape shared by several names keeps the label of the last one.
+       Under "building" every loadshape takes its own label, and every load of that
+       loadshape runs in its group.
 
     Returns a dict: p_b, p_dm, p_un, n_b, n_dm, n_un, N, mix_seed_offset, bases,
-    labels, daily_to_scen (loadshape name -> 'baseline' | 'dm' | 'un').
+    labels, daily_to_scen (loadshape name -> 'baseline' | 'dm' | 'un'). bases holds the
+    shuffled units: load names under "customer", loadshape names under "building".
     """
     # 1) Normalize shares
     p_b  = float(shares.get('baseline', 0.0))
@@ -79,7 +98,10 @@ def split_heating(unique_bases, base_to_daily, shares, heating_seed, substation_
         p_b, p_dm, p_un = (p_b/tot, p_dm/tot, p_un/tot)
 
     # 2) Exact counts via largest-remainder rounding
-    bases = sorted(unique_bases)
+    if unit == "building":
+        bases = sorted(set().union(*(base_to_daily.get(b, set()) for b in unique_bases)))
+    else:
+        bases = sorted(unique_bases)
     N = len(bases)
     raw = {'baseline': p_b*N, 'dm': p_dm*N, 'un': p_un*N}
     cnt = {k: int(math.floor(v)) for k, v in raw.items()}
@@ -115,6 +137,9 @@ def split_heating(unique_bases, base_to_daily, shares, heating_seed, substation_
     # 5) Map daily loadshape names to scenarios
     daily_to_scen = {}
     for base, scen in zip(bases, labels):
+        if unit == "building":
+            daily_to_scen[base] = scen
+            continue
         for ls in base_to_daily.get(base, []):
             daily_to_scen[ls] = scen
 

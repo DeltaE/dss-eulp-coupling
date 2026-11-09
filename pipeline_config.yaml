@@ -50,6 +50,14 @@ der_sizing:
 # per_circuit is the default; per_group remains available through this setting.
 peak_day_rule: per_circuit
 
+# What the heating split of Phase 7b and phase mix_days counts (heating_split.py).
+# building: each building profile (yearly loadshape) of a feeder gets one heating group,
+# the group counts are exact over buildings, and every customer of a building takes its
+# group. customer: the counts are over customers (load names), and a building shared by
+# several customers takes the group of the last one dealt (the rule before this setting).
+# Main runs use the default, building.
+heating_label_unit: building
+
 # Voltage band for load voltage summaries, per unit of nominal. ANSI C84.1 Range A
 # at the service point, as described in NREL/TP-5D00-77156 (2021), section 2.2:
 # https://www.nrel.gov/docs/fy21osti/77156.pdf

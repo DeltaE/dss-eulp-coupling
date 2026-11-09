@@ -105,6 +105,39 @@ def match_one(ref_vals, bldg_cols, bldg_ids, tolerances, method):
     raise ValueError(f"unknown method: {method!r}")
 
 
+def match_extended(ref_vals, bldg_cols, bldg_ids, tolerances, method, label):
+    """match_one; when nothing matches within the largest tolerance, the same buckets
+    continue with the same step, for this source file only, up to the first that matches.
+
+    ASSUMPTION: a load whose monthly peaks match no building within the largest tolerance
+    takes the buildings of the next tolerance step that matches; its profile is further
+    from its SMART-DS peaks than the largest tolerance, and the Tolerance column records
+    the step reached. Without it the load has no building profile and Phase 7b stops.
+    """
+    matched, best_T = match_one(ref_vals, bldg_cols, bldg_ids, tolerances, method)
+    if best_T is not None:
+        return matched, best_T
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rel = np.abs(bldg_cols - ref_vals[np.newaxis, :]) / ref_vals[np.newaxis, :] * 100.0
+    for c in np.where(ref_vals == 0)[0]:
+        rel[:, c] = np.where(bldg_cols[:, c] == 0, 0.0, np.inf)
+    rel = np.where(np.isnan(rel), np.inf, rel)
+    need = rel.max(axis=1).min() if rel.size else np.inf
+    if not np.isfinite(need):
+        print(f"[phase3] {label}: no building has every monthly peak; left without a match")
+        return [], None
+    step = tolerances[1] - tolerances[0]
+    T = tolerances[-1]
+    while T - step <= need:
+        T += step
+        matched, best_T = match_one(ref_vals, bldg_cols, bldg_ids, [T], method)
+        if best_T is not None:
+            print(f"[phase3] {label}: no building within {tolerances[-1]} %; "
+                  f"{len(matched)} matched at {best_T} %")
+            return matched, best_T
+    return [], None
+
+
 # =============================================================================
 # Build the per-source-file constraints and run the matcher across all rows
 # =============================================================================
@@ -129,7 +162,8 @@ def match_commercial(df_matches, df_com, method):
         for i, sf in enumerate(src_files):
             r = ref_all[i]
             valid = ~np.isnan(r)
-            matched, best_T = match_one(r[valid], B[:, valid], ids, COM_TOLERANCES, method)
+            matched, best_T = match_extended(r[valid], B[:, valid], ids, COM_TOLERANCES, method,
+                                             f"{sf} {st} ({method})")
             out.append({"Source_File": sf, "State": st,
                         "Matched_Buildings": matched, "Tolerance": best_T})
     return out
@@ -152,7 +186,8 @@ def match_residential(df_matches, df_res, method):
             ref_vals = np.asarray(winter_refs + summer_refs, dtype=float)
             cols = [Bw] * len(winter_refs) + [Bs] * len(summer_refs)
             bldg_cols = np.column_stack(cols) if cols else np.empty((ids.shape[0], 0))
-            matched, best_T = match_one(ref_vals, bldg_cols, ids, RES_TOLERANCES, method)
+            matched, best_T = match_extended(ref_vals, bldg_cols, ids, RES_TOLERANCES, method,
+                                             f"{sf} {st} ({method})")
             out.append({"Source_File": sf, "State": st,
                         "Matched_Buildings": matched, "Tolerance": best_T})
     return out

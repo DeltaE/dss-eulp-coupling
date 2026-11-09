@@ -152,6 +152,20 @@ def ev_day(cfg):
     return day
 
 
+HEATING_LABEL_UNITS = ("building", "customer")
+
+
+def heating_label_unit(cfg):
+    """Return heating_label_unit from the loaded pipeline_config.yaml. A missing or
+    unknown value prints [FAIL] and exits 1."""
+    unit = cfg.get("heating_label_unit")
+    if unit not in HEATING_LABEL_UNITS:
+        print(f"[FAIL] heating_label_unit in pipeline_config.yaml is {unit!r}; "
+              f"expected one of {', '.join(HEATING_LABEL_UNITS)}.")
+        sys.exit(1)
+    return unit
+
+
 def ev_home_window(cfg):
     """Return ev_home_window from the loaded pipeline_config.yaml. A missing or
     non-boolean value prints [FAIL] and exits 1."""

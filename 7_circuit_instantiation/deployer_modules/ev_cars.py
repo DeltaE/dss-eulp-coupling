@@ -181,8 +181,10 @@ def read_nhts_pool(path, months=None, classes=("i", "ii")):
     (YYYYMM) is in months, sorted by HOUSEID and VEHID.
 
     ASSUMPTION: vehicle-days that drive but neither end nor start at home are left out
-    of the draw; they are about 6 percent of weekday vehicle-days in NC and TX (932 of
-    14,623 in NC and 2,527 of 38,816 in TX, 6.4 and 6.5 percent)."""
+    of the draw; they are about 6 percent of weekday vehicle-days in NC and TX (913 of
+    14,623 in NC and 2,498 of 38,816 in TX, 6.2 and 6.4 percent). Class (iv) days, with a
+    driver trip faster than nhts_max_trip_speed_mph of ev_inputs.yaml, are never drawn
+    (105 in NC and 215 in TX, 0.7 and 0.6 percent)."""
     days = pd.read_csv(path, dtype={"HOUSEID": str, "TDAYDATE": str, "TRAVDAY": str, "day_class": str})
     days = days[days["day_class"].isin(list(classes))]
     if months is not None:

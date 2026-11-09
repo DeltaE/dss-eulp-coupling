@@ -21,8 +21,9 @@ intervals of the day (its session row).
 - read_dss_elements(texts), service_transformers(texts, load_buses): the service
   transformer of each load.
 - cheap_intervals(rate, month), start_offsets(rows, cheap, windows, z, sigma_min) and
-  offpeak_start(rows, cheap, nominal_kw, windows, shifts): a start timer at the cheap
-  period of a URDB time-of-use rate, with starts spread around it.
+  offpeak_start(rows, cheap, nominal_kw, windows, shifts): a start scheduled around the
+  start of the cheap period of a URDB time-of-use rate, with schedule times spread around
+  it; a car starts at the later of its schedule time and its plug-in.
 A window is the list of intervals a car is plugged in at home, in plug order (ev_cars.py);
 None means every interval of the day.
 """
@@ -336,22 +337,38 @@ def cheap_intervals(rate, month):
     return period, [i for i in range(N_INTERVALS) if row[i // 4] == period]
 
 
+def _cheap_before(i, cheap_set, n):
+    """b: the number of cheap intervals that come right before interval i on the clock,
+    counted backwards and wrapping past midnight, up to the first interval that is not
+    cheap; 0 when every interval of the day is cheap."""
+    if len(cheap_set) >= n:
+        return 0
+    b = 0
+    while (i - b - 1) % n in cheap_set:
+        b += 1
+    return b
+
+
 def offpeak_row(row, cheap, nominal_kw, window=None, shift=None):
     """Return (controlled row, start interval or None) of one car under offpeak_start.
 
-    Without a window: the start is the first cheap interval at or after the car's first
-    charging interval in its session row, searching forward and wrapping from the last
-    interval to the first. The car charges at nominal_kw in consecutive intervals from
-    the start, wrapping past the last interval, until its daily energy (row sum,
-    kW-intervals) is delivered; the last interval takes the remainder. Raises
+    The car's schedule time is the start of the cheap period it meets plus shift
+    (intervals, 0 when None), and it starts at the later of its schedule time and its
+    plug-in.
+
+    Without a window: c is the first cheap interval at or after the car's first charging
+    interval f in its session row, searching forward and wrapping from the last interval
+    to the first, q = (c - f) mod 96 and b = _cheap_before(c). The start is
+    (f + max(q - b + shift, 0)) mod 96. The car charges at nominal_kw in consecutive
+    intervals from the start, wrapping past the last interval, until its daily energy
+    (row sum, kW-intervals) is delivered; the last interval takes the remainder. Raises
     ValueError if the energy needs more than every interval of the day.
-    With a window (intervals in plug order): the start is the first cheap interval met
-    going forward through the window, or the window's first interval if none is cheap;
-    the car charges at nominal_kw in the window's consecutive intervals from the start
-    until its energy is delivered or the window ends; the rest is left over.
-    With shift (intervals), a start that is a cheap interval moves by shift: inside a
-    window it is clamped to the window's first and last intervals, without a window it
-    wraps modulo 96. A start in a window with no cheap interval does not move.
+    With a window (intervals in plug order): p is the position of the first cheap
+    interval met going forward through the window and b = _cheap_before(window[p]); the
+    start is window position max(p - b + shift, 0), capped at the window's last position.
+    A window with no cheap interval starts at its first interval (the plug-in). The car
+    charges at nominal_kw in the window's consecutive intervals from the start until its
+    energy is delivered or the window ends; the rest is left over.
     An all-zero row stays zero."""
     row = np.asarray(row, dtype=float)
     n = row.size
@@ -365,8 +382,9 @@ def offpeak_row(row, cheap, nominal_kw, window=None, shift=None):
         pos = next((k for k, i in enumerate(window) if i in cheap_set), None)
         if pos is None:
             pos = 0
-        elif shift:
-            pos = min(max(pos + int(shift), 0), len(window) - 1)
+        else:
+            b = _cheap_before(window[pos], cheap_set, n)
+            pos = min(max(pos - b + int(shift or 0), 0), len(window) - 1)
         slots = window[pos:]
         energy = row.sum()
         n_full = int(energy // nominal_kw)
@@ -379,8 +397,8 @@ def offpeak_row(row, cheap, nominal_kw, window=None, shift=None):
     start = next(((nz[0] + k) % n for k in range(n) if (nz[0] + k) % n in cheap_set), None)
     if start is None:
         raise ValueError("No cheap interval in the day.")
-    if shift:
-        start = (start + int(shift)) % n
+    q = (start - nz[0]) % n
+    start = (nz[0] + max(q - _cheap_before(start, cheap_set, n) + int(shift or 0), 0)) % n
     energy = row.sum()
     n_full = int(energy // nominal_kw)
     remainder = energy - n_full * nominal_kw

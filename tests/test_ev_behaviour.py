@@ -4,7 +4,8 @@ test_ev_behaviour.py
 --------------------
 The EV control behaviour of the Phase 7 deploy on small hand-made data: the mixes file
 reader, the stress day draw pools, the plug-in order of the valley rules, the forecast
-error, the start spread of offpeak_start, water filling, and the defaults of the
+error, the start spread of offpeak_start and its schedule rule (a car starts at the
+later of its schedule time and its plug-in), water filling, and the defaults of the
 extended functions.
 
 Run directly (no pytest needed): python tests/test_ev_behaviour.py
@@ -153,6 +154,32 @@ def test_start_spread():
     # nothing outside the window
     for j in range(4):
         assert set(np.flatnonzero(a[j])) <= set(window)
+
+
+def test_start_spread_schedule_and_plug_in():
+    # Option C: schedule time = start of the cheap period the car meets + d; the car
+    # starts at the later of its schedule time and its plug-in.
+    cheap = list(range(88, 96)) + list(range(0, 28))            # 22:00 to 07:00
+    row = np.zeros(96)
+    row[92] = 7.0
+    late = list(range(92, 96)) + list(range(0, 28))             # plugged in 23:00: p = 0, b = 4
+    for d, expected in ((-4, 92), (3, 92), (6, 94)):            # 23:00, 23:00, 23:30
+        got, start = offpeak_row(row, cheap, 7.0, late, d)
+        assert start == expected, d
+        assert np.flatnonzero(got).tolist() == [expected], d
+    early = list(range(72, 96)) + list(range(0, 28))            # plugged in 18:00: p = 16, b = 0
+    assert offpeak_row(row, cheap, 7.0, early, -4)[1] == 84     # 21:00
+    assert offpeak_row(row, cheap, 7.0, early, 0)[1] == 88      # 22:00
+    # a window without a cheap interval keeps its plug-in start
+    assert offpeak_row(row, cheap, 7.0, list(range(40, 60)), 5)[1] == 40
+    # without a window: start = first charging interval + max(q - b + d, 0)
+    assert offpeak_row(row, cheap, 7.0, None, 6)[1] == 94       # f = 92, q = 0, b = 4
+    assert offpeak_row(row, cheap, 7.0, None, -4)[1] == 92
+    row2 = np.zeros(96)
+    row2[72] = 7.0
+    assert offpeak_row(row2, cheap, 7.0, None, -4)[1] == 84     # f = 72, q = 16, b = 0
+    # every interval cheap: b = 0
+    assert offpeak_row(row, list(range(96)), 7.0, late, 2)[1] == 94
 
 
 def test_water_fill():
