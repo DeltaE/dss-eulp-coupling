@@ -222,7 +222,7 @@ The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_ci
 - Storage and PV sizes follow assumed ratios and minimums. See `der_sizing` in `pipeline_config.yaml`.
 - Each case takes its PV daily shape from one SMART-DS solar site of the donor's region, on the day the circuit runs on: the feeder's baseline peak day under `per_group`, the circuit's day under `per_circuit`. See `pv_profile` in `configs/donor_registry.yaml`.
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
-- Heating labels are dealt per building profile, and buildings serve different numbers of customers, so the realized customer shares can differ from the mix. Under `heating_label_unit: customer` the building shares can differ instead.
+- Heating labels are dealt per building profile, and buildings serve different numbers of customers, so the realized customer shares can differ from the mix. Under `heating_label_unit: customer` both the building shares and the customer shares can differ, because a building shared by several customers takes the group of the last customer dealt.
 - A loadshape whose monthly peaks match no building within the largest tolerance takes the buildings of the next 5 % step that matches, so its profile is further from its SMART-DS peaks. The `Tolerance` column of `df_com_matches_out_<ST>.csv` and `df_res_matches_out_<ST>.csv` records the step reached.
 - The forecast error of the valley rules is hourly and independent from hour to hour, while real forecast errors are correlated over hours.
 - Controlled cars are placed one at a time in order of plug-in time, so later cars get the valleys that earlier cars leave.

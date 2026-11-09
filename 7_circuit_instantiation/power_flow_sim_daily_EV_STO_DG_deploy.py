@@ -1250,23 +1250,6 @@ if master_dss_path:
         pv_present=(n_pv > 0),
         ev_present=(ACTIVATE_EV and (N_u + N_c) > 0),
     )
-    '''
-    ml = read_lines(master_dss_path)
-    new_ml = []; ins_ls = ins_pv = False
-    for ln in ml:
-        new_ml.append(ln)
-        if "Redirect LoadShapes.dss" in ln and not ins_ls:
-            new_ml.append("\n! Added PV loadshape\nRedirect LoadShapes_PV.dss\n")
-            ins_ls = True
-        if "Redirect Storage.dss" in ln and not ins_pv:
-            new_ml.append("\n! Added PV items\nRedirect PVSystems.dss\n")
-            ins_pv = True
-    if not ins_ls:
-        new_ml.append("\n! Added PV loadshape at end\nRedirect LoadShapes_PV.dss\n")
-    if not ins_pv:
-        new_ml.append("\n! Added PV items at end\nRedirect PVSystems.dss\n")
-    write_lines(master_dss_path, new_ml)
-    '''
 
 # ---------------- Compile & Solve ----------------
 DSSobj   = create_dss_engine()
@@ -1276,31 +1259,9 @@ DSStext  = DSSobj.Text
 DSScircuit = DSSobj.ActiveCircuit
 
 if COMPILE_CIRCUIT and master_dss_path:
-    '''
-    PREVIOUS
-    DSStext.Command = f'Compile "{master_dss_path}"'
-    DSScircuit.Solution.Solve()
-    print(f"Scenario (mixed EV) solved. Converged? {DSScircuit.Solution.Converged}")
-    '''
     # Compile first
     DSStext.Command = f'Compile "{master_dss_path}"'
 
-    '''
-    # Force DAILY time-series: 96 x 15-minute steps
-    DSStext.Command = "set mode=daily"
-    DSStext.Command = "set stepsize=15m"
-    DSStext.Command = "set number=96"
-    DSStext.Command = "set controlmode=time"
-    DSStext.Command = "reset"
-
-    # (optional sanity prints)
-    DSStext.Command = "? mode"
-    print("Mode:", DSStext.Result.strip())
-    DSStext.Command = "? number"
-    print("Number of steps:", DSStext.Result.strip())
-    DSStext.Command = "? stepsize"
-    print("Stepsize:", DSStext.Result.strip())
-    '''
 
     # Run the 96-step daily simulation
     # DSScircuit.Solution.Solve()
