@@ -97,7 +97,8 @@ def peak_day_rule(cfg):
     return rule
 
 
-EV_CONTROL_RULES = ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start")
+EV_CONTROL_RULES = ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start",
+                    "water_fill_feeder")
 EV_VALLEY_BASES = ("buildings_only", "after_pv_storage")
 
 
@@ -135,6 +136,20 @@ def ev_cars(cfg):
               f"expected one of {', '.join(EV_CARS_SOURCES)}.")
         sys.exit(1)
     return source
+
+
+EV_DAYS = ("typical", "stress")
+
+
+def ev_day(cfg):
+    """Return ev_day from the loaded pipeline_config.yaml. A missing or unknown value
+    prints [FAIL] and exits 1."""
+    day = cfg.get("ev_day")
+    if day not in EV_DAYS:
+        print(f"[FAIL] ev_day in pipeline_config.yaml is {day!r}; "
+              f"expected one of {', '.join(EV_DAYS)}.")
+        sys.exit(1)
+    return day
 
 
 def ev_home_window(cfg):

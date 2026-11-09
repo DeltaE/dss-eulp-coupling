@@ -5,8 +5,8 @@ test_ev_cars.py
 ev_cars.py (Phase 7 deploy, the EV cars) and the two extract scripts on small
 hand-made data: the seeds, the level and charging draws, charge_shape and the plug-in
 window, the share of cars charging, the NHTS day classes and windows, the EV WATTS
-extract filters, the repaired 2024 generator, and the ev_cars and ev_home_window
-settings.
+extract filters, the repaired 2024 generator, and the ev_cars, ev_home_window and
+ev_day settings.
 
 Run directly (no pytest needed): python tests/test_ev_cars.py
 Or under pytest: pytest tests/test_ev_cars.py
@@ -26,7 +26,7 @@ from ev_cars import (charge_shape, charging_share, evwatts_cars, pick, plug_wind
                      seed, session_rows_cars, window_intervals)
 from build_nhts_extract import vehicle_days  # noqa: E402
 from build_evwatts_extract import apply_filters  # noqa: E402
-from pipeline_utils import ev_cars, ev_home_window  # noqa: E402
+from pipeline_utils import ev_cars, ev_day, ev_home_window  # noqa: E402
 
 INPUTS = {"level2_kw": 7.2, "level1_kw": 1.0, "kwh_per_mile": 33.7 / 99.9}
 
@@ -192,6 +192,10 @@ def test_settings():
     assert _stops(ev_home_window, {"ev_home_window": "yes"})
     assert _stops(ev_home_window, {"ev_home_window": 1})
     assert _stops(ev_home_window, {})
+    for value in ("typical", "stress"):
+        assert ev_day({"ev_day": value}) == value
+    assert _stops(ev_day, {"ev_day": "peak"})
+    assert _stops(ev_day, {})
 
 
 if __name__ == "__main__":

@@ -15,7 +15,8 @@ the source:
 - session_rows: each charging car charges the daily energy of the Team-Nando check
   curve as one block, started where the fleet is furthest below the curve.
 
-Values come from 7_circuit_instantiation/data_ev_cars/ev_inputs.yaml (load_inputs).
+Values come from 7_circuit_instantiation/data_ev_cars/ev_inputs.yaml (load_inputs), the
+value set that ev_day in pipeline_config.yaml names (typical or stress).
 Intervals are 0 to 95 here and 1 to 96 in output files.
 
 Every random draw has its own generator, seeded by seed(name, effective_seed) from the
@@ -30,17 +31,18 @@ import yaml
 from heating_split import _stable_seed_offset
 
 N_INTERVALS = 96
-VALUE_SET = "typical"
 EVWATTS_EXTRACT_FILE = "evwatts_residential_l2_weekday.csv"
 NHTS_EXTRACT_FILE = "{state}_nhts2017_vehicle_days.csv"
 EPS = 1e-9
 
 
-def load_inputs(path, value_set=VALUE_SET):
+def load_inputs(path, value_set="typical"):
     """Read ev_inputs.yaml and return the values of value_set (typical or stress):
     level2_kw, level1_kw, kwh_per_mile (= kwh_per_gallon_equivalent / mpge_bev),
-    charging_share, months, check_curve_folder, check_curve_file and census_division
-    ({state: division})."""
+    charging_share, months, season_months ({season: list of months}),
+    check_curve_folder, check_curve_file, census_division ({state: division}),
+    forecast_error (the model name), forecast_models ({model: coefficients}) and
+    start_spread_min."""
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     v = {k: raw[k][value_set] for k in raw}
@@ -53,7 +55,21 @@ def load_inputs(path, value_set=VALUE_SET):
         "check_curve_folder": raw["check_curve"]["folder"],
         "check_curve_file": v["check_curve"],
         "census_division": dict(v["census_division"]),
+        "season_months": {s: [int(m) for m in ms] for s, ms in v["season_months"].items()},
+        "forecast_error": v["forecast_error"],
+        "forecast_models": dict(raw["forecast_error"]["models"]),
+        "start_spread_min": float(v["start_spread_min"]),
     }
+
+
+def draw_months(inputs, season):
+    """The months the draw pools keep: None (every month) when months is all, else the
+    season_months of season. Raises ValueError for a season without months."""
+    if inputs["months"] == "all":
+        return None
+    if season not in inputs["season_months"]:
+        raise ValueError(f"No season_months for season {season!r} in ev_inputs.yaml.")
+    return inputs["season_months"][season]
 
 
 def seed(name, effective_seed):
@@ -122,20 +138,25 @@ def charge_shape(a, p, e_kwh, n_w):
     return out
 
 
-def read_evwatts_pool(extract_dir, division):
+def read_evwatts_pool(extract_dir, division, months=None):
     """The EV WATTS draw pool: rows of the extract in extract_dir whose division is
-    division, all months, in the extract's order (session_id)."""
+    division and, when months is given, whose month is in months (every month when
+    None), in the extract's order (session_id)."""
     ex = pd.read_csv(f"{extract_dir}/{EVWATTS_EXTRACT_FILE}",
                      dtype={"session_id": "int64", "evse_id": "int64", "division": str, "venue": str,
                             "start_date": str})
-    return ex[ex["division"] == division].reset_index(drop=True)
+    keep = ex["division"] == division
+    if months is not None:
+        keep &= ex["month"].isin([int(m) for m in months])
+    return ex[keep].reset_index(drop=True)
 
 
-def charging_share(pool):
+def charging_share(pool, months=None):
     """Share of cars charging on a weekday, from the EV WATTS pool. For each EVSE: used
     weekdays = its distinct start_dates; in-service weekdays = the Monday to Friday
-    dates from its first to its last start_date, inclusive. Returns sum of used / sum of
-    in-service over all EVSE.
+    dates from its first to its last start_date, inclusive, and, when months is given,
+    in months only (the months of the pool). Returns sum of used / sum of in-service
+    over all EVSE.
 
     ASSUMPTION: each residential charger serves one car and is in service on every
     weekday between its first and last recorded session; s is the share of those
@@ -144,19 +165,28 @@ def charging_share(pool):
     used = g.nunique()
     first = pd.to_datetime(g.min()).values.astype("datetime64[D]")
     last = pd.to_datetime(g.max()).values.astype("datetime64[D]")
-    in_service = np.busday_count(first, last + np.timedelta64(1, "D"))
+    if months is None:
+        in_service = np.busday_count(first, last + np.timedelta64(1, "D"))
+    else:
+        days = np.arange(first.min(), last.max() + np.timedelta64(1, "D"))
+        keep = np.is_busday(days) & np.isin(pd.DatetimeIndex(days).month, [int(m) for m in months])
+        cum = np.concatenate([[0], np.cumsum(keep)])
+        in_service = cum[(last - days[0]).astype(int) + 1] - cum[(first - days[0]).astype(int)]
     return float(used.sum()) / float(in_service.sum())
 
 
-def read_nhts_pool(path):
-    """The NHTS draw pool: vehicle-days of class (i) or (ii) of the state's extract,
-    sorted by HOUSEID and VEHID.
+def read_nhts_pool(path, months=None, classes=("i", "ii")):
+    """The NHTS draw pool: vehicle-days of the state's extract whose class is in classes
+    (class (i) or (ii) by default) and, when months is given, whose TDAYDATE month
+    (YYYYMM) is in months, sorted by HOUSEID and VEHID.
 
     ASSUMPTION: vehicle-days that drive but neither end nor start at home are left out
     of the draw; they are about 6 percent of weekday vehicle-days in NC and TX (932 of
     14,623 in NC and 2,527 of 38,816 in TX, 6.4 and 6.5 percent)."""
     days = pd.read_csv(path, dtype={"HOUSEID": str, "TDAYDATE": str, "TRAVDAY": str, "day_class": str})
-    days = days[days["day_class"].isin(["i", "ii"])]
+    days = days[days["day_class"].isin(list(classes))]
+    if months is not None:
+        days = days[days["TDAYDATE"].str[4:6].astype(int).isin([int(m) for m in months])]
     return days.sort_values(["HOUSEID", "VEHID"], kind="mergesort").reset_index(drop=True)
 
 
@@ -176,9 +206,10 @@ def nhts_window(day):
 
 
 def _car(group, k, host, source, level, power, charges, row, energy, window=None, plug=None,
-         source_id="", day_class="", window_source_id="", share=None, start=None):
-    """One car record: the columns of ev_cars.csv plus row (uncontrolled kW) and window
-    (list of intervals or None)."""
+         source_id="", day_class="", window_source_id="", share=None, start=None, plug_minute=None):
+    """One car record: the columns of ev_cars.csv plus row (uncontrolled kW), window
+    (list of intervals or None) and plug_minute (the clock minute of a charging car's
+    plug-in, or None)."""
     delivered = row.sum() / 4.0
     return {
         "car": f"{'EVu' if group == 'uncontrolled' else 'EVc'}_{k}", "host": host, "group": group,
@@ -191,7 +222,7 @@ def _car(group, k, host, source, level, power, charges, row, energy, window=None
         "first_interval": start + 1 if (start is not None and row.any()) else None,
         "n_intervals": int(np.count_nonzero(row)),
         "delivered_kwh": delivered, "leftover_kwh": energy - delivered,
-        "charging_share": share, "row": row, "window": window,
+        "charging_share": share, "row": row, "window": window, "plug_minute": plug_minute,
     }
 
 
@@ -224,7 +255,7 @@ def evwatts_cars(group, hosts, pool, share, l2_share, inputs, effective_seed):
         row = charge_shape(a, power, e, n_w)
         cars.append(_car(group, k, host, "evwatts_sessions", is_l2[k], power, True, row, e,
                          window=window_intervals(a, n_w), plug=a, source_id=str(int(s["session_id"])),
-                         share=share, start=a))
+                         share=share, start=a, plug_minute=float(s["start_min"])))
     return cars
 
 
@@ -246,7 +277,8 @@ def nhts_cars(group, hosts, pool, l2_share, inputs, effective_seed):
             e = float(d["driver_miles"]) * inputs["kwh_per_mile"]
             row = charge_shape(a, power, e, len(window))
             cars.append(_car(group, k, host, "nhts_days", is_l2[k], power, True, row, e, window=window,
-                             plug=a, source_id=sid, day_class="i", start=a))
+                             plug=a, source_id=sid, day_class="i", start=a,
+                             plug_minute=float(d["arrival_min"])))
         else:
             cars.append(_car(group, k, host, "nhts_days", is_l2[k], power, False, np.zeros(N_INTERVALS),
                              0.0, window=window, source_id=sid, day_class=d["day_class"]))
@@ -286,10 +318,12 @@ def session_rows_cars(group, hosts, curve, share, l2_share, inputs, effective_se
     cars = []
     for k, host in enumerate(hosts):
         power = inputs["level2_kw"] if is_l2[k] else inputs["level1_kw"]
-        plug, window, wsid = None, None, ""
+        plug, window, wsid, minute = None, None, "", None
         if windows[k] is not None:
             plug, window = nhts_window(windows[k])
             wsid = f"{windows[k]['HOUSEID']}-{int(windows[k]['VEHID'])}"
+            if windows[k]["day_class"] == "i":
+                minute = float(windows[k]["arrival_min"])
         if not charges[k]:
             cars.append(_car(group, k, host, "session_rows", is_l2[k], power, False, np.zeros(N_INTERVALS),
                              0.0, window=window, plug=plug, window_source_id=wsid, share=share))
@@ -301,13 +335,14 @@ def session_rows_cars(group, hosts, curve, share, l2_share, inputs, effective_se
         resid = resid - blocks[s]
         row = blocks[s].copy() if is_l2[k] else charge_shape(s, inputs["level1_kw"], e, N_INTERVALS)
         cars.append(_car(group, k, host, "session_rows", is_l2[k], power, True, row, e, window=window,
-                         plug=plug, window_source_id=wsid, share=share, start=s))
+                         plug=plug, window_source_id=wsid, share=share, start=s, plug_minute=minute))
     return cars
 
 
 def cars_frame(cars):
-    """The ev_cars.csv table of a list of car records (row and window left out)."""
-    df = pd.DataFrame([{k: v for k, v in c.items() if k not in ("row", "window")} for c in cars])
+    """The ev_cars.csv table of a list of car records (row, window and plug_minute left
+    out)."""
+    df = pd.DataFrame([{k: v for k, v in c.items() if k not in ("row", "window", "plug_minute")} for c in cars])
     for col in ("plug_in_interval", "window_intervals", "first_interval"):
         df[col] = df[col].astype("Int64")
     return df

@@ -1,6 +1,6 @@
 # Inputs of the EV cars of the Phase 7 deploy (deployer_modules/ev_cars.py) and of
 # build_evwatts_extract.py. Each input holds a typical and a stress value and its
-# source. The deploy reads the typical values.
+# source. The deploy reads the value set that ev_day in pipeline_config.yaml names.
 
 # Charging power of a Level 2 home charger, kW.
 level2_kw:
@@ -34,19 +34,22 @@ mpge_bev:
   assumption: "ASSUMPTION: every EV car uses 33.7 / 99.9 = 0.337 kWh per mile driven, in every case and season, the average of the model year 2024 new battery EVs; the cars on the feeders are of mixed model years and include larger vehicles, and a lower mpge raises the energy of every NHTS vehicle-day car and its leftover kWh."
 
 # Share of cars that charge on the simulated weekday.
-# measured: from the EV WATTS extract (ev_cars.charging_share); all: every car.
+# measured: from the EV WATTS extract (ev_cars.charging_share), on the months of the
+# draw pool; all: every car, and under nhts_days the NHTS pool keeps class (i) days
+# only, so every car drove.
 charging_share:
   typical: measured
   stress: all
   source: "EV WATTS public database, U.S. Department of Energy, https://doi.org/10.15483/1970735"
   assumption: "ASSUMPTION: each residential charger serves one car and is in service on every weekday between its first and last recorded session; s is the share of those weekdays with a session."
 
-# Months of the year the cars draw from. all: every month; season: the simulated season.
+# Months of the year the cars draw from. all: every month; season: the months of the
+# simulated season in season_months.
 months:
   typical: all
   stress: season
   source: "EV WATTS public database, https://doi.org/10.15483/1970735; 2017 National Household Travel Survey, https://nhts.ornl.gov/assets/2016/download/Csv.zip"
-  assumption: "ASSUMPTION: cars draw EV WATTS sessions or NHTS vehicle-days of every month of the year, in summer and winter runs alike, so the draw pools hold every recorded weekday; drawing from the simulated season only would follow seasonal travel and charging more closely with fewer rows, and it moves plug-in times, energies and the share of cars charging."
+  assumption: "ASSUMPTION: on a typical day cars draw EV WATTS sessions or NHTS vehicle-days of every month of the year, in summer and winter runs alike, so the draw pools hold every recorded weekday; the stress day draws from the simulated season only, which follows seasonal travel and charging more closely with fewer rows and moves plug-in times, energies and the share of cars charging."
 
 # Check curve of ev_cars: session_rows, under data_ev/ (a copy of the Team-Nando files).
 check_curve:
@@ -66,3 +69,34 @@ census_division:
     TX: West South Central
   source: "U.S. Department of Energy, Table 2: U.S. Geographic Areas and Census Regions: https://www.energy.gov/fecm/articles/table-2-us-geographic-areas-and-census-regions"
   assumption: "ASSUMPTION: NC cars draw EV WATTS sessions of chargers in the South Atlantic division and TX cars of chargers in the West South Central division, because EV WATTS gives no state; the division's other states (for example Florida and Georgia, or Oklahoma and Louisiana) shape the sessions, and a state-level source would move plug-in times, energies and the share of cars charging."
+
+# Months of each simulated season, used when months is season (month numbers 1 to 12).
+season_months:
+  typical:
+    summer: [6, 7, 8]
+    winter: [12, 1, 2]
+  stress:
+    summer: [6, 7, 8]
+    winter: [12, 1, 2]
+  source: "NOAA National Centers for Environmental Information, Meteorological Versus Astronomical Seasons (meteorological summer includes June, July and August; meteorological winter includes December, January and February): https://www.ncei.noaa.gov/news/meteorological-versus-astronomical-seasons"
+  assumption: "ASSUMPTION: when months is season, a summer run draws only the EV WATTS sessions and NHTS vehicle-days of June, July and August and a winter run only those of December, January and February, the meteorological seasons of the Northern Hemisphere (NOAA); other months for a season would change the draw pools, and with them the plug-in times, the energies and the share of cars charging."
+
+# Forecast error of the aggregator under the valley rules. The model gives the relative
+# RMS error CV (percent) of a forecast of a curve whose mean load is W (kWh per hour):
+# hour_ahead CV = sqrt(a^2 / W^b + c^2); day_ahead CV = sqrt(a / W + c).
+forecast_error:
+  typical: hour_ahead
+  stress: day_ahead
+  models:
+    hour_ahead: {a: 54.4, b: 0.91, c: 1.19}
+    day_ahead: {a: 3562, c: 41.9}
+  source: "Sevlian, R. and Rajagopal, R., A Scaling Law for Short Term Load Forecasting on Varying Levels of Aggregation, arXiv:1404.0058v3 (2017), Table 2, model M3 (one hour ahead), and equation 10 (day ahead): https://arxiv.org/abs/1404.0058v3"
+  assumption: "ASSUMPTION: the aggregator places controlled cars on a forecast of each curve it fills, with a normal error drawn once per hour and held over the four intervals of that hour, independent from hour to hour, of relative RMS size CV from the one-hour-ahead model on a typical day and the day-ahead model on a stress day (3.4 and 7.0 percent of a 500 kW mean load, 14.0 and 14.8 percent of a 20 kW mean load); real forecast errors are correlated over hours, and a larger error moves controlled charging away from the true valleys."
+
+# Standard deviation of the start of an offpeak_start car around the start of the
+# cheap period, minutes.
+start_spread_min:
+  typical: 60
+  stress: 15
+  source: "Uplight, What Does EV Charging Data Tell Us About TOU Program Effectiveness? (users often start charging right at the beginning of the off-peak period, often within the first minute): https://uplight.com/blog/what-does-ev-charging-data-tell-us-about-tou-program-effectiveness/"
+  assumption: "ASSUMPTION: Cars on a time-of-use timer start around the start of the cheap period, normally distributed with a standard deviation of 60 minutes on a typical day and 15 minutes on a stress day, when more cars start at the same moment; field data report clustered timer starts at the start of off-peak periods (Uplight), and a narrower spread raises the fleet's peak at that moment."

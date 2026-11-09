@@ -10,7 +10,7 @@ Each value has one owner:
 - `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root`, `runs_root` and `evwatts_extract_dir` (see "EV cars"), `openei_api_key_file` for the tariff fetch only (see "EV control"), and `nhts2017_csv_dir` and `evwatts_raw_dir` for the two extract scripts only. Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
-- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing`, `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `voltage_band` (the band for the load voltage summaries), `ev_cars` and `ev_home_window` (defaults `evwatts_sessions` and `true`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing`, `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `voltage_band` (the band for the load voltage summaries), `ev_cars`, `ev_home_window` and `ev_day` (defaults `evwatts_sessions`, `true` and `typical`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
@@ -172,6 +172,16 @@ The Phase 7 deploy builds one car per EV host, with its own uncontrolled row of 
 
 `ev_home_window: true` keeps the charging of each controlled car inside the intervals it is plugged in at home: its EV WATTS session, its NHTS vehicle-day, or under `session_rows` a drawn NHTS vehicle-day. Energy that does not fit is left over. With `false`, controlled cars may charge in any interval of the day.
 
+`ev_day` picks the value set of every input in `ev_inputs.yaml`. Main runs use the default, `ev_day: typical`. `stress` changes behaviour, never hardware:
+
+- every car charges under `evwatts_sessions` and `session_rows`, and under `nhts_days` the cars draw only vehicle-days that drove (class i);
+- the EV WATTS and NHTS pools keep only the months of the simulated season: June, July and August for summer, December, January and February for winter (the meteorological seasons);
+- `session_rows` uses the 75th percentile check curve;
+- the valley rules plan on the day-ahead forecast error;
+- `offpeak_start` cars spread their starts with a standard deviation of 15 minutes instead of 60.
+
+The seeds and draw names are the same under both values, so a stress run differs from a typical run only by the values. The deploy prints the size of each draw pool.
+
 The inputs and their sources are in `7_circuit_instantiation/data_ev_cars/ev_inputs.yaml`. The deploy writes one row per car to `<circuit>/EVControl/ev_cars.csv` (see `docs/outputs.md`).
 
 ## EV control
@@ -179,13 +189,18 @@ The inputs and their sources are in `7_circuit_instantiation/data_ev_cars/ev_inp
 `ev_control` in `pipeline_config.yaml` sets how the Phase 7 deploy shapes the charging of controlled EVs. Every circuit has uncontrolled and controlled cars, and each controlled car starts from its own uncontrolled row (see "EV cars"). Main runs use the defaults, `ev_control: valley_fill_feeder` and `ev_valley_base: buildings_only`.
 
 - `uncontrolled`: controlled cars keep their session rows.
-- `valley_fill_feeder`, the default: the deploy solves the circuit without EVs, adds every uncontrolled car's kW to the feeder-head load, and places each controlled car, in host order, on the intervals where that load is lowest. A car keeps its daily energy and its number of charging intervals.
+- `valley_fill_feeder`, the default: the deploy solves the circuit without EVs, adds every uncontrolled car's kW to the feeder-head load, and places each controlled car, in order of plug-in time, on the intervals where the forecast of that load is lowest. A car keeps its daily energy and its number of charging intervals.
 - `valley_fill_transformer`: the same, on the load of each car's own service transformer, plus the uncontrolled cars on it. A car whose host has no single service transformer uses the feeder-head load.
-- `offpeak_start`: each controlled car starts at the first interval of its plug-in window that is in the cheap period of the donor state's time-of-use rate, or at plug-in when none is. It charges at its own power until its daily energy is delivered or the window ends. A car without a window starts at the first cheap interval at or after its first charging interval. The rate is the weekday schedule of the simulated day's month, because the cars draw weekdays.
+- `water_fill_feeder`: the same base, order and forecast as `valley_fill_feeder`, but each car's power varies from 0 up to its power in each interval of its window, filling the lowest intervals toward one level, the valley-filling schedule of Gan, Topcu and Low (2013), https://doi.org/10.1109/TPWRS.2012.2210288.
+- `offpeak_start`: each controlled car starts at the first interval of its plug-in window that is in the cheap period of the donor state's time-of-use rate, or at plug-in when none is. It charges at its own power until its daily energy is delivered or the window ends. A car without a window starts at the first cheap interval at or after its first charging interval. The rate is the weekday schedule of the simulated day's month, because the cars draw weekdays. A car that starts in the cheap period moves its start by a normal draw with a standard deviation of `start_spread_min` (60 minutes typical, 15 stress), rounded to whole intervals and kept inside its window (without a window it wraps over midnight). A car whose window holds no cheap interval keeps its plug-in start.
+
+The valley rules (`valley_fill_feeder`, `valley_fill_transformer`, `water_fill_feeder`) place controlled cars in order of plug-in time, the day running from 04:00 as the NHTS travel day. Cars that do not charge, or drew a day without driving, come last; ties keep host order. The order holds under `ev_home_window: false` too.
+
+The valley rules plan on a forecast of each curve they fill, not the curve itself, because an aggregator does not know the day's load in advance. For a curve with mean load W (kW), the relative error CV(W) comes from Sevlian and Rajagopal, https://arxiv.org/abs/1404.0058v3: the one-hour-ahead model on a typical day and the day-ahead model on a stress day. The error is normal, one draw per hour for each curve, seeded like the cars. Each placed car joins the forecast, because the aggregator knows its own cars. OpenDSS still solves the true loads. A curve with W <= 0 gets no error.
 
 The valley rules and `offpeak_start` keep each car inside its window when `ev_home_window` is true. The service transformer map leaves out lines switched out with `enabled=n`, as OpenDSS does when it solves.
 
-`ev_valley_base` sets what the no-EV solve of the two valley rules holds: `buildings_only` (the default) or `after_pv_storage` (also PV and storage). The feeder and transformer rules compare a feeder view with a local view of where charging lands.
+`ev_valley_base` sets what the no-EV solve of the valley rules holds: `buildings_only` (the default) or `after_pv_storage` (also PV and storage). The feeder and transformer rules compare a feeder view with a local view of where charging lands.
 
 The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_circuit_instantiation/data_tariffs/<ST>_urdb_rate.json`, with their source URL. `fetch_tou_rates.py` chooses them from the queries in `data_tariffs/rate_queries.yaml`. Each file records whether its rate was current when it was fetched.
 
@@ -198,9 +213,10 @@ The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_ci
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
 - Heating labels are dealt per customer, but customers in one building share its profile, so the realized building shares can differ from the mix by a few points.
 - Some commercial loadshapes have no matched building and run at the load's nominal kW all day, for example `com_kw_14257_pu` (case `NC_GSO_urban__TX`, feeder `udt4015`) and `com_kw_42051_pu` (topology TX_AUS, feeder `p2udt5222`).
-- The valley rules assume the aggregator knows the day's base curve exactly.
-- Controlled cars are placed one at a time in host order, so later cars get the valleys that earlier cars leave.
-- Under `offpeak_start`, every controlled car whose session starts outside the cheap period starts when the cheap period starts, so the fleet switches on at once.
+- The forecast error of the valley rules is hourly and independent from hour to hour, while real forecast errors are correlated over hours.
+- Controlled cars are placed one at a time in order of plug-in time, so later cars get the valleys that earlier cars leave.
+- The start spread of `offpeak_start` is an assumed normal spread, 60 minutes on a typical day and 15 on a stress day.
+- The stress day changes behaviour (the share of cars charging, the months drawn, the check curve, the forecast horizon, the start spread), never hardware.
 - The tariff is the weekday schedule of one utility per donor state. The saved file records whether the rate was current when it was fetched, and `offpeak_start` uses a rate that is no longer current as it is.
 - Workplace and public EV charging are not modelled.
 - Some ResStock 2024 Release 2 models lack the dual-fuel measure and run as baseline in the dm group: https://natlabrockies.github.io/ResStock.github.io/docs/resources/explanations/Issue_2024_2_Measure_Applicability.html.

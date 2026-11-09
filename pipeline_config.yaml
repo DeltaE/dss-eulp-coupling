@@ -62,12 +62,16 @@ voltage_band:
 # valley_fill_feeder: each controlled car fills the valleys of the feeder-head load.
 # valley_fill_transformer: each controlled car fills the valleys of its own service
 # transformer's load (the feeder-head load when the car has no service transformer).
-# offpeak_start: each controlled car starts at the cheap period of the donor state's
-# saved time-of-use rate (7_circuit_instantiation/data_tariffs/).
+# offpeak_start: each controlled car starts around the cheap period of the donor
+# state's saved time-of-use rate (7_circuit_instantiation/data_tariffs/).
+# water_fill_feeder: each controlled car's power varies up to its limit inside its
+# window, filling the valleys of the feeder-head load toward one level.
+# The valley rules place controlled cars in order of plug-in time on a forecast of the
+# curve they fill.
 # Main runs use the default, valley_fill_feeder.
 ev_control: valley_fill_feeder
 
-# What the no-EV solve behind the two valley rules holds besides the circuit.
+# What the no-EV solve behind the valley rules holds besides the circuit.
 # buildings_only: building loads only. after_pv_storage: also PV and storage.
 # Main runs use the default, buildings_only.
 ev_valley_base: buildings_only
@@ -85,3 +89,11 @@ ev_cars: evwatts_sessions
 # false: controlled cars may charge in any interval of the day.
 # Main runs use the default, true.
 ev_home_window: true
+
+# Which value set of 7_circuit_instantiation/data_ev_cars/ev_inputs.yaml the EV cars
+# and their control use: the share of cars charging, the months drawn, the check
+# curve, the forecast error and the start spread.
+# typical: a typical weekday. stress: a stress day (every car charges, season months
+# only, the 75th percentile check curve, day-ahead forecast error, a narrow start spread).
+# Main runs use the default, typical.
+ev_day: typical

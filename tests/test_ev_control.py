@@ -279,7 +279,8 @@ def _stops(fn, cfg):
 
 
 def test_settings():
-    for value in ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start"):
+    for value in ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start",
+                  "water_fill_feeder"):
         assert ev_control({"ev_control": value}) == value
     for value in ("buildings_only", "after_pv_storage"):
         assert ev_valley_base({"ev_valley_base": value}) == value
