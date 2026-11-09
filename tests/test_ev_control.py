@@ -282,7 +282,7 @@ def test_settings():
     for value in ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start",
                   "water_fill_feeder"):
         assert ev_control({"ev_control": value}) == value
-    for value in ("buildings_only", "after_pv_storage"):
+    for value in ("buildings_only", "after_pv"):
         assert ev_valley_base({"ev_valley_base": value}) == value
     assert _stops(ev_control, {"ev_control": "equal_energy_realloc"})
     assert _stops(ev_control, {})

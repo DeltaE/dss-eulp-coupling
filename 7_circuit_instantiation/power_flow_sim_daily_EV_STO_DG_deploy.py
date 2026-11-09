@@ -14,7 +14,8 @@ Inputs
   phases, conn and daily shapes; Loads_original.dss gives the original kW.
 - <circuit>/scenario_assignments.json: ev.lvl2_perc, ev.effective_seed,
   ev_loads_uncontrolled, ev_loads_controlled (or ev_loads, split in half when both are
-  empty), storage_targets, pv_targets, season.
+  empty), pv.<segment>.hosts and storage.<segment>.hosts (segment residential or
+  commercial), season.
 - <circuit>/data_ev/: two Team-Nando EV charging profiles; under ev_cars session_rows
   the check curve of ev_inputs.yaml (pfs_ev_base_profiles).
 - ev_cars, ev_home_window and ev_day in pipeline_config.yaml: the source of the EV
@@ -26,8 +27,13 @@ Inputs
   (evwatts_extract_dir in configs/local.yaml), the folder of
   evwatts_residential_l2_weekday.csv (build_evwatts_extract.py).
 - <circuit>/../profiles_use_bench/<circuit>/<daily>.csv: one-column kW profiles, used
-  for storage and PV sizing.
-- der_sizing in pipeline_config.yaml: storage and PV ratios and minimums.
+  for storage and PV sizing under pv_rule peak_ratio.
+- der_sizing in pipeline_config.yaml: the PV and storage size rules and their values,
+  and the storage rule, view, order, measurement and layer (der_sizing.py,
+  storage_control.py).
+- <work_root>/5b_profile_generation/<STATE>_parquet_and_bldgs.csv: the building of each
+  host's loadshape (Feeder, Yearly_Type, Yearly_Number): bldg_id, floor area, stories,
+  building type, roof area and annual electricity use (Phase 1 metadata columns).
 - <work_root>/5b_profile_generation/<STATE>_peak_days.csv: each feeder's baseline
   winter and summer peak day (Phase 5b).
 - With peak_day_rule: per_circuit in pipeline_config.yaml, for a circuit whose mix is
@@ -37,7 +43,7 @@ Inputs
   file (ext yaml, yml or json). The mix is the part of the circuit folder name after
   _circuit_<n>_.
 - PIPELINE_PV_PROFILE_FILE: the donor's SMART-DS solar file (pv_profile in
-  configs/donor_registry.yaml).
+  configs/donor_registry.yaml), for the PV shape and the annual yield.
 - voltage_band in pipeline_config.yaml: low_pu and high_pu for the load voltage
   summaries.
 - ev_control and ev_valley_base in pipeline_config.yaml: the rule for controlled EVs
@@ -45,7 +51,6 @@ Inputs
 - Under ev_control offpeak_start: <repo>/7_circuit_instantiation/data_tariffs/
   <STATE>_urdb_rate.json, the donor state's saved URDB time-of-use rate
   (fetch_tou_rates.py).
-- Environment: SC_KW_TARGET_FACTOR (0.8), SC_KW_TARGET_LOW (0.0), SC_RESERVE_PCT (20).
 
 Steps
 1. Builds one car per EV host with ev_cars.py, uncontrolled hosts then controlled
@@ -65,20 +70,29 @@ Steps
    on the host's legs <host>_1 and <host>_2 when both exist, else both on the host
    load itself with its own bus1, kV, conn and phases (a balanced three-phase EV load
    at a three-phase host).
-4. Writes Storage.dss: per target kWRated = max(storage_min_kw,
-   round(storage_kw_per_peak_kw * peak, 3)), kWhRated = storage_hours * kWRated,
-   kVA = kWRated / 0.90, 20 % stored, two monitors, and one StorageController
-   (PeakShave, kWTarget = max(50, SC_KW_TARGET_FACTOR * total kW)) anchored on
-   Monitor m1/m2 or the first Energymeter of Master.dss.
-5. Writes PVSystems.dss and LoadShapes_PV.dss: per target pmpp = max(pv_min_kw,
-   round(pv_kw_per_peak_kw * peak, 1)), kVA = 1.1 * pmpp, and one 96-point daily
-   shape: "kW Generated (1000 kW Array)" / 1000 in the donor's SMART-DS solar file on
-   this feeder's baseline peak day of the run's season, or on the circuit's own peak
-   day under per_circuit (pv_daily_shape).
+4. Sizes every PV and storage host (host_sizes, der_sizing.py) and writes
+   ModifiedCircuitData/der_hosts.csv. Under pv_rule roof_and_use: PV kW (Pmpp, DC) =
+   min(roof coverage x roof m2 x module kW per m2, annual use share x annual use kWh /
+   annual yield), the yield summed over the year of the donor's solar file; under the
+   commercial coverage_rule comstock the roof cap is comstock_roof_coverage x the
+   metadata roof x comstock_kw_per_m2. Storage kW = storage_kw_per_pv_kw x the host's
+   PV kW under its segment's rule (also at a storage host without PV), kWh =
+   storage_hours x kW. Under peak_ratio: Pmpp = max(pv_min_kw, round(pv_kw_per_peak_kw
+   x peak, 1)), storage kW = max(storage_min_kw, round(storage_kw_per_peak_kw x peak,
+   3)), kWh = storage_hours x kW. Inverter kVA = Pmpp / inverter loading ratio; storage
+   kVA = kW / storage_pf. The low, moderate or high entry follows sizing_case.
+5. Writes Storage.dss (two monitors per battery) and PVSystems.dss and
+   LoadShapes_PV.dss: at a host with <host>_1 and <host>_2 legs each unit is split
+   into two equal halves, one on each leg's bus (as the EV legs); at a host without
+   legs, one unit on the host's own bus (.1.2.3 when three-phase). The PV shape is one
+   96-point daily shape: "kW Generated (1000 kW Array)" / 1000 in the donor's SMART-DS
+   solar file on this feeder's baseline peak day of the run's season, or on the
+   circuit's own peak day under per_circuit (pv_daily_shape).
 6. Rewrites Master.dss: replaces the yearly 15-minute 35040-step solve with
    "Solve mode=daily stepsize=15m number=96", comments out Plot lines, places the
    new Redirect lines before the first Solve, and appends Export lines for the
-   storage monitors.
+   storage monitors. With storage, "Set MaxControlIter=<storage_max_control_iter>"
+   goes just before the first Solve (also in the EV base solve under before_cars).
 7. Writes Monitors_LoadVoltage.dss: one mode=0 Monitor vl_<load> per Load in
    ModifiedCircuitData/Loads.dss (load_voltage.py), and adds
    "Redirect Monitors_LoadVoltage.dss" just before the first Solve line.
@@ -88,8 +102,9 @@ Steps
    a car without one, and every car with ev_home_window false, may use every interval.
    - uncontrolled: the session rows unchanged.
    - valley_fill_feeder: solves the circuit without EVs in EVControl/base_solve/
-     (run_base_solve; buildings only, or also PV and storage under ev_valley_base
-     after_pv_storage), takes feeder-head P from Monitor m2, adds every uncontrolled
+     (run_base_solve; buildings only, or also PV under ev_valley_base after_pv, and
+     also PV and storage under storage_order before_cars), takes feeder-head P from
+     Monitor m2, adds every uncontrolled
      car's kW, and places each controlled car in order of plug-in time (plugin_order)
      on the intervals where the forecast of that curve is lowest, keeping its energy
      and its number of charging intervals. The forecast (forecast_curve) adds to each
@@ -114,10 +129,29 @@ Steps
      a window with no cheap interval starts at plug-in. It charges at its own power until
      its energy is delivered or the window ends.
    Then writes LoadShapes_EV.dss (EVu_i, EVc_i, 4 decimals).
+7b. Storage control (storage_rule, before the EV control under storage_order
+   before_cars, after it otherwise; storage_control_step). Each battery watches one
+   view (storage_view): the feeder-head element of Monitor m1/m2; or its host's service
+   transformer (terminal 1), the feeder when the host has none; or the Line that feeds
+   its host's bus from the service transformer (storage_control.feeding_lines), the
+   transformer or the feeder when there is none. The measured curve of a view
+   (storage_measure, storage_order, storage_layer): buildings, plus PV under
+   all_placed, plus the cars under all_placed and after_cars; under add_kw a
+   buildings-only solve (the EV base solve when it is one and the view is the feeder,
+   else StorageControl/base_solve/) plus the kW of PV (min(Pmpp x shape, kVA)) and cars
+   on the view; under solve an OpenDSS solve with those layers in
+   StorageControl/measure_solve/. Targets and schedules use its forecast
+   (forecast_curve, forecast_error of the ev_day value set, z from
+   rng(forecast_storage_<view>)). original and simple and tuned write one
+   StorageController per view (PeakShave, PeakShaveLow, %Reserve, %kWBand and %kWBandLow
+   storage_kw_band_pct, DispFactor storage_disp_factor) into Storage.dss;
+   schedule writes a daily loadshape per host and sets its batteries to DispMode=FOLLOW,
+   computed host by host on the view's forecast, each schedule joining it.
 8. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
    and reads Solution.Converged.
 9. When converged, reads every load Monitor through the engine (no Export lines) and
-   writes the load voltage tables (per unit of the load's bus base kV).
+   writes the load voltage tables (per unit of the load's bus base kV), and reads each
+   battery's state monitor for StorageControl/storage_targets.csv.
 
 Outputs
 - ModifiedCircuitData/: copied and edited .dss files, LoadShapes_EV.dss, Storage.dss,
@@ -131,8 +165,17 @@ Outputs
   uncontrolled): ev_control_cars.csv (one row per controlled car); under the valley
   rules also ev_control_curves.csv (one row per curve and step) and base_solve/ (the
   .dss files and monitor CSVs of the no-EV solve). Columns in docs/outputs.md.
+- ModifiedCircuitData/der_hosts.csv: one row per PV or storage host (attributes and
+  sizes). Columns in docs/outputs.md.
+- <circuit>/StorageControl/ (when the circuit has storage): storage_curves.csv (one row
+  per view and step: measured, forecast error and forecast kW), storage_targets.csv
+  (one row per battery: view, targets or schedule energy, and after the solve the
+  energy charged and discharged and the stored energy range), storage_schedule.csv
+  under schedule (one row per host and step), and base_solve/ or measure_solve/ when a
+  solve was run for the measured curves.
 - Console counts: the ev_loads split when used, storage and PV raised to their
-  minimum, peaks taken from Loads_original.dss, and EV hosts placed on their own
+  minimum under peak_ratio, peaks taken from Loads_original.dss, PV and storage hosts
+  with and without legs per segment, the annual yield, and EV hosts placed on their own
   bus (with how many carry a commercial com_ profile); load monitors, steps and the
   loads whose bus has no base voltage; under valley_fill_transformer the loads with
   one, no or several service transformers and the controlled cars on the feeder curve;
@@ -142,17 +185,24 @@ Outputs
 
 Fallbacks and floors
 - ev_loads_uncontrolled and ev_loads_controlled both empty: ev_loads split in half.
-- Peak: profile CSV maximum, else Loads_original.dss kW.
-- Storage and PV minimums from der_sizing; controller kWTarget floor 50 kW.
+- Peak (peak_ratio): profile CSV maximum, else Loads_original.dss kW.
+- Storage and PV minimums from der_sizing under peak_ratio.
+- storage_view transformer or building: a host without the element watches the
+  feeder (or its transformer, under building).
 
 Stops (exit 1 unless noted)
 - ModifiedCircuitData/ already holds files.
 - No feeder subfolder.
-- scenario_assignments.json missing, unparsable or not a JSON object.
-- der_sizing key missing from pipeline_config.yaml.
+- scenario_assignments.json missing, unparsable or not a JSON object; ev.lvl2_perc, or
+  pv.<segment>.hosts or storage.<segment>.hosts, missing from it.
+- der_sizing key missing or unknown in pipeline_config.yaml.
+- A PV or storage host without a building row, or a building row without a needed
+  column or value, in <STATE>_parquet_and_bldgs.csv; a host that is neither both legs
+  nor a load of its own.
+- A storage solve (base or measure) that does not converge or a view monitor without 96
+  steps.
 - A .dss copy into ModifiedCircuitData/ (or EVControl/base_solve/) fails, or the
   profiles_use_bench/<circuit>/ folder its LoadShapes.dss points at does not exist.
-- A storage or PV target is not a load in Loads.dss.
 - An EV host has neither both _1 and _2 legs nor a load of its own in Loads.dss.
 - PV shape: season not summer or winter, peak-day record or row missing, solar file,
   column or the 96 rows of the date missing.
@@ -183,14 +233,7 @@ import numpy as np, pandas as pd
 # -----------------------
 # Knobs
 # -----------------------
-DEFAULT_EV_L2_PERC   = 0.80
-
-# Storage sizing vs load peak (ratios and minimums: der_sizing in pipeline_config.yaml)
-STORAGE_PF           = 0.90
-STORAGE_EFF_CHG      = 95.0
-STORAGE_EFF_DCH      = 95.0
-
-# PV sizing vs load peak (ratio and minimum: der_sizing in pipeline_config.yaml)
+# PV and storage sizes and storage control: der_sizing in pipeline_config.yaml
 IRRADIANCE_NPTS      = 96
 IRR_INTERVAL_H       = 0.25
 
@@ -249,6 +292,9 @@ from dss_engine import create_dss_engine
 from load_voltage import monitor_lines, read_load_monitors, load_voltage_frame, step_table, load_table
 from ev_control import valley_fill, valley_fill_curves, monitor_p_kw, service_transformers, cheap_intervals, offpeak_start
 from ev_control import water_fill, plugin_order, forecast_curve, start_offsets
+from der_sizing import (SEGMENTS, der_choice, der_number, der_value, annual_yield, roof_area_m2,
+                        pv_kw_roof_and_use, storage_size)
+from storage_control import simple_targets, tuned_targets, schedule, feeding_lines
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
@@ -266,17 +312,50 @@ EV_VALLEY_BASE = ev_valley_base(CFG)
 EV_CARS = ev_cars_source(CFG)
 EV_HOME_WINDOW = ev_home_window(CFG)
 EV_DAY = ev_day(CFG)
-DER_SIZING = CFG.get("der_sizing") or {}
-def der_sizing(key):
-    if key not in DER_SIZING:
-        print(f"[FAIL] der_sizing.{key} is missing from pipeline_config.yaml.")
-        sys.exit(1)
-    return float(DER_SIZING[key])
-STORAGE_KW_PER_PEAK  = der_sizing("storage_kw_per_peak_kw")
-STORAGE_MIN_KW       = der_sizing("storage_min_kw")
-STORAGE_ENERGY_HOURS = der_sizing("storage_hours")
-PV_KW_PER_PEAK       = der_sizing("pv_kw_per_peak_kw")
-PV_MIN_KW            = der_sizing("pv_min_kw")
+SIZING_CASE     = der_choice(CFG, "sizing_case")
+PV_RULE         = {seg: der_choice(CFG, f"pv_rule_{seg}") for seg in SEGMENTS}
+ROOF_SOURCE     = der_choice(CFG, "roof_area_source")
+COVERAGE_RULE   = der_choice(CFG, "coverage_rule_commercial")
+STORAGE_RULE    = der_choice(CFG, "storage_rule")
+STORAGE_VIEW    = der_choice(CFG, "storage_view")
+STORAGE_ORDER   = der_choice(CFG, "storage_order")
+STORAGE_MEASURE = der_choice(CFG, "storage_measure")
+STORAGE_LAYER   = der_choice(CFG, "storage_layer")
+STORAGE_KW_PER_PEAK  = der_number(CFG, "storage_kw_per_peak_kw")
+STORAGE_MIN_KW       = der_number(CFG, "storage_min_kw")
+STORAGE_ENERGY_HOURS = der_number(CFG, "storage_hours")
+PV_KW_PER_PEAK       = der_number(CFG, "pv_kw_per_peak_kw")
+PV_MIN_KW            = der_number(CFG, "pv_min_kw")
+PV_CUTIN_PCT         = der_number(CFG, "pv_cutin_pct")
+PV_CUTOUT_PCT        = der_number(CFG, "pv_cutout_pct")
+STORAGE_PF           = der_number(CFG, "storage_pf")
+STORAGE_EFF_CHG      = der_number(CFG, "storage_eff_charge_pct")
+STORAGE_EFF_DCH      = der_number(CFG, "storage_eff_discharge_pct")
+STORAGE_START_PCT    = der_number(CFG, "storage_start_pct")
+STORAGE_RESERVE_PCT  = der_number(CFG, "storage_reserve_pct")
+SIMPLE_PEAK_FRACTION = der_number(CFG, "simple_peak_fraction")
+SIMPLE_MEAN_FRACTION = der_number(CFG, "simple_mean_fraction")
+ORIGINAL_KW_PER_STORAGE_KW = der_number(CFG, "original_kw_target_per_storage_kw")
+ORIGINAL_MIN_KW            = der_number(CFG, "original_kw_target_min_kw")
+ORIGINAL_LOW_KW            = der_number(CFG, "original_kw_target_low_kw")
+STORAGE_MAX_CONTROL_ITER   = int(der_number(CFG, "storage_max_control_iter"))
+STORAGE_KW_BAND_PCT        = der_number(CFG, "storage_kw_band_pct")
+STORAGE_DISP_FACTOR        = der_number(CFG, "storage_disp_factor")
+# Size parameters per segment, the sizing_case entry where a parameter has three
+SIZE = {}
+for _seg in SEGMENTS:
+    SIZE[_seg] = {key: der_value(CFG, _seg, key, SIZING_CASE)
+                  for key in ("roof_coverage", "annual_use_share", "module_kw_per_m2",
+                              "inverter_loading_ratio", "storage_hours")}
+SIZE["residential"]["roof_tilt_deg"] = der_value(CFG, "residential", "roof_tilt_deg")
+SIZE["residential"]["ratio_small"] = SIZE["residential"]["ratio_large"] = \
+    der_value(CFG, "residential", "storage_kw_per_pv_kw")
+SIZE["commercial"]["roof_tilt_deg"] = None
+SIZE["commercial"]["ratio_small"] = der_value(CFG, "commercial", "storage_kw_per_pv_kw_small")
+SIZE["commercial"]["ratio_large"] = der_value(CFG, "commercial", "storage_kw_per_pv_kw_large")
+LARGE_PV_KW = der_value(CFG, "commercial", "large_pv_kw")
+COMSTOCK_COVERAGE = der_value(CFG, "commercial", "comstock_roof_coverage")
+COMSTOCK_KW_PER_M2 = der_value(CFG, "commercial", "comstock_kw_per_m2")
 VOLTAGE_BAND = CFG.get("voltage_band") or {}
 if "low_pu" not in VOLTAGE_BAND or "high_pu" not in VOLTAGE_BAND:
     print("[FAIL] voltage_band.low_pu and voltage_band.high_pu must be set in pipeline_config.yaml.")
@@ -323,7 +402,10 @@ if not isinstance(ASSIGN, dict):
 print(f"[OK] Loaded scenario assignments: {ASSIGN_PATH}")
 
 # EV params
-lvl2_charger_perc = clamp01(ASSIGN.get("ev", {}).get("lvl2_perc", DEFAULT_EV_L2_PERC))
+if "lvl2_perc" not in (ASSIGN.get("ev") or {}):
+    print(f"[FAIL] ev.lvl2_perc is missing from {ASSIGN_PATH}.")
+    sys.exit(1)
+lvl2_charger_perc = clamp01(ASSIGN["ev"]["lvl2_perc"])
 print(f"EV params -> L2 share={lvl2_charger_perc:.2f}")
 
 # Read Loads.dss (for bases + daily mapping)
@@ -461,12 +543,13 @@ def ensure_redirects_before_solve(master_path):
 
     write_lines(master_path, out)
 
-def add_redirect_before_solve(master_path, filename):
-    """Insert the one line "Redirect <filename>" just before the first Solve line of
-    master_path (at the end if there is no Solve line). Writes master_path."""
+def add_redirect_before_solve(master_path, filename, line=None):
+    """Insert the one line "Redirect <filename>" (or line, when given) just before the
+    first Solve line of master_path (at the end if there is no Solve line). Writes
+    master_path."""
     ml = read_lines(master_path)
     idx = next((i for i, ln in enumerate(ml) if re.match(r'(?i)^\s*Solve\b', ln.strip())), len(ml))
-    ml.insert(idx, f"Redirect {filename}\n")
+    ml.insert(idx, line or f"Redirect {filename}\n")
     write_lines(master_path, ml)
 
 def assert_expected_redirects(master_path, storage_present, pv_present, ev_present):
@@ -885,86 +968,193 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
             new_ml.append("\n! Added EV files at end\nRedirect LoadShapes_EV.dss\n")
         write_lines(master_dss_path, new_ml)
 
-# ---------------- Storage (from JSON targets) ----------------
-storage_targets = ASSIGN.get("storage_targets", []) if isinstance(ASSIGN, dict) else []
+# ---------------- PV and storage hosts and sizes (der_sizing in pipeline_config.yaml) ----------------
+def segment_hosts(kind):
+    """{segment: host bases} of kind (pv or storage) in scenario_assignments.json, from
+    <kind>.<segment>.hosts. Stops if a list is missing."""
+    out = {}
+    for seg in SEGMENTS:
+        hosts = ((ASSIGN.get(kind) or {}).get(seg) or {}).get("hosts")
+        if not isinstance(hosts, list):
+            print(f"[FAIL] {kind}.{seg}.hosts is missing from {ASSIGN_PATH}.")
+            sys.exit(1)
+        out[seg] = hosts
+    return out
+
+PV_HOSTS = segment_hosts("pv")
+STORAGE_HOSTS = segment_hosts("storage")
+HOST_SEGMENT = {b: seg for hosts_by_seg in (PV_HOSTS, STORAGE_HOSTS)
+                for seg, hosts in hosts_by_seg.items() for b in hosts}
+DER_HOST_LIST = list(dict.fromkeys(b for seg in SEGMENTS for b in PV_HOSTS[seg] + STORAGE_HOSTS[seg]))
+
+BLDG_MAP_PATH = os.path.join(CFG["work_root"], "5b_profile_generation", f"{CFG['state']}_parquet_and_bldgs.csv")
+# Building columns per segment. Commercial stories: in.number_of_stories, the numeric
+# column (in.number_stories is a text bin such as over_25).
+BLDG_COLUMNS = {
+    "residential": {"floor": "in.sqft", "stories": "in.geometry_stories", "type": "in.geometry_building_type_acs",
+                    "use": "out.electricity.total.energy_consumption.kwh", "roof": "out.params.roof_area_ft_2"},
+    "commercial":  {"floor": "in.sqft", "stories": "in.number_of_stories", "type": "in.floor_area_category",
+                    "use": "out.electricity.total.energy_consumption", "roof": "out.params.ext_roof_area..m2"},
+}
+
+def building_of(base, seg, bldg_map):
+    """The building of host base: its first daily loadshape (sorted), <res|com>_kw_<n>...,
+    and the row of bldg_map with Feeder = this feeder, Yearly_Type res or com and
+    Yearly_Number n. Returns loadshape, bldg_id, floor area (ft2), stories, building
+    type, annual electricity use (kWh) and the roof column (ft2 for homes, m2 for
+    commercial). Stops if the loadshape, the row, a column or a value is missing."""
+    shapes = sorted(base_to_daily.get(base, set()))
+    m = re.match(r"^(res|com)_kw_(\d+)", shapes[0]) if shapes else None
+    rows = bldg_map[(bldg_map["Feeder"] == CIRCUIT_NAME) & (bldg_map["Yearly_Type"] == m.group(1))
+                    & (bldg_map["Yearly_Number"] == int(m.group(2)))] if m else bldg_map.iloc[0:0]
+    if len(rows) != 1:
+        print(f"[FAIL] {len(rows)} building rows for host {base} (loadshape {shapes[:1]}) in {BLDG_MAP_PATH}; expected 1.")
+        sys.exit(1)
+    r = rows.iloc[0]
+    cols = BLDG_COLUMNS[seg]
+    for col in ["bldg_id"] + list(cols.values()):
+        if col not in r.index or pd.isna(r[col]):
+            print(f"[FAIL] {col} missing for host {base} in {BLDG_MAP_PATH}.")
+            sys.exit(1)
+    return {"loadshape": shapes[0], "bldg_id": int(r["bldg_id"]), "floor_ft2": float(r[cols["floor"]]),
+            "stories": float(r[cols["stories"]]), "building_type": str(r[cols["type"]]),
+            "annual_use_kwh": float(r[cols["use"]]), "roof_column": float(r[cols["roof"]])}
+
+def pv_annual_yield():
+    """kWh per kW of array per year of the donor's solar file: the year of PV_KW_COLUMN
+    / 1000 (per kW of array) summed times IRR_INTERVAL_H (der_sizing.annual_yield).
+    Stops if the file or the column is missing."""
+    pv_file = CFG["pv_profile_file"]
+    if not os.path.exists(pv_file):
+        print(f"[FAIL] PV profile file not found: {pv_file}")
+        sys.exit(1)
+    with open(pv_file, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        if PV_KW_COLUMN not in (reader.fieldnames or []):
+            print(f"[FAIL] Column {PV_KW_COLUMN!r} not in {pv_file}")
+            sys.exit(1)
+        values = [float(r[PV_KW_COLUMN]) / 1000 for r in reader]
+    return annual_yield(values, IRR_INTERVAL_H)
+
+def host_sizes(base, seg, bldg, yld):
+    """The der_hosts.csv row of host base of segment seg: the building's roof by
+    floor_stories and by metadata, and PV kW (Pmpp), inverter kVA and storage kW, kWh
+    and kVA under the segment's pv_rule (step 4 of the module docstring)."""
+    p = SIZE[seg]
+    roof_fs = roof_area_m2(seg, "floor_stories", bldg["floor_ft2"], bldg["stories"], bldg["roof_column"],
+                           p["roof_tilt_deg"])
+    roof_md = roof_area_m2(seg, "metadata", bldg["floor_ft2"], bldg["stories"], bldg["roof_column"])
+    row = {"base": base, "segment": seg, "pv_host": base in PV_HOSTS[seg], "storage_host": base in STORAGE_HOSTS[seg],
+           "loadshape": bldg["loadshape"], "bldg_id": bldg["bldg_id"], "floor_area_ft2": bldg["floor_ft2"],
+           "stories": bldg["stories"], "building_type": bldg["building_type"],
+           "roof_floor_stories_m2": roof_fs, "roof_metadata_m2": roof_md,
+           "annual_use_kwh": bldg["annual_use_kwh"], "annual_yield_kwh_per_kw": yld,
+           "pv_rule": PV_RULE[seg], "sizing_case": SIZING_CASE, "roof_area_source": None, "coverage_rule": None,
+           "roof_used_m2": None, "pv_cap_roof_kw": None, "pv_cap_use_kw": None, "roof_binds": None,
+           "peak_kw": None}
+    if PV_RULE[seg] == "peak_ratio":
+        pk = peak_kw_for_load(base)
+        row["peak_kw"] = pk
+        row["pv_kw"] = max(PV_MIN_KW, round(PV_KW_PER_PEAK * pk, 1))
+        row["storage_kw"] = max(STORAGE_MIN_KW, round(STORAGE_KW_PER_PEAK * pk, 3))
+        row["storage_kwh"] = round(row["storage_kw"] * STORAGE_ENERGY_HOURS, 3)
+        row["pv_at_min"] = round(PV_KW_PER_PEAK * pk, 1) < PV_MIN_KW
+        row["storage_at_min"] = round(STORAGE_KW_PER_PEAK * pk, 3) < STORAGE_MIN_KW
+    else:
+        if seg == "commercial" and COVERAGE_RULE == "comstock":
+            source, coverage, kw_per_m2 = "metadata", COMSTOCK_COVERAGE, COMSTOCK_KW_PER_M2
+        else:
+            source, coverage, kw_per_m2 = ROOF_SOURCE, p["roof_coverage"], p["module_kw_per_m2"]
+        roof = roof_fs if source == "floor_stories" else roof_md
+        pv_kw, cap_roof, cap_use, binds = pv_kw_roof_and_use(roof, coverage, kw_per_m2, p["annual_use_share"],
+                                                             bldg["annual_use_kwh"], yld)
+        row.update({"roof_area_source": source, "coverage_rule": COVERAGE_RULE if seg == "commercial" else "lbnl",
+                    "roof_used_m2": roof, "pv_cap_roof_kw": cap_roof, "pv_cap_use_kw": cap_use,
+                    "roof_binds": binds, "pv_kw": pv_kw})
+        row["storage_kw"], row["storage_kwh"] = storage_size(pv_kw, p["ratio_small"], p["ratio_large"],
+                                                             LARGE_PV_KW, p["storage_hours"])
+    row["pv_kva"] = row["pv_kw"] / p["inverter_loading_ratio"]
+    row["storage_kva"] = row["storage_kw"] / STORAGE_PF
+    return row
+
+def der_units(base):
+    """[(suffix, attributes, share)] of the PV or storage units of host base: one unit on
+    each leg, <base>_1 and <base>_2, each with an equal share, when both are loads (where
+    ev_leg_infos puts the EV legs); else one unit with the whole size on the host load
+    base, on its own bus (.1.2.3 when three-phase). Stops if base is neither."""
+    n1, n2 = base + "_1", base + "_2"
+    if n1 in parsed_loads_map and n2 in parsed_loads_map:
+        legs = [("_1", dict(parsed_loads_map[n1])), ("_2", dict(parsed_loads_map[n2]))]
+        return [(suffix, info, 1.0 / len(legs)) for suffix, info in legs]
+    host = parsed_loads_map.get(base)
+    if host is None:
+        print(f"[FAIL] PV or storage host {base} is not a load in {PATH_LOADS_DSS}.")
+        sys.exit(1)
+    info = dict(host)
+    if info.get("ph") == "3":
+        info["bus1"] = f"{info['bus1'].split('.')[0]}.1.2.3"
+    return [("", info, 1.0)]
+
+DER_ROWS = {}
+if DER_HOST_LIST:
+    bldg_map = pd.read_csv(BLDG_MAP_PATH, low_memory=False)
+    annual_yield_kwh_per_kw = pv_annual_yield()
+    print(f"Sizing -> annual yield {annual_yield_kwh_per_kw:.4f} kWh per kW from {CFG['pv_profile_file']}")
+    for b in DER_HOST_LIST:
+        seg = HOST_SEGMENT[b]
+        DER_ROWS[b] = host_sizes(b, seg, building_of(b, seg, bldg_map), annual_yield_kwh_per_kw)
+        DER_ROWS[b]["units"] = len(der_units(b))
+        DER_ROWS[b]["legs"] = DER_ROWS[b]["units"] > 1
+der_cols = ["base", "segment", "pv_host", "storage_host", "loadshape", "bldg_id", "floor_area_ft2", "stories",
+            "building_type", "roof_floor_stories_m2", "roof_metadata_m2", "annual_use_kwh", "annual_yield_kwh_per_kw",
+            "pv_rule", "sizing_case", "roof_area_source", "coverage_rule", "roof_used_m2", "pv_cap_roof_kw",
+            "pv_cap_use_kw", "roof_binds", "peak_kw", "pv_kw", "pv_kva", "storage_kw", "storage_kwh", "storage_kva",
+            "legs", "units"]
+pd.DataFrame([DER_ROWS[b] for b in DER_HOST_LIST], columns=der_cols).to_csv(
+    os.path.join(OUT_DIR, "der_hosts.csv"), index=False)
+for seg in SEGMENTS:
+    seg_rows = [r for r in DER_ROWS.values() if r["segment"] == seg]
+    print(f"Sizing -> {seg}: PV hosts {sum(r['pv_host'] for r in seg_rows)}, storage hosts "
+          f"{sum(r['storage_host'] for r in seg_rows)}, hosts with legs {sum(r['legs'] for r in seg_rows)} "
+          f"of {len(seg_rows)}, pv_rule {PV_RULE[seg]}")
+
+# ---------------- Storage (storage hosts of scenario_assignments.json) ----------------
 storage_path = os.path.join(OUT_DIR, "Storage.dss")
 monitor_export_lines = []
 monitor_names = []       # bare monitor names (no class prefix), for the post-export existence check
-# Controller sizing knobs (override with env if desired)
-SC_KW_TARGET_FACTOR = float(os.environ.get("SC_KW_TARGET_FACTOR", "0.8"))  # fraction of total storage kW
-SC_KW_TARGET_LOW    = float(os.environ.get("SC_KW_TARGET_LOW",  "0.0"))    # charge threshold
-SC_RESERVE_PCT      = float(os.environ.get("SC_RESERVE_PCT",    "20"))     # %Reserve
-
-storage_names = []       # DSS object names without class prefix (e.g., 'storage_busA')
-storage_objnames = []    # Full class-qualified ('Storage.storage_busA')
-storage_objnames_2 = []
-total_storage_kW = 0.0
+STORAGE_UNITS = []       # one per Storage object: name, host, segment, kW, kWh, state monitor
 n_storage = 0
-n_storage_at_min = 0
+n_zero_size = 0          # PV or storage hosts sized at 0 kW, written without an object
 
-if storage_targets:
+storage_host_list = [b for seg in SEGMENTS for b in STORAGE_HOSTS[seg]]
+if storage_host_list:
     with open(storage_path, "w", encoding="utf-8") as f_st:
-        f_st.write("! ==========================\n! STORAGE ELEMENTS (from JSON targets)\n! ==========================\n\n")
-        for full in storage_targets:
-            info = parsed_loads_map.get(full)
-            if not info:
-                print(f"[FAIL] Storage target {full} is not a load in {PATH_LOADS_DSS}.")
-                sys.exit(1)
-
-            pk = peak_kw_for_load(full)  # your existing helper
-            if round(STORAGE_KW_PER_PEAK * pk, 3) < STORAGE_MIN_KW:
-                n_storage_at_min += 1
-            kWRated  = max(STORAGE_MIN_KW, round(STORAGE_KW_PER_PEAK * pk, 3))
-            kWhRated = round(kWRated * STORAGE_ENERGY_HOURS, 3)
-            kVA      = round(kWRated / max(STORAGE_PF, 1e-3), 3)
-
-            busname = info["bus1"].split('.')[0]
-            ph = info.get("ph", "1")
-            bus_str = f"{busname}.1.2.3" if ph == "3" else info["bus1"]
-            stg_name = f"storage_{full}"
-
-            # write the storage element
-            f_st.write(
-                f"New Storage.{stg_name} phases={ph} bus1={bus_str} kV={info['kV']} kVA={kVA}\n"
-                f"~ kWRated={kWRated} kWhRated={kWhRated} kWhStored={0.2*kWhRated:.3f} State=IDLE\n"
-                f"~ %EffCharge={STORAGE_EFF_CHG} %EffDischarge={STORAGE_EFF_DCH} Balanced=yes varFollowInverter=yes\n\n"
-            )
-            # monitors (optional)
-            mon_pwr  = f"mon_{stg_name}_power"
-            mon_soc  = f"mon_{stg_name}_soc"
-            f_st.write(f"New Monitor.{mon_pwr} element=Storage.{stg_name} mode=1\n")
-            f_st.write(f"New Monitor.{mon_soc} element=Storage.{stg_name} mode=3\n\n")
-            monitor_export_lines.append(f"Export Monitors {mon_pwr}\n")
-            monitor_export_lines.append(f"Export Monitors {mon_soc}\n")
-            monitor_names.append(mon_pwr)
-            monitor_names.append(mon_soc)
-
-            storage_names.append(stg_name)
-            storage_objnames.append(f"Storage.{stg_name}")
-            storage_objnames_2.append(f"{stg_name}")
-            total_storage_kW += kWRated
-            n_storage += 1
-
-        # --- Controller (only if we created storages) ---
-        if n_storage > 0:
-            anchor_elem = find_controller_anchor(master_dss_path)
-            if not anchor_elem:
-                raise RuntimeError(
-                    "Could not infer StorageController anchor from Master.dss. "
-                    "Expected a Monitor.m1/m2 element or an Energymeter element."
+        f_st.write("! ==========================\n! STORAGE ELEMENTS (storage hosts)\n! ==========================\n\n")
+        for base in storage_host_list:
+            row = DER_ROWS[base]
+            if row["storage_kw"] <= 0:  # a host whose PV rule gives 0 kW (no roof) gets no battery
+                n_zero_size += 1
+                continue
+            for suffix, info, share in der_units(base):
+                stg_name = f"storage_{base}{suffix}"
+                kw_u, kwh_u, kva_u = row["storage_kw"] * share, row["storage_kwh"] * share, row["storage_kva"] * share
+                f_st.write(
+                    f"New Storage.{stg_name} phases={info['ph']} bus1={info['bus1']} kV={info['kV']} kVA={kva_u:.4f}\n"
+                    f"~ kWRated={kw_u:.4f} kWhRated={kwh_u:.4f} %stored={STORAGE_START_PCT} "
+                    f"%reserve={STORAGE_RESERVE_PCT} State=IDLE\n"
+                    f"~ %EffCharge={STORAGE_EFF_CHG} %EffDischarge={STORAGE_EFF_DCH} Balanced=yes varFollowInverter=yes\n\n"
                 )
-            kw_target   = max(50.0, total_storage_kW * SC_KW_TARGET_FACTOR)
-
-            f_st.write("\n! ==========================\n! STORAGE CONTROLLER\n! ==========================\n\n")
-            # anchor where your feeder monitors are
-            f_st.write(f"New StorageController.sc_combined element={anchor_elem}\n")
-            f_st.write("~ terminal=1 modeDischarge=PeakShave ")
-            f_st.write(f"kWTarget={kw_target}\n")
-            f_st.write("~ modeCharge=PeakShaveLow ")
-            f_st.write(f"kWTargetLow={SC_KW_TARGET_LOW}\n")
-            f_st.write(f"~ %Reserve={SC_RESERVE_PCT} MonPhase=AVG EventLog=yes\n")
-            # explicitly bind the fleet so DSS doesn't say "No unassigned Storage Elements"
-            f_st.write("~ elementList=(" + " ".join(storage_objnames_2) + ")\n")
+                mon_pwr  = f"mon_{stg_name}_power"
+                mon_soc  = f"mon_{stg_name}_soc"
+                f_st.write(f"New Monitor.{mon_pwr} element=Storage.{stg_name} mode=1\n")
+                f_st.write(f"New Monitor.{mon_soc} element=Storage.{stg_name} mode=3\n\n")
+                monitor_export_lines.append(f"Export Monitors {mon_pwr}\n")
+                monitor_export_lines.append(f"Export Monitors {mon_soc}\n")
+                monitor_names.append(mon_pwr)
+                monitor_names.append(mon_soc)
+                STORAGE_UNITS.append({"name": stg_name, "host": base, "segment": row["segment"],
+                                      "kw": float(f"{kw_u:.4f}"), "kwh": float(f"{kwh_u:.4f}"), "soc_monitor": mon_soc})
+                n_storage += 1
 
 # Patch Master with Storage redirects + export lines
 if master_dss_path:
@@ -977,42 +1167,36 @@ if master_dss_path:
         new_ml.extend(monitor_export_lines)
     write_lines(master_dss_path, new_ml)
 
-# ---------------- PV (from JSON targets) ----------------
-pv_targets      = ASSIGN.get("pv_targets", [])      if isinstance(ASSIGN, dict) else []
+# ---------------- PV (PV hosts of scenario_assignments.json) ----------------
+pv_host_list = [b for seg in SEGMENTS for b in PV_HOSTS[seg]]
+PV_PROFILE = None
 n_pv = 0
-n_pv_at_min = 0
-if PV_KW_PER_PEAK > 0.0 and pv_targets:
+if pv_host_list:
     pv_path    = os.path.join(OUT_DIR, "PVSystems.dss")
     pv_ls_path = os.path.join(OUT_DIR, "LoadShapes_PV.dss")
     with open(pv_path, "w", encoding="utf-8") as f_pv, open(pv_ls_path, "w", encoding="utf-8") as f_ls:
-        f_pv.write("! PV SYSTEMS (from JSON targets)\n\n")
+        f_pv.write("! PV SYSTEMS (PV hosts)\n\n")
         f_ls.write("! PV LoadShapes\n\n")
         season = (ASSIGN.get("season") or "").lower()
         # Shape on this feeder's baseline peak day of the run's season
-        profile = pv_daily_shape(CIRCUIT_NAME, season)
-        prof_str = " ".join(str(v) for v in profile)
+        PV_PROFILE = pv_daily_shape(CIRCUIT_NAME, season)
+        prof_str = " ".join(str(v) for v in PV_PROFILE)
 
-        for idx, full in enumerate(pv_targets):
-            info = parsed_loads_map.get(full)
-            if not info:
-                print(f"[FAIL] PV target {full} is not a load in {PATH_LOADS_DSS}.")
-                sys.exit(1)
-            pk = peak_kw_for_load(full)
-            if round(PV_KW_PER_PEAK * pk, 1) < PV_MIN_KW:
-                n_pv_at_min += 1
-            pv_kw   = max(PV_MIN_KW, round(PV_KW_PER_PEAK * pk, 1))
-            busname = info["bus1"].split('.')[0]
-            ph      = info.get("ph", "1")
-            bus_str = f"{busname}.1.2.3" if ph == "3" else info["bus1"]
-            ls_name = f"PVShape_{idx}"
-            pv_name = f"pv_{full}"
-            f_ls.write(f"New Loadshape.{ls_name} npts={IRRADIANCE_NPTS} interval={IRR_INTERVAL_H} mult=({prof_str})\n")
-            f_pv.write(
-                f"New PVSystem.{pv_name} phases={ph} bus1={bus_str} kV={info['kV']} "
-                f"kVA={pv_kw*1.1:.1f} pmpp={pv_kw:.1f} pf=1 %Cutin=0.1 %Cutout=0.1 "
-                f"daily={ls_name} irradiance=1\n\n"
-            )
-            n_pv += 1
+        for base in pv_host_list:
+            row = DER_ROWS[base]
+            if row["pv_kw"] <= 0:  # no roof: no array
+                n_zero_size += 1
+                continue
+            for suffix, info, share in der_units(base):
+                ls_name = f"PVShape_{n_pv}"
+                pv_name = f"pv_{base}{suffix}"
+                f_ls.write(f"New Loadshape.{ls_name} npts={IRRADIANCE_NPTS} interval={IRR_INTERVAL_H} mult=({prof_str})\n")
+                f_pv.write(
+                    f"New PVSystem.{pv_name} phases={info['ph']} bus1={info['bus1']} kV={info['kV']} "
+                    f"kVA={row['pv_kva'] * share:.4f} pmpp={row['pv_kw'] * share:.4f} pf=1 "
+                    f"%Cutin={PV_CUTIN_PCT} %Cutout={PV_CUTOUT_PCT} daily={ls_name} irradiance=1\n\n"
+                )
+                n_pv += 1
 
     # Ensure Master includes these redirects
     if master_dss_path:
@@ -1024,9 +1208,13 @@ if PV_KW_PER_PEAK > 0.0 and pv_targets:
             new_ml.append("\n! Added PV items\nRedirect PVSystems.dss\n")
         write_lines(master_dss_path, new_ml)
 
-print(f"Sizing -> storage at the {STORAGE_MIN_KW} kW minimum: {n_storage_at_min} of {n_storage}; "
-      f"PV at the {PV_MIN_KW} kW minimum: {n_pv_at_min} of {n_pv}")
-print(f"Peak kW from Loads_original.dss instead of a profile CSV: {len(PEAK_FROM_ORIGINAL_KW)}")
+print(f"Sizing -> PV or storage hosts sized at 0 kW, without an object: {n_zero_size}")
+if any(PV_RULE[seg] == "peak_ratio" for seg in SEGMENTS):
+    print(f"Sizing -> storage at the {STORAGE_MIN_KW} kW minimum: "
+          f"{sum(1 for b in storage_host_list if DER_ROWS[b].get('storage_at_min'))} of {len(storage_host_list)}; "
+          f"PV at the {PV_MIN_KW} kW minimum: {sum(1 for b in pv_host_list if DER_ROWS[b].get('pv_at_min'))} "
+          f"of {len(pv_host_list)}")
+    print(f"Peak kW from Loads_original.dss instead of a profile CSV: {len(PEAK_FROM_ORIGINAL_KW)}")
 n_ev_own_bus_com = sum(1 for b in EV_HOSTS_OWN_BUS
                        if any(d.lower().startswith("com_") for d in base_to_daily.get(b, set())))
 print(f"EV hosts without _1/_2 legs, EV on the host's own bus: {len(EV_HOSTS_OWN_BUS)} "
@@ -1071,9 +1259,10 @@ def run_base_solve(transformer_names):
     {transformer name: terminal-1 P}), each 96 kW values. The folder holds the same
     .dss copies as ModifiedCircuitData/ (copy_feeder_dss; it sits one level deeper, so
     LoadShapes.dss points at ../../../profiles_use_bench/), so Loads.dss has no EV load,
-    and no LoadShapes_EV.dss or Monitors_LoadVoltage.dss. Under ev_valley_base
-    after_pv_storage it also holds Storage.dss, PVSystems.dss and LoadShapes_PV.dss of
-    ModifiedCircuitData/. Master.dss is retargeted to the daily solve and its Redirect
+    and no LoadShapes_EV.dss or Monitors_LoadVoltage.dss. Under ev_valley_base after_pv
+    it also holds PVSystems.dss and LoadShapes_PV.dss of ModifiedCircuitData/, and under
+    storage_order before_cars those and Storage.dss (with its storage control). Master.dss
+    is retargeted to the daily solve and its Redirect
     lines placed as in the main Master.dss. With transformer_names, one mode=1 Monitor
     mt_<n> per transformer (n from 1 in the given order) in Monitors_Transformers.dss,
     redirected just before the first Solve. P per step from monitor_p_kw. Stops if
@@ -1082,8 +1271,8 @@ def run_base_solve(transformer_names):
     base_dir = os.path.join(EVC_DIR, "base_solve")
     os.makedirs(base_dir, exist_ok=True)
     base_master = copy_feeder_dss(base_dir, "../../../")
-    if EV_VALLEY_BASE == "after_pv_storage":
-        for fn in ("Storage.dss", "PVSystems.dss", "LoadShapes_PV.dss"):
+    if EV_VALLEY_BASE == "after_pv" or STORAGE_ORDER == "before_cars":
+        for fn in ("PVSystems.dss", "LoadShapes_PV.dss") + (("Storage.dss",) if STORAGE_ORDER == "before_cars" else ()):
             if os.path.exists(os.path.join(OUT_DIR, fn)):
                 shutil.copy2(os.path.join(OUT_DIR, fn), os.path.join(base_dir, fn))
     if not base_master or not retarget_master_to_daily(base_master, npts=96, stepsize="15m"):
@@ -1093,6 +1282,8 @@ def run_base_solve(transformer_names):
         print(f"[FAIL] {base_master} has no Monitor.m2 for the feeder-head load of the EV base solve.")
         sys.exit(1)
     ensure_redirects_before_solve(base_master)
+    if STORAGE_ORDER == "before_cars" and n_storage > 0:
+        add_redirect_before_solve(base_master, None, f"Set MaxControlIter={STORAGE_MAX_CONTROL_ITER}\n")
     if transformer_names:
         write_lines(os.path.join(base_dir, "Monitors_Transformers.dss"),
                     [f"New Monitor.mt_{n} element=Transformer.{name} terminal=1 mode=1\n"
@@ -1117,6 +1308,212 @@ def run_base_solve(transformer_names):
     feeder_p = read_p("m2")
     trans_p = {name: read_p(f"mt_{n}") for n, name in enumerate(transformer_names, start=1)}
     return feeder_p, trans_p
+
+
+# ---------------- Storage control (storage_rule in der_sizing) ----------------
+STC_DIR = os.path.join(CURRENT_DIR, "StorageControl")
+EV_BASE_FEEDER_P = None    # feeder-head P of the EV base solve, when it runs
+STORAGE_TARGET_ROWS = []   # one per Storage object, completed after the solve
+STORAGE_FORECAST_DRAWS = []
+
+def view_solve(name, layers, monitors):
+    """Solve the circuit in StorageControl/<name>/ and return {key: P (96 kW)} of one
+    mode=1 Monitor ms_<n> per (key, element, terminal) of monitors. The folder holds the
+    .dss copies of copy_feeder_dss (buildings only); layer "pv" adds PVSystems.dss and
+    LoadShapes_PV.dss of ModifiedCircuitData/, layer "cars" its Loads.dss (with the EV
+    loads) and LoadShapes_EV.dss. Master.dss is retargeted to the daily solve, its
+    Redirect lines placed as in the main Master.dss and Monitors_StorageViews.dss
+    redirected before the first Solve. Stops if there is no yearly solve line, the solve
+    does not converge or a monitor does not hold 96 steps."""
+    sdir = os.path.join(STC_DIR, name)
+    os.makedirs(sdir, exist_ok=True)
+    smaster = copy_feeder_dss(sdir, "../../../")
+    files = (["PVSystems.dss", "LoadShapes_PV.dss"] if "pv" in layers else []) + \
+            ([os.path.basename(loads_ev_path), "LoadShapes_EV.dss"] if "cars" in layers else [])
+    for fn in files:
+        if os.path.exists(os.path.join(OUT_DIR, fn)):
+            shutil.copy2(os.path.join(OUT_DIR, fn), os.path.join(sdir, fn))
+    if not smaster or not retarget_master_to_daily(smaster, npts=96, stepsize="15m"):
+        print(f"[FAIL] No 'Solve mode=yearly stepsize=15m number=35040' line to retarget in {sdir}.")
+        sys.exit(1)
+    ensure_redirects_before_solve(smaster)
+    write_lines(os.path.join(sdir, "Monitors_StorageViews.dss"),
+                [f"New Monitor.ms_{n} element={el} terminal={t} mode=1\n"
+                 for n, (_, el, t) in enumerate(monitors, start=1)])
+    add_redirect_before_solve(smaster, "Monitors_StorageViews.dss")
+    engine = create_dss_engine()
+    engine.AllowForms = False
+    engine.Start(0)
+    engine.Text.Command = f'Compile "{smaster}"'
+    circuit = engine.ActiveCircuit
+    if not bool(circuit.Solution.Converged):
+        print(f"[FAIL] The storage {name} did not converge: {smaster}")
+        sys.exit(1)
+    out = {}
+    for n, (key, _, _) in enumerate(monitors, start=1):
+        mon = circuit.Monitors
+        mon.Name = f"ms_{n}"
+        p = monitor_p_kw(list(mon.Header), mon.Channel)
+        if len(p) != IRRADIANCE_NPTS:
+            print(f"[FAIL] Monitor ms_{n} of the storage {name} holds {len(p)} steps; expected {IRRADIANCE_NPTS}.")
+            sys.exit(1)
+        out[key] = np.asarray(p, dtype=float)
+    return out
+
+def storage_views():
+    """Return (views, host_view, host_keys). views {key: (element, terminal)}: "feeder"
+    is the element of Monitor m1/m2 of Master.dss (find_controller_anchor), terminal 1.
+    Under storage_view transformer, "transformer_<t>" is Transformer.<t>, terminal 1, for
+    each service transformer of a storage host (service_transformers on the host's
+    leg, ev_host_leg). Under building, "building_<host>" is the Line that feeds the
+    host's bus (feeding_lines), else the host's transformer. host_view {storage host:
+    key}; a host without its element watches the feeder. host_keys(base) gives every
+    view key whose element carries the flow of host base."""
+    anchor = find_controller_anchor(master_dss_path)
+    if not anchor:
+        raise RuntimeError("Could not infer StorageController anchor from Master.dss. "
+                           "Expected a Monitor.m1/m2 element or an Energymeter element.")
+    views = {"feeder": (anchor, 1)}
+    host_view = {u["host"]: "feeder" for u in STORAGE_UNITS}
+    tr_map = {}
+    if STORAGE_VIEW != "feeder":
+        dss_texts = [read_text(os.path.join(OUT_DIR, fn)) for fn in dss_files]
+        tr_map, _ = service_transformers(dss_texts, {n: i["bus1"] for n, i in parsed_loads_map.items()})
+        lines = {}
+        if STORAGE_VIEW == "building":
+            lines = feeding_lines(dss_texts, {h: (parsed_loads_map[ev_host_leg(h)]["bus1"], tr_map.get(ev_host_leg(h)))
+                                              for h in host_view})
+        for h in host_view:
+            t = tr_map.get(ev_host_leg(h))
+            if lines.get(h):
+                host_view[h] = f"building_{h}"
+                views[host_view[h]] = (f"Line.{lines[h][0]}", lines[h][1])
+            elif t:
+                host_view[h] = f"transformer_{t}"
+                views[host_view[h]] = (f"Transformer.{t}", 1)
+        print(f"Storage view -> {STORAGE_VIEW}: {len(views) - 1} {STORAGE_VIEW} views, "
+              f"{sum(1 for v in host_view.values() if v == 'feeder')} hosts on the feeder view")
+
+    def host_keys(base):
+        t = tr_map.get(ev_host_leg(base)) if base in parsed_loads_map or base + "_1" in parsed_loads_map else None
+        return [k for k in ("feeder", f"transformer_{t}" if t else None, f"building_{base}") if k in views]
+    return views, host_view, host_keys
+
+def measured_curves(views, host_keys, with_cars):
+    """{view key: measured kW (96)}: buildings, plus PV under storage_measure all_placed,
+    plus the cars when with_cars and all_placed. Under storage_layer solve with a layer
+    to add: view_solve("measure_solve") with the layers in. Else a buildings-only base:
+    the EV base solve's feeder-head P when the only view is the feeder and that solve
+    holds buildings only, otherwise view_solve("base_solve"); then each PV host adds
+    min(Pmpp x shape, kVA) and each car its row to every view that carries its host."""
+    pv_on = STORAGE_MEASURE == "all_placed" and n_pv > 0
+    cars_on = STORAGE_MEASURE == "all_placed" and with_cars and (N_u + N_c) > 0
+    keys = list(views)
+    monitors = [(k, views[k][0], views[k][1]) for k in keys]
+    if STORAGE_LAYER == "solve" and (pv_on or cars_on):
+        return view_solve("measure_solve", [n for n, on in (("pv", pv_on), ("cars", cars_on)) if on], monitors)
+    if keys == ["feeder"] and EV_BASE_FEEDER_P is not None:
+        curves = {"feeder": np.asarray(EV_BASE_FEEDER_P, dtype=float).copy()}
+    else:
+        curves = view_solve("base_solve", [], monitors)
+    if pv_on:
+        shape = np.asarray(PV_PROFILE, dtype=float)
+        for b in pv_host_list:
+            kw = np.minimum(DER_ROWS[b]["pv_kw"] * shape, DER_ROWS[b]["pv_kva"])
+            for k in host_keys(b):
+                curves[k] = curves[k] - kw
+    if cars_on:
+        for rows, hosts in ((arr_u, json_ev_un), (arr_c, json_ev_ct)):
+            for j, b in enumerate(hosts):
+                for k in host_keys(b):
+                    curves[k] = curves[k] + rows[j, :]
+    return curves
+
+def storage_control_step(with_cars):
+    """Step 7b of the module docstring: views, measured curves and their forecasts,
+    then the controller or the schedules of storage_rule, appended to Storage.dss.
+    Writes StorageControl/storage_curves.csv (and storage_schedule.csv under schedule);
+    STORAGE_TARGET_ROWS gets one row per battery."""
+    os.makedirs(STC_DIR, exist_ok=True)
+    seed = (ASSIGN.get("ev") or {}).get("effective_seed")
+    if seed is None:
+        print(f"[FAIL] ev.effective_seed is missing from {ASSIGN_PATH}.")
+        sys.exit(1)
+    views, host_view, host_keys = storage_views()
+    curves = measured_curves(views, host_keys, with_cars)
+    fc_model = EV_INPUTS["forecast_error"]
+    dt = IRR_INTERVAL_H
+    eff_c, eff_d = STORAGE_EFF_CHG / 100.0, STORAGE_EFF_DCH / 100.0
+    start, reserve = STORAGE_START_PCT / 100.0, STORAGE_RESERVE_PCT / 100.0
+    text = [f"\n! ==========================\n! STORAGE CONTROL (storage_rule {STORAGE_RULE}, "
+            f"storage_view {STORAGE_VIEW})\n! ==========================\n\n"]
+    curve_rows, sched_rows = [], []
+    n_sched = 0
+    for n_view, key in enumerate(views, start=1):
+        units = [u for u in STORAGE_UNITS if host_view[u["host"]] == key]
+        if not units:
+            continue
+        draw = f"forecast_storage_{key}"
+        z = ev_rng(draw, seed).standard_normal(24)
+        fc, err, fc_w, fc_cv = forecast_curve(curves[key], fc_model, EV_INPUTS["forecast_models"][fc_model], z)
+        STORAGE_FORECAST_DRAWS.append(draw)
+        element, terminal = views[key]
+        for i in range(IRRADIANCE_NPTS):
+            curve_rows.append({"view": key, "element": element, "terminal": terminal, "step": i + 1,
+                               "measured_kw": curves[key][i], "forecast_error_kw": err[i], "forecast_kw": fc[i]})
+        kw_view, kwh_view = sum(u["kw"] for u in units), sum(u["kwh"] for u in units)
+        base_row = {"view": key, "element": element, "terminal": terminal, "rule": STORAGE_RULE,
+                    "view_kw": kw_view, "view_kwh": kwh_view, "forecast_draw": draw,
+                    "kw_target": None, "kw_target_low": None, "schedule_discharge_kwh": None}
+        if STORAGE_RULE == "schedule":
+            cur = fc.copy()
+            for host in dict.fromkeys(u["host"] for u in units):
+                h_units = [u for u in units if u["host"] == host]
+                h_kw, h_kwh = sum(u["kw"] for u in h_units), sum(u["kwh"] for u in h_units)
+                net, energy, x = schedule(cur, h_kw, h_kwh, start, reserve, eff_c, eff_d, dt)
+                cur = cur - net
+                shape = f"StoSched_{n_sched}"
+                n_sched += 1
+                text.append(f"New Loadshape.{shape} npts={IRRADIANCE_NPTS} interval={IRR_INTERVAL_H} "
+                            f"mult=({' '.join(f'{v / h_kw:.6f}' for v in net)})\n")
+                for u in h_units:
+                    text.append(f"Edit Storage.{u['name']} DispMode=FOLLOW daily={shape}\n")
+                    STORAGE_TARGET_ROWS.append({**base_row, "battery": u["name"], "host": host,
+                                                "segment": u["segment"], "kw_rated": u["kw"], "kwh_rated": u["kwh"],
+                                                "schedule_discharge_kwh": x * u["kw"] / h_kw})
+                for i in range(IRRADIANCE_NPTS):
+                    sched_rows.append({"view": key, "host": host, "loadshape": shape, "step": i + 1,
+                                       "net_kw": net[i], "stored_kwh_start": energy[i], "stored_kwh_end": energy[i + 1]})
+            text.append("\n")
+            continue
+        if STORAGE_RULE == "original":
+            target, low = max(ORIGINAL_MIN_KW, ORIGINAL_KW_PER_STORAGE_KW * kw_view), ORIGINAL_LOW_KW
+        elif STORAGE_RULE == "simple":
+            target, low = simple_targets(fc, SIMPLE_PEAK_FRACTION, SIMPLE_MEAN_FRACTION)
+        else:
+            target, low, _, _, _ = tuned_targets(fc, kw_view, kwh_view, reserve, eff_c, eff_d, dt)
+        text.append(f"New StorageController.sc_{n_view} element={element} terminal={terminal}\n"
+                    f"~ modeDischarge=PeakShave kWTarget={target:.4f}\n"
+                    f"~ modeCharge=PeakShaveLow kWTargetLow={low:.4f}\n"
+                    f"~ %Reserve={STORAGE_RESERVE_PCT} MonPhase=AVG EventLog=yes\n"
+                    f"~ %kWBand={STORAGE_KW_BAND_PCT} %kWBandLow={STORAGE_KW_BAND_PCT} "
+                    f"DispFactor={STORAGE_DISP_FACTOR}\n"
+                    f"~ elementList=({' '.join(u['name'] for u in units)})\n\n")
+        for u in units:
+            STORAGE_TARGET_ROWS.append({**base_row, "battery": u["name"], "host": u["host"], "segment": u["segment"],
+                                        "kw_rated": u["kw"], "kwh_rated": u["kwh"],
+                                        "kw_target": float(f"{target:.4f}"), "kw_target_low": float(f"{low:.4f}")})
+    with open(storage_path, "a", encoding="utf-8") as f_st:
+        f_st.writelines(text)
+    pd.DataFrame(curve_rows).to_csv(os.path.join(STC_DIR, "storage_curves.csv"), index=False)
+    if STORAGE_RULE == "schedule":
+        pd.DataFrame(sched_rows).to_csv(os.path.join(STC_DIR, "storage_schedule.csv"), index=False)
+    print(f"Storage control -> {STORAGE_RULE}, view {STORAGE_VIEW}, order {STORAGE_ORDER}, measure "
+          f"{STORAGE_MEASURE}, layer {STORAGE_LAYER}: {len(STORAGE_TARGET_ROWS)} batteries, "
+          f"{len(STORAGE_FORECAST_DRAWS)} views with storage")
+
+if n_storage > 0 and STORAGE_ORDER == "before_cars":
+    storage_control_step(with_cars=False)
 
 if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
     os.makedirs(EVC_DIR, exist_ok=True)
@@ -1156,6 +1553,8 @@ if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
         else:
             car_curve = ["feeder"] * N_c
         feeder_p, trans_p = run_base_solve(tr_names)
+        if EV_VALLEY_BASE == "buildings_only" and STORAGE_ORDER != "before_cars":
+            EV_BASE_FEEDER_P = feeder_p
         start_curves = {"feeder": feeder_p + unc_total}
         start_curves.update({t: trans_p[t] + unc_on[t] for t in tr_names})
         # The aggregator places cars on a forecast of each starting curve (forecast_curve)
@@ -1240,10 +1639,15 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
             row = arr_c[i, :]
             f_ls.write(f"New Loadshape.EVc_{i} npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
 
+if n_storage > 0 and STORAGE_ORDER != "before_cars":
+    storage_control_step(with_cars=(STORAGE_ORDER == "after_cars"))
+
 # patch Master
 if master_dss_path:
     ensure_redirects_before_solve(master_dss_path)
     add_redirect_before_solve(master_dss_path, LV_MONITORS_FILE)
+    if n_storage > 0:
+        add_redirect_before_solve(master_dss_path, None, f"Set MaxControlIter={STORAGE_MAX_CONTROL_ITER}\n")
     assert_expected_redirects(
         master_dss_path,
         storage_present=(n_storage > 0),
@@ -1289,6 +1693,22 @@ if COMPILE_CIRCUIT and master_dss_path:
               f"{time.time() - lv_start:.2f} s")
         print(f"Loads on a bus with no base voltage (base from the load kV): {len(lv_no_base)}"
               f"{' ' + ' '.join(lv_no_base) if lv_no_base else ''}")
+
+    # Each battery's state monitor (mode=3): energy charged and discharged, stored energy range
+    if STORAGE_TARGET_ROWS:
+        soc_mon = {u["name"]: u["soc_monitor"] for u in STORAGE_UNITS}
+        for row in STORAGE_TARGET_ROWS:
+            mon = DSScircuit.Monitors
+            mon.Name = soc_mon[row["battery"]]
+            chan = {str(h).strip().lower(): i for i, h in enumerate(mon.Header, start=1)}
+            kwh = np.asarray(mon.Channel(chan["kwh"]), dtype=float)
+            row.update({"charged_kwh": float(np.sum(mon.Channel(chan["kwin"]))) * IRR_INTERVAL_H,
+                        "discharged_kwh": float(np.sum(mon.Channel(chan["kwout"]))) * IRR_INTERVAL_H,
+                        "stored_kwh_start": row["kwh_rated"] * STORAGE_START_PCT / 100.0,
+                        "stored_kwh_end": float(kwh[-1]), "stored_kwh_min": float(kwh.min()),
+                        "stored_kwh_max": float(kwh.max())})
+    if n_storage > 0:
+        pd.DataFrame(STORAGE_TARGET_ROWS).to_csv(os.path.join(STC_DIR, "storage_targets.csv"), index=False)
 else:
     converged = None  # circuit was never compiled/solved
 

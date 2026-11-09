@@ -77,6 +77,19 @@ When a circuit has controlled cars and `ev_control` is not `uncontrolled`, the P
 - `ev_control_curves.csv`, under the valley rules: one row per curve and step. Columns `curve` (`feeder` or a transformer name), `monitor` (`m2`, or `mt_<n>` in `base_solve/Monitors_Transformers.dss`), `step` (1 to 96), `base_kw` (real power of the no-EV solve), `uncontrolled_ev_kw` (the uncontrolled cars on that curve), `controlled_ev_kw` (the controlled cars placed on it; every controlled car for `feeder`), `forecast_error_kw` (the aggregator's forecast error at that step: the forecast the cars were placed on is `base_kw + uncontrolled_ev_kw + forecast_error_kw`).
 - `base_solve/`, under the valley rules: the `.dss` files and the monitor CSVs of the no-EV solve.
 
+### PV and storage files
+
+Phase 7b writes the PV and storage hosts into `<circuit>/scenario_assignments.json`: under `pv` and `storage`, the keys `seed`, `seed_offset` and `effective_seed`, `storage_hosts` (under `storage` only) and one entry per segment, `residential` and `commercial`, each with `perc` (the mix share), `enabled` (the `der_sizing` switch), `n_bases` (loads of the segment) and `hosts` (the host load names). `pv_targets` and `storage_targets` list every host, homes first.
+
+The Phase 7 deploy writes `ModifiedCircuitData/der_hosts.csv`: one row per PV or storage host. Columns `base`, `segment`, `pv_host`, `storage_host`, `loadshape` (the host's first loadshape), `bldg_id`, `floor_area_ft2`, `stories`, `building_type`, `roof_floor_stories_m2` and `roof_metadata_m2` (the roof by both sources), `annual_use_kwh` (the baseline building's annual electricity), `annual_yield_kwh_per_kw` (the donor's solar file), `pv_rule`, `sizing_case`, `roof_area_source` and `coverage_rule` (as applied), `roof_used_m2`, `pv_cap_roof_kw` and `pv_cap_use_kw` (the two caps), `roof_binds`, `peak_kw` (under `peak_ratio`), `pv_kw` (Pmpp, DC), `pv_kva` (inverter), `storage_kw`, `storage_kwh`, `storage_kva` (sizes of the whole host, computed also where the host has only PV or only storage), `legs` (whether the units sit on the `_1` and `_2` legs) and `units` (objects per host). A host sized at 0 kW gets no object.
+
+When a circuit has storage, the deploy writes `<circuit>/StorageControl/`. Phase 8 does not read it.
+
+- `storage_curves.csv`: one row per view and step. Columns `view` (`feeder`, `transformer_<name>` or `building_<host>`), `element` and `terminal` (what the view watches), `step` (1 to 96), `measured_kw` (the measured curve), `forecast_error_kw` and `forecast_kw` (the curve the targets or schedules use).
+- `storage_targets.csv`: one row per battery object. Columns `view`, `element`, `terminal`, `rule` (`storage_rule`), `view_kw` and `view_kwh` (the batteries of the view), `forecast_draw` (the random stream of the forecast), `kw_target` and `kw_target_low` (controller rules), `schedule_discharge_kwh` (under `schedule`, the battery's share of its host's scheduled discharge to the grid), `battery`, `host`, `segment`, `kw_rated`, `kwh_rated`, and after the solve `charged_kwh` and `discharged_kwh` (from its state monitor), `stored_kwh_start`, `stored_kwh_end`, `stored_kwh_min` and `stored_kwh_max`.
+- `storage_schedule.csv`, under `schedule`: one row per host and step. Columns `view`, `host`, `loadshape` (`StoSched_<n>` in `Storage.dss`), `step`, `net_kw` (positive discharging, negative charging), `stored_kwh_start` and `stored_kwh_end` (the planned stored energy).
+- `base_solve/` or `measure_solve/`: the `.dss` files and monitor CSVs of a solve run for the measured curves.
+
 ## 4.2 Visualization & Metrics
 
 - **Peak demand tracking** (primary metric), with Tableau dashboards.  

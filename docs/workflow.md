@@ -118,22 +118,22 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 - **Circuit filtering:** Phase 7b skips the circuits listed in `skip_circuits` in `pipeline_config.yaml`. The list is empty, so `--all` skips no circuit.
 - **Scenario mixes:** `--all` uses the three fixed mixes in `0_experimental_design/mixes_fixed.yaml`, the file that `mixes_file` in `configs/defaults.yaml` names. A designed experiment names its own mixes file there; https://github.com/DeltaE/j-uncertainty-grid-modernisation writes it.
 
-| Mix | EV (share of homes) | Storage (3-phase loads) | PV (3-phase loads) | Heat pump shares (baseline / DM / uncontrolled) |
+| Mix | EV (share of homes) | Storage (share of homes and of commercial loads) | PV (share of homes and of commercial loads) | Heat pump shares (baseline / DM / uncontrolled) |
 | --- | --- | --- | --- | --- |
 | `baseline` | 10% | 5% | 5% | 1.0 / 0.0 / 0.0 |
 | `mixed` | 20% | 10% | 10% | 0.5 / 0.3 / 0.2 |
 | `stress` | 30% | 15% | 15% | 0.2 / 0.2 / 0.6 |
 
 - **EV cars:** `ev_cars` in `pipeline_config.yaml` (default `evwatts_sessions`; also `nhts_days`, `session_rows`), `ev_home_window` (default `true`) and `ev_day` (default `typical`; also `stress`, the value set of `ev_inputs.yaml`). Main runs use the defaults. See README, "EV cars".
-- **EV control:** `ev_control` in `pipeline_config.yaml` (default `valley_fill_feeder`; also `uncontrolled`, `valley_fill_transformer`, `offpeak_start`, `water_fill_feeder`) and `ev_valley_base` (default `buildings_only`; also `after_pv_storage`). Main runs use the defaults. See README, "EV control".
-- **Storage control:** The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes and controls storage. Phase 7b picks the storage hosts and writes them as `storage_targets`.
+- **EV control:** `ev_control` in `pipeline_config.yaml` (default `valley_fill_feeder`; also `uncontrolled`, `valley_fill_transformer`, `offpeak_start`, `water_fill_feeder`) and `ev_valley_base` (default `buildings_only`; also `after_pv`). Main runs use the defaults. See README, "EV control".
+- **PV and storage:** Phase 7b draws the PV and storage hosts per segment (homes and commercial loads) with the mix shares `pv_res_perc`, `pv_com_perc`, `storage_res_perc` and `storage_com_perc`, the `der_sizing` switches and `storage_hosts` (default `with_pv`), and writes them per segment and as `pv_targets` and `storage_targets`. The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes them (`pv_rule_residential` and `pv_rule_commercial`, default `roof_and_use`; `sizing_case`, default `moderate`; `roof_area_source`, default `floor_stories`; `coverage_rule_commercial`, default `lbnl`) and controls storage (`storage_rule`, default `simple`; `storage_view`, default `feeder`; `storage_order`, default `after_cars`; `storage_measure`, default `all_placed`; `storage_layer`, default `add_kw`). Main runs use the defaults. See README, "PV and storage".
 
 ```{admonition} Tip: Storage Controller Defaults (example)
 :class: tip
-- Sizing vs. peak: 0.75×  
-- Duration: 4 h  
-- Peak target factor: 0.8  
-- Reserve: 20%
+- PV: the lesser of the roof cap and the annual use cap (moderate entries)
+- Storage: 1.0 x PV kW (0.5 above 100 kW commercial), 2 h
+- Rule: `simple`, kWTarget 0.98 x forecast peak, kWTargetLow 0.80 x forecast mean
+- Start and reserve: 20%
 ```
 
 ## 3.4 Running with `run_case.py`
@@ -170,7 +170,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 - `skip_circuits` lists numeric `circuit_id` values that Phase 7 skips.
 - `quota` sets the Phase 4 quota rules.
 - `eulp_release` names the ResStock and ComStock releases that Phase 5a downloads.
-- `der_sizing` sets storage and PV sizing in the Phase 7 deploy.
+- `der_sizing` sets the PV and storage hosts (Phase 7b), their sizes and the storage control (Phase 7 deploy) (README, "PV and storage").
 - `peak_day_rule` sets the day each mixed or stress circuit runs on (section 3.2, "Phase mix_days and the peak-day rules"; README, "Peak-day rules").
 - `heating_label_unit` sets whether the heating split counts buildings or customers (section 3.2, Phase 7b; README, "Heating labels and EV hosts").
 - `voltage_band` sets the band of the load voltage summaries.

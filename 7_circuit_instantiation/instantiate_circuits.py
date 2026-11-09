@@ -10,10 +10,14 @@ instantiate_circuits.py  (procedural; mixes with EV split)
     * Assigns EV/PV/Storage:
          - EV hosts drawn among residential loads (heating_split.load_segment)
          - EV split into *uncontrolled* and *controlled* disjoint sets
+         - PV and storage hosts drawn per segment (residential, commercial) with the
+           der_sizing switches and storage_hosts rule (deployer_modules/der_sizing.py)
          - min-one for EV/Storage/PV when their perc > 0 and eligibles exist
+         - a mix without ev_lvl2_perc, pv_res_perc, pv_com_perc, storage_res_perc or
+           storage_com_perc stops the run
     * Writes scenario_assignments.json:
          - ev_loads_uncontrolled, ev_loads_controlled, ev_split
-         - storage_targets, pv_targets, disjoint_sets, season, etc.
+         - pv and storage hosts per segment, storage_targets, pv_targets, season, etc.
     * Patches the runner. Phase 7c (run_circuits.py) runs it.
 
 Keeps the procedural style and your working behaviors.
@@ -27,6 +31,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
                             peak_day_rule, resolve_work_path)
 from heating_split import is_baseline_only, load_segment, split_heating
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deployer_modules'))
+from der_sizing import SEGMENTS, der_choice, der_switch, pick_hosts, segment_count
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -94,9 +100,11 @@ MAX_FEEDERS = cfg.get('max_feeders')
 if MAX_FEEDERS is not None:
     MAX_FEEDERS = int(MAX_FEEDERS)
 
-# Defaults (used when a mix omits them)
-DEFAULT_LVL2_PERC = 0.80
-DEFAULT_DISJOINT  = True
+# PV and storage switches per segment and the storage host rule (der_sizing)
+PV_ON  = {seg: der_switch(cfg, f"pv_{seg}") for seg in SEGMENTS}
+STO_ON = {seg: der_switch(cfg, f"storage_{seg}") for seg in SEGMENTS}
+STORAGE_HOSTS = der_choice(cfg, "storage_hosts")
+MIX_KEYS_REQUIRED = ("ev_lvl2_perc", "pv_res_perc", "pv_com_perc", "storage_res_perc", "storage_com_perc")
 
 # State/Season used to build bucket name: "<STATE>_<circuit_n>_<SEASON>"
 
@@ -240,10 +248,9 @@ for feeder in feeders:
         print(f"⚠️ Skipping feeder (missing DSS): {feeder}")
         continue
 
-    # parse Loads for bases, daily mapping, and phases
+    # parse Loads for bases and daily mapping
     unique_bases  = set()
     base_to_daily = {}
-    parsed_map    = {}  # full -> {'phases': '1'|'3'}
     with loads_src.open('r', encoding='utf-8') as f:
         for raw in f:
             line = raw.strip()
@@ -260,11 +267,6 @@ for feeder in feeders:
                 base_to_daily.setdefault(base, set()).add(m_daily.group(1).strip())
             # print('stop here')
             # sys.exit()
-            m_ph = re.search(r"\bphases=(\d+)", line, flags=re.IGNORECASE)
-            parsed_map[full] = {'phases': m_ph.group(1) if m_ph else None}
-
-    three_phase_full = [nm for nm, info in parsed_map.items() if info.get('phases') == '3']
-    three_phase_base = sorted(set([re.sub(r"_[0-9]+$", "", nm) for nm in three_phase_full]))
 
     # collect the CSV names needed by LoadShapes.dss
     required_bases = set()
@@ -282,16 +284,21 @@ for feeder in feeders:
 
     # ===== Process each mix =====
     for mix_name, mix_cfg in MIXES.items():
+        missing_keys = [k for k in MIX_KEYS_REQUIRED if k not in mix_cfg]
+        if missing_keys:
+            print(f"[FAIL] mix {mix_name} in {MIXES_FILE} has no {', '.join(missing_keys)}.")
+            sys.exit(1)
         shares        = mix_cfg['shares']
         heating_seed  = int(mix_cfg.get('heating_seed', 123))
         ev_perc       = float(mix_cfg.get('ev_perc', 0.0))
-        ev_lvl2       = float(mix_cfg.get('ev_lvl2_perc', DEFAULT_LVL2_PERC))
+        ev_lvl2       = float(mix_cfg['ev_lvl2_perc'])
         ev_seed       = int(mix_cfg.get('ev_seed', heating_seed))
-        storage_perc  = float(mix_cfg.get('storage_perc_3ph', 0.0))
+        storage_perc  = {'residential': float(mix_cfg['storage_res_perc']),
+                         'commercial':  float(mix_cfg['storage_com_perc'])}
         storage_seed  = int(mix_cfg.get('storage_seed', heating_seed))
-        pv_perc       = float(mix_cfg.get('pv_perc_3ph', 0.0))
+        pv_perc       = {'residential': float(mix_cfg['pv_res_perc']),
+                         'commercial':  float(mix_cfg['pv_com_perc'])}
         pv_seed       = int(mix_cfg.get('pv_seed', heating_seed))
-        disjoint_sets = bool(mix_cfg.get('disjoint_sets', DEFAULT_DISJOINT))
 
         # EV split (controlled/uncontrolled)
         split = mix_cfg.get('ev_split', {})
@@ -531,8 +538,8 @@ for feeder in feeders:
         # =================== EV / PV / Storage targets ===================
         def clamp01(x): return max(0.0, min(1.0, float(x)))
         ev_perc      = clamp01(ev_perc)
-        storage_perc = clamp01(storage_perc)
-        pv_perc      = clamp01(pv_perc)
+        storage_perc = {seg: clamp01(v) for seg, v in storage_perc.items()}
+        pv_perc      = {seg: clamp01(v) for seg, v in pv_perc.items()}
 
         # Residential and commercial loads (heating_split.load_segment); EV hosts are homes
         segment = {b: load_segment(b, base_to_daily) for b in sorted(unique_bases)}
@@ -542,17 +549,12 @@ for feeder in feeders:
               f"commercial={n_com_bases}, unclassified={len(segment) - len(residential_bases) - n_com_bases}")
 
         eligible_ev  = len(residential_bases)
-        eligible_3ph = len(three_phase_base)
 
         # raw counts
         n_ev  = int(round(ev_perc      * eligible_ev))
-        n_sto = int(round(storage_perc * eligible_3ph))
-        n_pv  = int(round(pv_perc      * eligible_3ph))
 
         # min-one rules (only if perc>0 and eligibles exist)
         if ev_perc > 0 and eligible_ev  > 0:    n_ev  = max(1, min(n_ev,  eligible_ev))
-        if storage_perc > 0 and eligible_3ph > 0:n_sto = max(1, min(n_sto, eligible_3ph))
-        if pv_perc > 0 and eligible_3ph > 0:     n_pv  = max(1, min(n_pv,  eligible_3ph))
 
         # If we must have both EV types and n_ev==1, bump to 2 when possible
         if n_ev == 1 and ev_perc > 0 and eligible_ev >= 2:
@@ -580,29 +582,23 @@ for feeder in feeders:
         ev_loads_un  = ev_hosts_all[:n_ev_un]
         ev_loads_ctl = ev_hosts_all[n_ev_un:]
 
-        # Storage / PV on 3φ bases
-        # Eligible 3-phase bases chosen for storage
-        sto_base  = pick(storage_seed, three_phase_base, n_sto)
-
-        # Respect disjointness for PV if requested
-        remaining = [b for b in three_phase_base if b not in sto_base] if disjoint_sets else list(three_phase_base)
-
-        # If disjoint is enforced but storage consumed all eligibles, relax so PV isn't forced to zero
-        if n_pv > 0 and len(remaining) == 0 and len(three_phase_base) > 0:
-            remaining = list(three_phase_base)
-
-        # Choose PV bases from the remaining pool
-        pv_base   = pick(pv_seed, remaining, n_pv)
-
-        # Build a map base -> available full names actually present in Loads.dss
-        base_to_full3 = {}
-        for ff in three_phase_full:
-            b = re.sub(r"_[0-9]+$", "", ff)
-            base_to_full3.setdefault(b, []).append(ff)
-
-        # For each selected base, pick the first available full name
-        storage_targets = [base_to_full3[b][0] for b in sto_base if base_to_full3.get(b)]
-        pv_targets      = [base_to_full3[b][0] for b in pv_base   if base_to_full3.get(b)]
+        # PV and storage hosts per segment (der_sizing.pick_hosts): PV drawn with pv_seed
+        # among the segment's bases, storage with storage_seed by storage_hosts; a
+        # switched-off segment gets none. Targets are base names.
+        pick_offset = _stable_seed_offset(f"{substation_name}|{feeder_name}")
+        pv_seg, sto_seg = {}, {}
+        for seg in SEGMENTS:
+            seg_bases = [b for b in sorted(unique_bases) if segment[b] == seg]
+            n_pv_seg  = segment_count(pv_perc[seg], len(seg_bases), PV_ON[seg])
+            n_sto_seg = segment_count(storage_perc[seg], len(seg_bases), STO_ON[seg])
+            pv_hosts, sto_hosts = pick_hosts(seg_bases, n_pv_seg, n_sto_seg, pv_seed, storage_seed,
+                                             pick_offset, STORAGE_HOSTS)
+            pv_seg[seg] = {"perc": pv_perc[seg], "enabled": PV_ON[seg], "n_bases": len(seg_bases),
+                           "hosts": pv_hosts}
+            sto_seg[seg] = {"perc": storage_perc[seg], "enabled": STO_ON[seg], "n_bases": len(seg_bases),
+                            "hosts": sto_hosts}
+        storage_targets = [b for seg in SEGMENTS for b in sto_seg[seg]["hosts"]]
+        pv_targets      = [b for seg in SEGMENTS for b in pv_seg[seg]["hosts"]]
         assignments = {
             # seed_offset/effective_seed: sha256-derived replacement for the old
             # hash()-based offset (Task 0 determinism fix). Recorded so a referee
@@ -612,11 +608,11 @@ for feeder in feeders:
             "ev": {"perc": ev_perc, "lvl2_perc": ev_lvl2, "seed": ev_seed,
                    "seed_offset": mix_seed_offset, "effective_seed": ev_seed + mix_seed_offset},
             "ev_split": {"controlled": split_ctl, "uncontrolled": split_un},
-            "storage": {"perc_3ph": storage_perc, "seed": storage_seed,
-                        "seed_offset": mix_seed_offset, "effective_seed": storage_seed + mix_seed_offset},
-            "pv": {"perc_3ph": pv_perc, "seed": pv_seed,
-                   "seed_offset": mix_seed_offset, "effective_seed": pv_seed + mix_seed_offset},
-            "disjoint_sets": disjoint_sets,
+            "storage": {"seed": storage_seed, "seed_offset": mix_seed_offset,
+                        "effective_seed": storage_seed + mix_seed_offset, "storage_hosts": STORAGE_HOSTS,
+                        **sto_seg},
+            "pv": {"seed": pv_seed, "seed_offset": mix_seed_offset,
+                   "effective_seed": pv_seed + mix_seed_offset, **pv_seg},
             "ev_loads_uncontrolled": ev_loads_un,
             "ev_loads_controlled":   ev_loads_ctl,
             "ev_loads": ev_hosts_all,   # union (for backwards compatibility)
@@ -633,7 +629,9 @@ for feeder in feeders:
 
         print(f"  • Assigned (mix={mix_name}) "
               f"EV_unctl={len(ev_loads_un)} + EV_ctl={len(ev_loads_ctl)} (total {len(ev_hosts_all)} @ {ev_perc:.2%}), "
-              f"Storage={len(storage_targets)} ({storage_perc:.2%}), PV={len(pv_targets)} ({pv_perc:.2%})")
+              f"Storage res={len(sto_seg['residential']['hosts'])} com={len(sto_seg['commercial']['hosts'])}, "
+              f"PV res={len(pv_seg['residential']['hosts'])} com={len(pv_seg['commercial']['hosts'])} "
+              f"(storage_hosts {STORAGE_HOSTS})")
 
         # ================= patch runner & optionally run ==================
         runner_path = dst_folder / RUNNER_BASENAME

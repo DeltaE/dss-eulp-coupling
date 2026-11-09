@@ -99,7 +99,7 @@ def peak_day_rule(cfg):
 
 EV_CONTROL_RULES = ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start",
                     "water_fill_feeder")
-EV_VALLEY_BASES = ("buildings_only", "after_pv_storage")
+EV_VALLEY_BASES = ("buildings_only", "after_pv")
 
 
 def ev_control(cfg):

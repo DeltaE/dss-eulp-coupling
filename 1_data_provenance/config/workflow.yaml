@@ -112,6 +112,7 @@ columns:
     - out.qoi.minimum_daily_peak_nov..kw
     - out.qoi.minimum_daily_peak_oct..kw
     - out.qoi.minimum_daily_peak_sep..kw
+    - out.params.ext_roof_area..m2
   residential_append_csvs_script_v2:
     - bldg_id
     - upgrade
@@ -178,3 +179,4 @@ columns:
     - out.load.heating.energy_delivered.kbtu
     - out.load.heating.peak.kbtu_hr
     - out.load.hot_water.energy_delivered.kbtu
+    - out.params.roof_area_ft_2
