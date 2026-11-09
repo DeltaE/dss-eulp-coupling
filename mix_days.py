@@ -23,7 +23,6 @@ nothing and exits 0. With per_circuit, for every mix in the mixes file
 A step that exits non-zero stops the phase with that exit code.
 """
 
-import json
 import os
 import subprocess
 import sys
@@ -31,7 +30,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
-from pipeline_utils import load_config, peak_day_rule, resolve_work_path
+from pipeline_utils import load_config, load_mixes, peak_day_rule, resolve_work_path
 
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
 from heating_split import is_baseline_only
@@ -66,8 +65,7 @@ def main():
     if rule != "per_circuit":
         print(f"[mix_days] peak_day_rule is {rule}: phase mix_days skipped, nothing written.")
         return
-    with open(cfg["mixes_file"], "r", encoding="utf-8") as f:
-        mixes = json.load(f)
+    mixes = load_mixes(cfg["mixes_file"])
 
     for mix_name, mix_cfg in mixes.items():
         env = dict(os.environ)

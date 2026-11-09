@@ -8,8 +8,8 @@ and EULP data go.
 
 Verified against `srye-deltae-08` (Ubuntu 20.04, glibc 2.31). The version numbers
 below are hard constraints. The acceptance bar for this port is zero numerical
-change against the Windows baseline. That bar is only checkable if numpy, pandas,
-scipy and pyarrow are byte-identical.
+change against the Windows baseline. That bar is only checkable if numpy, pandas
+and pyarrow are byte-identical.
 
 ## 1. Create the Python 3.11 environment
 
@@ -28,7 +28,7 @@ pip install -r requirements.txt
 
 `requirements.txt` pins every package to the exact version verified on the
 Windows machine that produced all existing results (numpy 1.26.4, pandas
-2.1.4, scipy 1.11.4, pyarrow 14.0.2, matplotlib 3.8.0, PyYAML 6.0.1, requests
+2.1.4, pyarrow 14.0.2, matplotlib 3.8.0, PyYAML 6.0.1, requests
 2.31.0, urllib3 2.0.7). It declares the platform split for the OpenDSS engine:
 `comtypes` on win32, `opendssdirect.py` everywhere else. **Do not** upgrade or
 downgrade any of these without re-validating outputs against the Windows

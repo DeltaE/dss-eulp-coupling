@@ -105,7 +105,6 @@ for folder_name, time_list in folder_timestamps.items():  # MODIFIED
             table = pq.read_table(full_parquet_path, columns=["Time", REAL_COL, REACTIVE_COL])
             df_orig = table.to_pandas()
 
-            col_names = df_orig.columns.tolist()
             # print('what are the columns of this dataframe?')
             # sys.exit()
 

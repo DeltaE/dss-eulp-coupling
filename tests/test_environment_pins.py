@@ -3,7 +3,7 @@
 test_environment_pins.py
 --------------------------
 Cheap canary against the worst Linux-port failure mode: someone runs the
-pipeline under system Python (3.8.10 here) with whatever numpy/pandas/scipy/
+pipeline under system Python (3.8.10 here) with whatever numpy/pandas/
 pyarrow that interpreter happens to have, gets a result, and never notices it
 doesn't match the validated Windows baseline. Asserts Python 3.11.x and the
 exact pinned versions from requirements.txt.
@@ -16,7 +16,6 @@ import sys
 PINNED_VERSIONS = {
     "numpy": "1.26.4",
     "pandas": "2.1.4",
-    "scipy": "1.11.4",
     "pyarrow": "14.0.2",
     "matplotlib": "3.8.0",
     "yaml": "6.0.1",       # PyYAML; __version__ lives on the `yaml` module

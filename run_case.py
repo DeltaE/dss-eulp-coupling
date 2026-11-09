@@ -40,6 +40,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = REPO_ROOT / "configs"
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
 from heating_split import is_baseline_only
+from pipeline_utils import load_mixes
 
 
 def _load_yaml(path: Path) -> dict:
@@ -257,8 +258,7 @@ def verify_calls(phase_def, resolved) -> list:
         for scen in phase_def.get("verify_scenarios", ["baseline"]):
             calls.append(["--phase", str(verify)] + scenario_args(scen))
     if phase_def.get("verify_mix_days") and resolved["peak_day_rule"] == "per_circuit":
-        with open(resolved["mixes_file"], encoding="utf-8") as fh:
-            mixes = json.load(fh)
+        mixes = load_mixes(resolved["mixes_file"])
         for mix, mix_cfg in mixes.items():
             if is_baseline_only(mix_cfg["shares"]):
                 continue

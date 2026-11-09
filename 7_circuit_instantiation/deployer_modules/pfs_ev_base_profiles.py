@@ -2,7 +2,7 @@
 """
 Module Name: pfs_ev_base_profiles.py
 Description:
-    EV base charging profile for the Phase 7 deploy script.
+    Check curve of ev_cars session_rows for the Phase 7 deploy script.
 
     Returns the 96 fifteen-minute means of one EV charging profile in
     <circuit>/data_ev/without_daily_plug_in_factor/, the check curve named in

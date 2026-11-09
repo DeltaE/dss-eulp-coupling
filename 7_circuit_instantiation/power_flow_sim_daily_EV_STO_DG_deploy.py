@@ -32,8 +32,9 @@ Inputs
 - With peak_day_rule: per_circuit in pipeline_config.yaml, for a circuit whose mix is
   not 100 % baseline: <work_root>/mix_days/<STATE>_circuit_days.csv, the circuit's own
   peak day per feeder, season and mix (phase mix_days), and the mix's shares in
-  <work_root>/7_circuit_instantiation/mixes.json. The mix is the part of the circuit
-  folder name after _circuit_<n>_.
+  <work_root>/7_circuit_instantiation/mixes.<ext>, the workspace copy of the mixes
+  file (ext yaml, yml or json). The mix is the part of the circuit folder name after
+  _circuit_<n>_.
 - PIPELINE_PV_PROFILE_FILE: the donor's SMART-DS solar file (pv_profile in
   configs/donor_registry.yaml).
 - voltage_band in pipeline_config.yaml: low_pu and high_pu for the load voltage
@@ -233,7 +234,7 @@ from ev_control import valley_fill, valley_fill_curves, monitor_p_kw, service_tr
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
-from pipeline_utils import load_config, peak_day_rule, ev_control, ev_valley_base, ev_home_window
+from pipeline_utils import load_config, load_mixes, peak_day_rule, ev_control, ev_valley_base, ev_home_window
 from pipeline_utils import ev_cars as ev_cars_source
 sys.path.append(ROOT)
 from heating_split import is_baseline_only
@@ -512,7 +513,6 @@ def retarget_master_to_daily(master_path, npts=96, stepsize="15m", comment_plots
     ml = read_lines(master_path)
     out = []
     changed = False
-    commented_plots = 0
 
     for ln in ml:
         lns = ln.rstrip("\n")
@@ -530,7 +530,6 @@ def retarget_master_to_daily(master_path, npts=96, stepsize="15m", comment_plots
         # 2) Comment out Plot lines (but keep Exports)
         if comment_plots and re.match(r'(?i)^\s*plot\b', s) and not re.match(r'^\s*!', lns):
             out.append(f"! {lns}   (disabled by deploy)\n")
-            commented_plots += 1
             continue
 
         # default: pass through unchanged
@@ -586,7 +585,7 @@ def simulated_day(feeder, season):
     date is the row of the feeder, season and mix in
     <work_root>/mix_days/<STATE>_circuit_days.csv instead. The records hold no year.
     Stops if the season or the peak day is missing, or under per_circuit if the
-    circuit's mix is not in mixes.json.
+    circuit's mix is not in the workspace copy of the mixes file.
     """
     if season not in ("summer", "winter"):
         print(f"[FAIL] scenario_assignments.json season is {season!r}; expected summer or winter.")
@@ -596,8 +595,11 @@ def simulated_day(feeder, season):
     mix_name = None
     if PEAK_DAY_RULE == "per_circuit":
         m_mix = re.match(r"^.*_circuit_\d+_(.+)$", CIRCUIT_FOLDER)
-        mixes_path = os.path.join(CFG["work_root"], "7_circuit_instantiation", "mixes.json")
-        mixes = json.loads(read_text(mixes_path)) if os.path.exists(mixes_path) else {}
+        mixes_dir = os.path.join(CFG["work_root"], "7_circuit_instantiation")
+        mixes_path = next((os.path.join(mixes_dir, f"mixes{ext}") for ext in (".yaml", ".yml", ".json")
+                           if os.path.exists(os.path.join(mixes_dir, f"mixes{ext}"))),
+                          os.path.join(mixes_dir, "mixes.yaml"))
+        mixes = load_mixes(mixes_path) if os.path.exists(mixes_path) else {}
         if not m_mix or m_mix.group(1) not in mixes:
             print(f"[FAIL] No mix for circuit folder {CIRCUIT_FOLDER} in {mixes_path}.")
             sys.exit(1)
@@ -1212,7 +1214,7 @@ if master_dss_path:
 # ---------------- Compile & Solve ----------------
 DSSobj   = create_dss_engine()
 DSSobj.AllowForms = False
-DSSstart = DSSobj.Start(0)
+DSSobj.Start(0)
 DSStext  = DSSobj.Text
 DSScircuit = DSSobj.ActiveCircuit
 

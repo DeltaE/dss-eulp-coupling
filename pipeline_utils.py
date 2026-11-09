@@ -71,6 +71,18 @@ def resolve_day_path(*parts):
     return resolve_work_path(*parts)
 
 
+def load_mixes(path):
+    """Return the mixes of the mixes file at path, a dict keyed by mix name in file
+    order. Reads .yaml and .yml with yaml.safe_load and .json with json.load. Any other
+    extension prints [FAIL] and exits 1."""
+    suffix = Path(path).suffix.lower()
+    if suffix not in (".yaml", ".yml", ".json"):
+        print(f"[FAIL] mixes file {path} has extension {suffix!r}; expected .yaml, .yml or .json.")
+        sys.exit(1)
+    with open(path, encoding="utf-8") as f:
+        return json.load(f) if suffix == ".json" else yaml.safe_load(f)
+
+
 PEAK_DAY_RULES = ("per_group", "per_circuit")
 
 

@@ -10,7 +10,8 @@ What this script does:
   1. Builds profhp bridge directories (<STATE>_4_profhp, <STATE>_6_profhp_dm, <STATE>_7_profhp_un)
      by copying CSVs from 5c_csv_conversion into the structure Phase 7 expects.
   2. Copies the mixes file named by PIPELINE_MIXES_FILE (mixes_file in configs/defaults.yaml)
-     byte for byte to <workspace>/7_circuit_instantiation/. Exits 1 if that file is missing.
+     byte for byte to <workspace>/7_circuit_instantiation/mixes<ext>, keeping its extension.
+     Exits 1 if that file is missing.
   3. Checks for data_ev/ and warns if missing (cannot auto-generate).
   4. Prints a pre-flight summary.
 
@@ -25,7 +26,7 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pipeline_utils import load_config, resolve_config_path, resolve_day_path
+from pipeline_utils import load_config, load_mixes, resolve_config_path, resolve_day_path
 
 # ── CONFIG ──────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parent
@@ -166,11 +167,10 @@ if not MIXES_PATH.is_file():
     print(f"  FATAL: mixes file not found: {MIXES_PATH}", file=sys.stderr)
     sys.exit(1)
 
-with MIXES_PATH.open("r", encoding="utf-8") as f:
-    mixes = json.load(f)
+mixes = load_mixes(MIXES_PATH)
 
-# 7b reads the mixes from the workspace; copy the file byte for byte
-WORK_MIXES_PATH = Path(resolve_day_path("7_circuit_instantiation", "mixes.json"))
+# 7b reads the mixes from the workspace; copy the file byte for byte, keeping its extension
+WORK_MIXES_PATH = Path(resolve_day_path("7_circuit_instantiation", "mixes" + MIXES_PATH.suffix.lower()))
 WORK_MIXES_PATH.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(MIXES_PATH, WORK_MIXES_PATH)
 print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
@@ -202,7 +202,7 @@ if data_ev_target.is_dir():
 else:
     print(f"  ❌ data_ev/ NOT FOUND at {data_ev_target}")
     print()
-    print("  This directory contains state-independent NREL EV charging profiles.")
+    print("  This directory contains the state-independent Team-Nando EV charging profiles (check curves).")
     print("  You need to copy it from Machine 1 or Machine 2 (from NC runs).")
     print()
     print("  EXPECTED STRUCTURE:")
@@ -211,7 +211,7 @@ else:
     print("        *.csv  (EV charging profile CSVs)")
     print()
     print("  WORKAROUND (if you can't locate them right now):")
-    print("    Edit power_flow_sim_daily_EV_STO_DG_deploy.py line 41:")
+    print("    Edit ACTIVATE_EV in power_flow_sim_daily_EV_STO_DG_deploy.py:")
     print("    Change: ACTIVATE_EV = True")
     print("    To:     ACTIVATE_EV = False")
     print("    This skips EV generation. Everything else runs normally.")

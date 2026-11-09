@@ -1,0 +1,44 @@
+# Three scenario mixes that Phase 7a copies into the workspace (mixes_file in
+# configs/defaults.yaml). Shares and percentages are fractions from 0 to 1.
+
+# ASSUMPTION: baseline holds hand-set example levels for the release runs, the low end of a span from no electrification to a stressed case: every load on baseline heating, EVs on 10 % of loads (80 % Level 2, half controlled), storage and PV each on 5 % of three-phase loads. Designed experiments replace these levels with sampled values, and the heating groups and EV, storage and PV counts of each circuit move with them.
+baseline:
+  shares: {baseline: 1.0, dm: 0.0, un: 0.0}
+  heating_seed: 555
+  ev_perc: 0.10
+  ev_lvl2_perc: 0.80
+  ev_seed: 555
+  storage_perc_3ph: 0.05
+  storage_seed: 555
+  pv_perc_3ph: 0.05
+  pv_seed: 555
+  disjoint_sets: true
+  ev_split: {controlled: 0.50, uncontrolled: 0.50}
+
+# ASSUMPTION: mixed holds hand-set example levels for the release runs, the middle of a span from no electrification to a stressed case: heating shares 0.50 baseline, 0.30 heat pumps with fuel backup (dm) and 0.20 heat pumps with electric backup (un), EVs on 20 % of loads (80 % Level 2, 60 % controlled), storage and PV each on 10 % of three-phase loads. Designed experiments replace these levels with sampled values, and the heating groups and EV, storage and PV counts of each circuit move with them.
+mixed:
+  shares: {baseline: 0.50, dm: 0.30, un: 0.20}
+  heating_seed: 555
+  ev_perc: 0.20
+  ev_lvl2_perc: 0.80
+  ev_seed: 555
+  storage_perc_3ph: 0.10
+  storage_seed: 555
+  pv_perc_3ph: 0.10
+  pv_seed: 555
+  disjoint_sets: true
+  ev_split: {controlled: 0.60, uncontrolled: 0.40}
+
+# ASSUMPTION: stress holds hand-set example levels for the release runs, the stressed end of a span from no electrification to a stressed case: heating shares 0.20 baseline, 0.20 heat pumps with fuel backup (dm) and 0.60 heat pumps with electric backup (un), EVs on 30 % of loads (90 % Level 2, 40 % controlled), storage and PV each on 15 % of three-phase loads, which may share a load. Designed experiments replace these levels with sampled values, and the heating groups and EV, storage and PV counts of each circuit move with them.
+stress:
+  shares: {baseline: 0.20, dm: 0.20, un: 0.60}
+  heating_seed: 555
+  ev_perc: 0.30
+  ev_lvl2_perc: 0.90
+  ev_seed: 555
+  storage_perc_3ph: 0.15
+  storage_seed: 555
+  pv_perc_3ph: 0.15
+  pv_seed: 555
+  disjoint_sets: false
+  ev_split: {controlled: 0.40, uncontrolled: 0.60}

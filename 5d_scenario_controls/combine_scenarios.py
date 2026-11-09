@@ -107,7 +107,6 @@ for folder_path in folders:
             continue
         # else:
             # print('nothings')
-        allowed_commercial_ids = list(set(commercial_names.keys()))
         if not is_residential and (scenario_id not in commercial_names):
             # print('happens? 4')
             continue

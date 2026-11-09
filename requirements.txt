@@ -1,7 +1,7 @@
 # DSS-EULP Coupling Pipeline — Python dependencies
 # Pinned to Python 3.11 (matches the Windows machine that produced all existing
 # results). Every version below is pinned deliberately, not just the ones that
-# can move numbers (numpy/pandas/scipy/pyarrow) -- pinning the rest is free and
+# can move numbers (numpy/pandas/pyarrow) -- pinning the rest is free and
 # removes variables. Do not upgrade/downgrade without re-validating outputs
 # against the Windows baseline.
 # Install with: pip install -r requirements.txt
@@ -11,12 +11,6 @@ pandas==2.1.4
 numpy==1.26.4
 pyarrow==14.0.2
 PyYAML==6.0.1
-
-# --- Scenario mix generation (0_experimental_design: Sobol / Latin Hypercube) ---
-# Was missing from this file entirely despite being a real import
-# (run_mix_generator.py: `from scipy.stats import qmc`); added here rather than
-# left to an unpinned transitive install.
-scipy==1.11.4
 
 # --- Plotting ---
 matplotlib==3.8.0

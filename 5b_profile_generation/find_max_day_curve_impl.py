@@ -79,7 +79,6 @@ a flat shape) is left out of the curve and printed.
 
 import argparse
 import io
-import json
 import os
 import re
 import pandas as pd
@@ -90,7 +89,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import (load_config, load_feeder_registry, peak_day_rule,
+from pipeline_utils import (load_config, load_feeder_registry, load_mixes, peak_day_rule,
                             resolve_config_path, resolve_work_path)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation'))
 from heating_split import is_baseline_only, read_loads, split_heating
@@ -112,7 +111,6 @@ cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
 STR_STATE = STATE
-STR_TITLE = STR_STATE
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
@@ -250,8 +248,7 @@ def run_mix(mix_name):
     if rule != "per_circuit":
         print(f"[mix_days] peak_day_rule is {rule}: mix {mix_name} skipped, nothing written.")
         return
-    with open(cfg["mixes_file"], "r", encoding="utf-8") as f:
-        mixes = json.load(f)
+    mixes = load_mixes(cfg["mixes_file"])
     if mix_name not in mixes:
         _fail(f"mix {mix_name!r} is not in {cfg['mixes_file']}.")
     mix_cfg = mixes[mix_name]
@@ -450,9 +447,6 @@ df_summary_result = pd.read_csv(
 
 # Dictionary to store peak daily curves per month per feeder
 peak_load_curves = {}
-
-# Dictionary to store max loads per month per feeder
-max_load_per_month = {}
 
 # Iterate per substation (Feeder)
 for feeder in df_summary_result["Feeder"].unique():

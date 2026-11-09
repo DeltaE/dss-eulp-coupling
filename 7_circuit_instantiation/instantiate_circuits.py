@@ -24,7 +24,7 @@ from typing import Optional, Iterable
 from collections import defaultdict
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, load_feeder_registry, peak_day_rule, resolve_work_path
+from pipeline_utils import load_config, load_feeder_registry, load_mixes, peak_day_rule, resolve_work_path
 from heating_split import is_baseline_only, split_heating
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
@@ -99,11 +99,11 @@ DEFAULT_DISJOINT  = True
 # Optional: default split between controlled vs uncontrolled EVs when a mix omits it
 EV_SPLIT_CTL_DEFAULT = float(os.environ.get('EV_SPLIT_CONTROLLED', '0.5'))  # 0..1
 
-# Path to your DOE-generated mixes file
-MIXES_FILE = Path(resolve_work_path("7_circuit_instantiation", "mixes.json"))   # copied there by Phase 7a
-
-with MIXES_FILE.open("r", encoding="utf-8") as f:
-    MIXES = json.load(f)
+# The mixes file, copied there by Phase 7a with its extension kept
+MIXES_DIR = Path(resolve_work_path("7_circuit_instantiation"))
+MIXES_FILE = next((MIXES_DIR / f"mixes{ext}" for ext in (".yaml", ".yml", ".json")
+                   if (MIXES_DIR / f"mixes{ext}").is_file()), MIXES_DIR / "mixes.yaml")
+MIXES = load_mixes(MIXES_FILE)
 
 # print('Check the mixes')
 # sys.exit()

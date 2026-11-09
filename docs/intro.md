@@ -26,7 +26,7 @@
 
 ```{mermaid}
 flowchart TD
-    A[DOE: LHS/Sobol] --> B[Scenario Dictionaries<br/>mixes_lhs.json / mixes_sobol.json]
+    A[Designed experiment<br/>j-uncertainty-grid-modernisation] --> B[Mixes file<br/>mixes_fixed.yaml or a sampled design]
     B --> C[Smart-DS ↔ EULP Matching]
     C --> D[Profile Generation<br/>baseline / DM / uncontrolled]
     D --> E[Reactive Power Prep<br/>kvar ratios]

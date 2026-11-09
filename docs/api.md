@@ -4,14 +4,7 @@ You can document key scripts and functions, even if they are not a formal Python
 
 ## 7.1 Autodoc (optional)
 
-If your modules are importable (e.g., your repo is a package or you add the repo root to `sys.path`), you can use `autodoc`:
-
-```{code-block} rst
-.. automodule:: 0_experimental_design.run_mix_generator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-```
+If your modules are importable (e.g., your repo is a package or you add the repo root to `sys.path`), you can use `autodoc`.
 
 **Important:** Read the Docs won't have OpenDSS or Windows COM. The `conf.py` sets `autodoc_mock_imports` so imports like `win32com` and `comtypes` won't break the build.
 

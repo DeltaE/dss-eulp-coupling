@@ -46,7 +46,6 @@ autodoc_mock_imports = [
     "pandas",
     "pyarrow",
     "numpy",
-    "scipy",
     "matplotlib",
     "sklearn",
 ]

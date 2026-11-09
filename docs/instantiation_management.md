@@ -66,7 +66,7 @@ are deliberately downstream.
 
 ## Out of scope (downstream RDM)
 
-- `0_experimental_design` - LHS / `mixes_lhs.json` generation.
+- Designed experiments and their mixes files (https://github.com/DeltaE/j-uncertainty-grid-modernisation).
 - Phase 7 - DER deployment (EV/PV/storage), which consumes the mixes.
 - Phase 8 - results analysis.
 - Scenario mixes are **not** a dimension of this layer.

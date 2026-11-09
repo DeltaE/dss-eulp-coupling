@@ -44,7 +44,6 @@ RESULTS_DIR = BASE
 DIST_DIR = os.path.normpath(os.path.join(BASE, ".."))
 
 AGGREGATE_CSV = os.path.join(RESULTS_DIR, "aggregate_m2_combined.csv")
-CIRCUIT_SUMMARY_CSV = os.path.join(RESULTS_DIR, "circuit_summary_combined.csv")
 
 # Stage 3B commercial matching outputs (one per state).
 # Each must have at least: a Tolerance column and one row per matched load.

@@ -3,7 +3,7 @@
 test_heating_split.py
 ---------------------
 heating_split.split_heating (the Phase 7b heating split) on a synthetic list of seven
-loads with the three mixes of 0_experimental_design/mixes_fixed.json: exact group
+loads with the three mixes of 0_experimental_design/mixes_fixed.yaml: exact group
 counts by largest remainder, labels that match those counts, and the same labels on a
 second call with the same inputs. Also checks that pipeline_utils.peak_day_rule stops
 on a missing or unknown peak_day_rule, and that pipeline_config.yaml holds per_circuit
@@ -12,7 +12,6 @@ and peak_day_rule returns it.
 Run directly (no pytest needed): python tests/test_heating_split.py
 Or under pytest: pytest tests/test_heating_split.py
 """
-import json
 import os
 import sys
 
@@ -24,8 +23,8 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation"))
 from heating_split import is_baseline_only, split_heating  # noqa: E402
 from pipeline_utils import peak_day_rule  # noqa: E402
 
-with open(os.path.join(REPO_ROOT, "0_experimental_design", "mixes_fixed.json"), encoding="utf-8") as _f:
-    MIXES = json.load(_f)
+with open(os.path.join(REPO_ROOT, "0_experimental_design", "mixes_fixed.yaml"), encoding="utf-8") as _f:
+    MIXES = yaml.safe_load(_f)
 
 # Seven loads, one loadshape each. Largest remainder on 7 loads:
 # baseline 1.0/0/0 -> 7, 0, 0.

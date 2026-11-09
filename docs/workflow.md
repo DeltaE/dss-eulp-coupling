@@ -34,7 +34,7 @@ dss-eulp-coupling/
 
 `configs/phases.yaml` defines the steps of each phase. `run_case.py` sets `PIPELINE_WORK_ROOT` to `<runs_root>/<case>/<season>/workspace/`, written `<ws>` below. `runs_root` comes from `configs/local.yaml` and is `runs` by default. Every phase reads and writes under `<ws>`. Before anything runs, `--all` checks the workspace of every requested season and refuses to start when any exists. Delete those folders to rerun the case-seasons. `--phase <id>` reruns one phase in the existing workspace. `--dry-run` prints the resolved variables and every command, and writes nothing.
 
-`--all` does not run `0_experimental_design`. Phase 7a copies the mixes file that `mixes_file` in `configs/defaults.yaml` names, the tracked `0_experimental_design/mixes_fixed.json`, into the workspace. `run_mix_generator.py --out <folder>` writes LHS and Sobol mixes to that folder, by default `<runs_root>/0_experimental_design/`.
+`--all` does not run `0_experimental_design`. The mixes file is an input. Phase 7a copies the mixes file that `mixes_file` in `configs/defaults.yaml` names, the tracked `0_experimental_design/mixes_fixed.yaml`, into the workspace. https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment.
 
 ### Phase pre: SMART-DS staging (0_download_smartds)
 
@@ -92,8 +92,8 @@ To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `
 
 ### Phases 7a, 7b and 7c: circuit instantiation and simulation (7_circuit_instantiation)
 
-- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.json`) byte for byte to `<ws>/7_circuit_instantiation/mixes.json`, and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
-- `7b` runs `instantiate_circuits.py`. It reads `<ws>/7_circuit_instantiation/mixes.json`. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
+- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.yaml`) byte for byte to `<ws>/7_circuit_instantiation/mixes.yaml`, keeping the extension of the mixes file (`.yaml`, `.yml` or `.json`), and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
+- `7b` runs `instantiate_circuits.py`. It reads `<ws>/7_circuit_instantiation/mixes.yaml` (`mixes.yml` or `mixes.json` for a mixes file with that extension) with `pipeline_utils.load_mixes`. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
 - `7c` runs `run_circuits.py --root <ws>/7_circuit_instantiation`. It runs the patched runner in each circuit folder and logs to `<ws>/7_circuit_instantiation/run_log.txt`. No phase runs the runner in the repository folder.
 - In each circuit, the runner builds one car per EV host from the source `ev_cars` names (README, "EV cars") and writes `<circuit>/EVControl/ev_cars.csv`. Under `evwatts_sessions` and `session_rows` it reads the EV WATTS extract in `PIPELINE_EVWATTS_EXTRACT_DIR` and stops when it is missing; under `nhts_days` and `session_rows` it reads `7_circuit_instantiation/data_ev_cars/<STATE>_nhts2017_vehicle_days.csv` in the repository.
 - In each circuit, the runner shapes the controlled EVs with the rule `ev_control` names (README, "EV control"). Under `valley_fill_feeder` and `valley_fill_transformer` it first solves the circuit without EVs in `<circuit>/EVControl/base_solve/`, then solves the circuit with EVs in `ModifiedCircuitData/` as before. Under `offpeak_start` it reads `7_circuit_instantiation/data_tariffs/<STATE>_urdb_rate.json` in the repository and stops when it is missing. It writes `ev_control_cars.csv` and, under the valley rules, `ev_control_curves.csv` to `<circuit>/EVControl/` (see `docs/outputs.md`). Phase 8 reads only `ModifiedCircuitData/`.
@@ -113,7 +113,7 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 - **Topologies:** `NC_GSO_urban_uhs13_1247` and `TX_AUS_urban_p2uhs12_1247` (`configs/topology_registry.yaml`).
 - **Seasons:** summer and winter (`configs/defaults.yaml`).
 - **Circuit filtering:** Phase 7b skips the circuits listed in `skip_circuits` in `pipeline_config.yaml`. The list is empty, so `--all` skips no circuit.
-- **Scenario mixes:** `--all` uses the three fixed mixes in `0_experimental_design/mixes_fixed.json`, the file that `mixes_file` in `configs/defaults.yaml` names. `run_mix_generator.py` in the same folder generates LHS and Sobol mixes outside the repository, but `--all` does not run it.
+- **Scenario mixes:** `--all` uses the three fixed mixes in `0_experimental_design/mixes_fixed.yaml`, the file that `mixes_file` in `configs/defaults.yaml` names. A designed experiment names its own mixes file there; https://github.com/DeltaE/j-uncertainty-grid-modernisation writes it.
 
 | Mix | EV | Storage (3-phase loads) | PV (3-phase loads) | Heat pump shares (baseline / DM / uncontrolled) |
 | --- | --- | --- | --- | --- |
@@ -163,7 +163,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 
 `pipeline_config.yaml` holds only the method parameters:
 
-- `random_seed` seeds representative building selection in Phase 4 and case `0` of `run_mix_generator.py`.
+- `random_seed` seeds representative building selection in Phase 4.
 - `skip_circuits` lists numeric `circuit_id` values that Phase 7 skips.
 - `quota` sets the Phase 4 quota rules.
 
@@ -220,6 +220,6 @@ The `phase*.py` scripts are thin wrappers around the implementation scripts.
 - Phase 5b_variants and Phase 5c read the Phase 5d controls from `5d_scenario_controls/get_scenario_csv_controls/`.
 - Phase 5c reads the daily parquets from `5b_profile_generation/daily_parquets/`.
 - Phase 6 reads the Phase 5b mapping CSV, the Phase 5c CSV folders and `folder_timestamps.pkl`.
-- Phase 7a copies `0_experimental_design/mixes_fixed.json` to `7_circuit_instantiation/mixes.json` in the workspace. Phase 7b reads that copy.
+- Phase 7a copies `0_experimental_design/mixes_fixed.yaml` to `7_circuit_instantiation/mixes.yaml` in the workspace. Phase 7b reads that copy.
 - Phase 7 reads the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un`. It indexes the CSVs under their `daily_csvs/` subfolders. Phase 7a builds these roots from the Phase 5c CSVs.
 - Phase 8 reads the Phase 7 outputs from `7_circuit_instantiation/`.

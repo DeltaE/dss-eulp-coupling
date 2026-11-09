@@ -80,7 +80,7 @@ def test_every_case_dry_runs_to_well_formed_posix_commands():
 def test_dry_run_verifies_every_day_file_set():
     """Under the committed per_circuit rule, --all verifies 5b and 5c for baseline, dm
     and uncontrolled in the workspace and in each mix_days/<mix>/ subtree that is not
-    100 % baseline (mixed and stress in mixes_fixed.json). Under per_group, no --mix."""
+    100 % baseline (mixed and stress in mixes_fixed.yaml). Under per_group, no --mix."""
     local_path, metadata_dir = _ensure_local_yaml()
     try:
         case_path = os.path.join(REPO_ROOT, "configs", "cases", "NC_GSO_urban__NC.yaml")
@@ -109,7 +109,7 @@ def test_dry_run_verifies_every_day_file_set():
     with open(os.path.join(REPO_ROOT, "configs", "phases.yaml"), encoding="utf-8") as f:
         mix_days = yaml.safe_load(f)["mix_days"]
     resolved = {"peak_day_rule": "per_group",
-                "mixes_file": os.path.join(REPO_ROOT, "0_experimental_design", "mixes_fixed.json")}
+                "mixes_file": os.path.join(REPO_ROOT, "0_experimental_design", "mixes_fixed.yaml")}
     assert verify_calls(mix_days, resolved) == []
     resolved["peak_day_rule"] = "per_circuit"
     assert len(verify_calls(mix_days, resolved)) == 12

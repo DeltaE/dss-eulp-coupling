@@ -21,7 +21,7 @@ The primary runnable scripts are state-agnostic.
 | Phase | Folder | Purpose |
 | --- | --- | --- |
 | pre | `0_download_smartds/` | Download SMART-DS feeders from OEDI and stage plain OpenDSS circuits |
-| 0 | `0_experimental_design/` | Hold the fixed mixes (`mixes_fixed.json`); generate LHS and Sobol mixes (`mixes_lhs.json`, `mixes_sobol.json`) outside the repository |
+| 0 | `0_experimental_design/` | Hold the fixed mixes (`mixes_fixed.yaml`). The mixes file is an input; https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment |
 | 1 | `1_data_provenance/` | Build state-specific EULP metadata CSVs |
 | 2 | `2_circuit_matching/` | Flatten SMART-DS feeders and review parquet matches |
 | 3 | `3_tolerance_matching/` | Match feeder peaks to EULP buildings |
@@ -127,7 +127,7 @@ python run_case.py --case <case> --phase 5c_variants --season <season>  # CSV co
 python run_case.py --case <case> --phase 6 --season <season>            # kvar preparation
 python run_case.py --case <case> --phase 6_variants --season <season>   # kvar preparation, DM and uncontrolled
 python run_case.py --case <case> --phase mix_days --season <season>     # circuit days and their profiles; real work only under per_circuit
-python run_case.py --case <case> --phase 7a --season <season>           # profile bridge and mixes.json
+python run_case.py --case <case> --phase 7a --season <season>           # profile bridge and mixes copy
 python run_case.py --case <case> --phase 7b --season <season>           # circuit instantiation
 python run_case.py --case <case> --phase 7c --season <season>           # OpenDSS runs
 python run_case.py --case <case> --phase 8 --season <season>            # aggregation and results
@@ -145,14 +145,11 @@ python .\0_download_smartds\download_smartds.py `
   --scenarios base_timeseries `
   --only-opendss `
   --output-dir <smart_ds_base>
-
-# Generate LHS and Sobol mixes into <runs_root>/0_experimental_design/, or into the --out folder.
-python .\0_experimental_design\run_mix_generator.py --out <folder>
 ```
 
 The saved time-of-use rates in `7_circuit_instantiation/data_tariffs/` are tracked, so a cold clone needs no API key. To fetch them again, set `openei_api_key_file` in `configs/local.yaml` to a text file that holds an OpenEI API key and run `python 7_circuit_instantiation/fetch_tou_rates.py` from the repository root. `--all` does not run it.
 
-`run_mix_generator.py` writes nothing inside the repository. `--all` does not use its output: Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names.
+The mixes file is an input. Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names, by default `0_experimental_design/mixes_fixed.yaml`. https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment.
 
 ## Peak-day rules
 
@@ -215,8 +212,7 @@ The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_ci
 - EV WATTS timestamps are read as the charger's local clock time.
 - NHTS vehicle-days that drive but neither end nor start at home are left out of the draw.
 - A plug-in window that runs past midnight wraps onto the first intervals of the same day.
-- The check curve of `session_rows` is UK home charging behaviour.
-- The check curves in `7_circuit_instantiation/data_ev/` come from the UK Electric Nation trial, processed by the University of Melbourne for an Australian project (Team-Nando EV-Demand-Profiles).
+- The check curves in `7_circuit_instantiation/data_ev/`, used by `session_rows`, are UK home charging from the Electric Nation trial, processed by the University of Melbourne for an Australian project (Team-Nando EV-Demand-Profiles).
 - An EV WATTS Level 2 car charges at its session's mean power, which can differ from 7.2 kW.
 - Under `per_circuit`, a case-season takes about twice as long and needs more disk than under `per_group`.
 - The source monitor m1 reads the source voltage setpoint. Load voltages come from the per-load record (`load_voltages.parquet`, see `docs/outputs.md`).
@@ -229,7 +225,7 @@ The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_ci
 | `{STATE}_required_parquets_per_feeder_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5b_profile_generation/phase5b_variants_dm.py` |
 | `{STATE}_parquet_and_bldgs_dm.csv` | `5d_scenario_controls/get_scenario_csv_controls.py` | `5c_csv_conversion/parquet_to_csv.py` |
 | `profiles_use_bench/` | `7_circuit_instantiation/instantiate_circuits.py` | `7_circuit_instantiation/power_flow_sim_daily_EV_STO_DG_deploy.py` |
-| `0_experimental_design/mixes_fixed.json` (three hand-set mixes, tracked) | Set by hand, not by `run_mix_generator.py` | `bridge_phase5c_to_phase7.py` (Phase 7a) copies it to `<ws>/7_circuit_instantiation/mixes.json`, which `7_circuit_instantiation/instantiate_circuits.py` reads |
+| `0_experimental_design/mixes_fixed.yaml` (three hand-set mixes, tracked) | Set by hand | `bridge_phase5c_to_phase7.py` (Phase 7a) copies it to `<ws>/7_circuit_instantiation/mixes.yaml`, keeping the extension of the mixes file, which `7_circuit_instantiation/instantiate_circuits.py` reads |
 
 ## Citation
 
