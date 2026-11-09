@@ -161,11 +161,20 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 | `PIPELINE_MIXES_FILE` | Mixes file that Phase 7a copies, from `mixes_file` in `configs/defaults.yaml`, absolute, with forward slashes. |
 | `PIPELINE_EVWATTS_EXTRACT_DIR` | Folder of the EV WATTS extract, from `evwatts_extract_dir` in `configs/local.yaml`; set only when that key is present. The Phase 7 deploy reads it under `ev_cars` `evwatts_sessions` and `session_rows`. |
 
-`pipeline_config.yaml` holds only the method parameters:
+`pipeline_config.yaml` holds the method parameters, one top-level key each:
 
 - `random_seed` seeds representative building selection in Phase 4.
 - `skip_circuits` lists numeric `circuit_id` values that Phase 7 skips.
 - `quota` sets the Phase 4 quota rules.
+- `eulp_release` names the ResStock and ComStock releases that Phase 5a downloads.
+- `der_sizing` sets storage and PV sizing in the Phase 7 deploy.
+- `peak_day_rule` sets the day each mixed or stress circuit runs on (section 3.2, "Phase mix_days and the peak-day rules"; README, "Peak-day rules").
+- `voltage_band` sets the band of the load voltage summaries.
+- `ev_control` sets how the Phase 7 deploy shapes controlled EV charging (section 3.3; README, "EV control").
+- `ev_valley_base` sets what the no-EV solve behind the valley rules holds (section 3.3; README, "EV control").
+- `ev_cars` sets where each EV car comes from (section 3.3; README, "EV cars").
+- `ev_home_window` keeps controlled charging inside the time the car is plugged in at home (section 3.3; README, "EV cars").
+- `ev_day` picks the typical or stress value set of `ev_inputs.yaml` (section 3.3; README, "EV cars").
 
 ### Phase outputs
 

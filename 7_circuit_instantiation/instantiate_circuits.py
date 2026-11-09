@@ -209,9 +209,6 @@ def circuit_num_from_tag(circ_tag: Optional[str], fallback: Optional[int] = None
 # =========================================
 # === Discover nested SMART-DS feeders  ===
 # =========================================
-'''
-This part changes significantly in this version because it must skip some folders.
-'''
 feeders = []
 skipped = []
 missing_registry_paths = []
@@ -420,27 +417,6 @@ for feeder in feeders:
         cov_u = sum(1 for fn in required_csvs if fn in idx_un)
         print(f"  • Coverage → baseline {cov_b}/{len(required_csvs)}, dm {cov_d}/{len(required_csvs)}, un {cov_u}/{len(required_csvs)}")
 
-        '''
-        # heating assignment (daily -> baseline/dm/un via shares)
-        p_b = float(shares.get('baseline', 0.0))
-        p_dm= float(shares.get('dm', 0.0))
-        p_un= float(shares.get('un', 0.0))
-
-        ttl = p_b + p_dm + p_un
-        if ttl <= 0: p_b, p_dm, p_un = 1.0, 0.0, 0.0
-        else:        p_b, p_dm, p_un = [x/ttl for x in (p_b, p_dm, p_un)]
-
-        import random
-        random.seed(int(heating_seed) + hash((substation_name, feeder_name)) % 10_000_000)
-
-        daily_to_scen = {}
-        for base in sorted(unique_bases):
-            r = random.random()
-            scen = 'baseline' if r < p_b else ('dm' if r < p_b + p_dm else 'un')
-            for ls in base_to_daily.get(base, []):
-                daily_to_scen[ls] = scen
-        '''
-
         # 1) to 5) Heating split (heating_split.py): normalized shares, exact counts
         # by largest remainder, deterministic shuffle per feeder, loadshape labels
         heat = split_heating(unique_bases, base_to_daily, shares, heating_seed,
@@ -453,26 +429,6 @@ for feeder in feeders:
 
         # (Optional) quick sanity print
         print(f"Assigned counts: baseline={n_b}, dm={n_dm}, un={n_un} out of N={N}")
-        '''
-        n_b  = int(round(p_b  * N))
-        n_dm = int(round(p_dm * N))
-        # ensure the remainder goes to 'un'
-        n_un = max(0, N - n_b - n_dm)
-
-        bases = list(sorted(unique_bases))
-        random.seed(int(heating_seed) + hash((substation_name, feeder_name)) % 10_000_000)
-        random.shuffle(bases)
-
-        B_set  = set(bases[:n_b])
-        DM_set = set(bases[n_b:n_b+n_dm])
-        UN_set = set(bases[n_b+n_dm:])
-
-        daily_to_scen = {}
-        for base in bases:
-            scen = 'baseline' if base in B_set else ('dm' if base in DM_set else 'un')
-            for ls in base_to_daily.get(base, []):
-                daily_to_scen[ls] = scen
-        '''
 
         # ----- STORE ASSIGNMENT for auditing -----
         # If you also want base-level counts, keep base_to_scen while you build daily_to_scen
@@ -664,17 +620,6 @@ for feeder in feeders:
         ev_loads_ctl = ev_hosts_all[n_ev_un:]
 
         # Storage / PV on 3φ bases
-        '''
-        THIS IS ANOTHER CHANGE NEEDED IN THE SYSTEM
-        sto_base  = pick(storage_seed, three_phase_base, n_sto)
-        remaining = [b for b in three_phase_base if b not in sto_base] if disjoint_sets else list(three_phase_base)
-        if n_pv > 0 and len(remaining) == 0 and len(three_phase_base) > 0:
-            remaining = list(three_phase_base)  # relax disjointness to satisfy min-one PV
-        pv_base   = pick(pv_seed, remaining, n_pv)
-
-        storage_targets = [b + '_1' for b in sto_base]
-        pv_targets      = [b + '_1' for b in pv_base]
-        '''
         # Eligible 3-phase bases chosen for storage
         sto_base  = pick(storage_seed, three_phase_base, n_sto)
 
@@ -697,9 +642,6 @@ for feeder in feeders:
         # For each selected base, pick the first available full name
         storage_targets = [base_to_full3[b][0] for b in sto_base if base_to_full3.get(b)]
         pv_targets      = [base_to_full3[b][0] for b in pv_base   if base_to_full3.get(b)]
-        '''
-        up until here
-        '''
         assignments = {
             # seed_offset/effective_seed: sha256-derived replacement for the old
             # hash()-based offset (Task 0 determinism fix). Recorded so a referee

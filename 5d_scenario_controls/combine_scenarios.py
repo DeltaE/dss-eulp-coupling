@@ -42,7 +42,7 @@ residential_ids = {
 commercial_ids = {
     "baseline": ["0"],
     "uncontrolled": ["1", "8"],  # pick whichever has largest abs diff from baseline
-    "demand_management": ["2", "9", "20"]  # pick largest abs diff from baseline
+    "demand_management": ["2", "9"]  # pick the one with the lowest annual demand
 }
 
 # Scenario name lookups

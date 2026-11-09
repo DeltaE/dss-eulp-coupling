@@ -5,8 +5,8 @@
 ### `aggregate_m2_combined.csv`
 A feeder‑level **time series** of power flows plus a one‑line metadata “summary” row for each circuit/scenario/season/design.
 
-- **Total rows:** ~143,366  
-- **Time‑series rows:** 141,888 (96 timesteps per circuit/season/design/scenario)
+- **Time‑series rows:** 96 per circuit, season, design and scenario (one per 15-minute timestep)
+- **Summary rows:** one per circuit, season, design and scenario
 
 **Selected columns (typical):**
 
