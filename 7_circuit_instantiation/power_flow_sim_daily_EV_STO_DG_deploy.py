@@ -133,8 +133,8 @@ Steps
    before_cars, after it otherwise; storage_control_step). Each battery watches one
    view (storage_view): the feeder-head element of Monitor m1/m2; or its host's service
    transformer (terminal 1), the feeder when the host has none; or the Line that feeds
-   its host's bus from the service transformer (storage_control.feeding_lines), the
-   transformer or the feeder when there is none. The measured curve of a view
+   its host's bus from the service transformer (storage_control.feeding_lines), one view
+   for the hosts that Line feeds, the transformer or the feeder when there is none. The measured curve of a view
    (storage_measure, storage_order, storage_layer): buildings, plus PV under
    all_placed, plus the cars under all_placed and after_cars; under add_kw a
    buildings-only solve (the EV base solve when it is one and the view is the feeder,
@@ -1365,29 +1365,31 @@ def storage_views():
     is the element of Monitor m1/m2 of Master.dss (find_controller_anchor), terminal 1.
     Under storage_view transformer, "transformer_<t>" is Transformer.<t>, terminal 1, for
     each service transformer of a storage host (service_transformers on the host's
-    leg, ev_host_leg). Under building, "building_<host>" is the Line that feeds the
-    host's bus (feeding_lines), else the host's transformer. host_view {storage host:
-    key}; a host without its element watches the feeder. host_keys(base) gives every
-    view key whose element carries the flow of host base."""
+    leg, ev_host_leg). Under building, "building_<line>" is the Line that feeds the
+    host's bus (feeding_lines), else the host's transformer; hosts fed by the same Line
+    share its view. host_view {storage host: key}; a host without its element watches
+    the feeder. host_keys(base) gives every view key whose element carries the flow of
+    host base (a PV or car host counts in the building view of the Line that feeds its
+    own bus)."""
     anchor = find_controller_anchor(master_dss_path)
     if not anchor:
         raise RuntimeError("Could not infer StorageController anchor from Master.dss. "
                            "Expected a Monitor.m1/m2 element or an Energymeter element.")
     views = {"feeder": (anchor, 1)}
     host_view = {u["host"]: "feeder" for u in STORAGE_UNITS}
-    tr_map = {}
+    tr_map, line_of = {}, {}
     if STORAGE_VIEW != "feeder":
         dss_texts = [read_text(os.path.join(OUT_DIR, fn)) for fn in dss_files]
         tr_map, _ = service_transformers(dss_texts, {n: i["bus1"] for n, i in parsed_loads_map.items()})
-        lines = {}
         if STORAGE_VIEW == "building":
-            lines = feeding_lines(dss_texts, {h: (parsed_loads_map[ev_host_leg(h)]["bus1"], tr_map.get(ev_host_leg(h)))
-                                              for h in host_view})
+            layer_hosts = set(host_view) | set(pv_host_list) | set(json_ev_un) | set(json_ev_ct)
+            line_of = feeding_lines(dss_texts, {h: (parsed_loads_map[ev_host_leg(h)]["bus1"],
+                                                    tr_map.get(ev_host_leg(h))) for h in layer_hosts})
         for h in host_view:
             t = tr_map.get(ev_host_leg(h))
-            if lines.get(h):
-                host_view[h] = f"building_{h}"
-                views[host_view[h]] = (f"Line.{lines[h][0]}", lines[h][1])
+            if line_of.get(h):
+                host_view[h] = f"building_{line_of[h][0]}"
+                views[host_view[h]] = (f"Line.{line_of[h][0]}", line_of[h][1])
             elif t:
                 host_view[h] = f"transformer_{t}"
                 views[host_view[h]] = (f"Transformer.{t}", 1)
@@ -1396,7 +1398,9 @@ def storage_views():
 
     def host_keys(base):
         t = tr_map.get(ev_host_leg(base)) if base in parsed_loads_map or base + "_1" in parsed_loads_map else None
-        return [k for k in ("feeder", f"transformer_{t}" if t else None, f"building_{base}") if k in views]
+        line = line_of.get(base)
+        return [k for k in ("feeder", f"transformer_{t}" if t else None, f"building_{line[0]}" if line else None)
+                if k in views]
     return views, host_view, host_keys
 
 def measured_curves(views, host_keys, with_cars):
