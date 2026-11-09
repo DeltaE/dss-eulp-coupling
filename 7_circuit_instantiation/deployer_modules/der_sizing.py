@@ -16,6 +16,7 @@ the functions hold the rules only.
 - annual_yield(values_kw_per_1000): kWh per kW of array per year of a SMART-DS solar
   file.
 - roof_area_m2(...), pv_kw_roof_and_use(...), storage_size(...): the size rules.
+- standby_pct(...): the %IdlingkW of a host's storage units from the standby setting.
 """
 import math
 import random
@@ -36,6 +37,7 @@ CHOICES = {
     "storage_order": ("after_cars", "before_cars", "same_measurement"),
     "storage_measure": ("all_placed", "buildings_only"),
     "storage_layer": ("add_kw", "solve"),
+    "storage_standby_case": SIZING_CASES,
 }
 
 
@@ -166,3 +168,13 @@ def storage_size(pv_kw, ratio_small, ratio_large, large_pv_kw, hours):
     ratio_small; kWh = hours x kW."""
     kw = (ratio_large if pv_kw > large_pv_kw else ratio_small) * pv_kw
     return kw, hours * kw
+
+
+def standby_pct(segment, host_storage_kw, standby_w, standby_pct_of_kw):
+    """%IdlingkW of every storage unit of a host: residential 100 x standby_w /
+    (1000 x host_storage_kw), the home system's standby W over the host's storage kW;
+    commercial standby_pct_of_kw. The units of a two-leg host share its kW, so each
+    takes the host's percent."""
+    if segment == "residential":
+        return 100.0 * standby_w / (1000.0 * host_storage_kw)
+    return standby_pct_of_kw

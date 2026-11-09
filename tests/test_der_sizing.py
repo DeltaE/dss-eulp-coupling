@@ -7,7 +7,7 @@ per segment with the min-one rule and the switches, the three storage_hosts valu
 roof area under both sources and both segments, the PV size with the use cap or the roof
 binding, the ComStock rule on the CaraDonna (2025) example, the annual yield of a
 hand-made year, the inverter kVA, the storage size by segment with the small and large
-split, and the der_sizing setting readers.
+split, the standby percent of a storage unit, and the der_sizing setting readers.
 
 Run directly (no pytest needed): python tests/test_der_sizing.py
 Or under pytest: pytest tests/test_der_sizing.py
@@ -21,7 +21,8 @@ import yaml
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation", "deployer_modules"))
 from der_sizing import (FT2_TO_M2, annual_yield, der_choice, der_number, der_switch, der_value,  # noqa: E402
-                        pick, pick_hosts, pv_kw_roof_and_use, roof_area_m2, segment_count, storage_size)
+                        pick, pick_hosts, pv_kw_roof_and_use, roof_area_m2, segment_count, standby_pct,
+                        storage_size)
 
 BASES = [f"load_{i:03d}" for i in range(40)]
 
@@ -138,6 +139,14 @@ def test_setting_readers():
     assert _stops(der_choice, {}, "storage_view")
     assert _stops(der_number, {"der_sizing": {"storage_pf": "high"}}, "storage_pf")
     assert _stops(der_value, {"der_sizing": {"residential": {}}}, "residential", "roof_coverage", "low")
+
+
+def test_standby_pct():
+    assert abs(standby_pct("residential", 6.0, 12.0, 0.24) - 0.2) < 1e-12
+    assert standby_pct("commercial", 250.0, 12.0, 0.24) == 0.24
+    for case in ("low", "moderate", "high"):
+        assert der_choice({"der_sizing": {"storage_standby_case": case}}, "storage_standby_case") == case
+    assert _stops(der_choice, {"der_sizing": {"storage_standby_case": "median"}}, "storage_standby_case")
 
 
 if __name__ == "__main__":

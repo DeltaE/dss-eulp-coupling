@@ -293,7 +293,7 @@ from load_voltage import monitor_lines, read_load_monitors, load_voltage_frame, 
 from ev_control import valley_fill, valley_fill_curves, monitor_p_kw, service_transformers, cheap_intervals, offpeak_start
 from ev_control import water_fill, plugin_order, forecast_curve, start_offsets
 from der_sizing import (SEGMENTS, der_choice, der_number, der_value, annual_yield, roof_area_m2,
-                        pv_kw_roof_and_use, storage_size)
+                        pv_kw_roof_and_use, storage_size, standby_pct)
 from storage_control import simple_targets, tuned_targets, schedule, feeding_lines
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
@@ -333,6 +333,9 @@ STORAGE_EFF_CHG      = der_number(CFG, "storage_eff_charge_pct")
 STORAGE_EFF_DCH      = der_number(CFG, "storage_eff_discharge_pct")
 STORAGE_START_PCT    = der_number(CFG, "storage_start_pct")
 STORAGE_RESERVE_PCT  = der_number(CFG, "storage_reserve_pct")
+STANDBY_CASE         = der_choice(CFG, "storage_standby_case")
+STANDBY_W            = der_value(CFG, "residential", "storage_standby_w", STANDBY_CASE)
+STANDBY_PCT_OF_KW    = der_value(CFG, "commercial", "storage_standby_pct_of_kw", STANDBY_CASE)
 SIMPLE_PEAK_FRACTION = der_number(CFG, "simple_peak_fraction")
 SIMPLE_MEAN_FRACTION = der_number(CFG, "simple_mean_fraction")
 ORIGINAL_KW_PER_STORAGE_KW = der_number(CFG, "original_kw_target_per_storage_kw")
@@ -1135,6 +1138,7 @@ if storage_host_list:
             if row["storage_kw"] <= 0:  # a host whose PV rule gives 0 kW (no roof) gets no battery
                 n_zero_size += 1
                 continue
+            idling_pct = standby_pct(row["segment"], row["storage_kw"], STANDBY_W, STANDBY_PCT_OF_KW)
             for suffix, info, share in der_units(base):
                 stg_name = f"storage_{base}{suffix}"
                 kw_u, kwh_u, kva_u = row["storage_kw"] * share, row["storage_kwh"] * share, row["storage_kva"] * share
@@ -1142,7 +1146,8 @@ if storage_host_list:
                     f"New Storage.{stg_name} phases={info['ph']} bus1={info['bus1']} kV={info['kV']} kVA={kva_u:.4f}\n"
                     f"~ kWRated={kw_u:.4f} kWhRated={kwh_u:.4f} %stored={STORAGE_START_PCT} "
                     f"%reserve={STORAGE_RESERVE_PCT} State=IDLE\n"
-                    f"~ %EffCharge={STORAGE_EFF_CHG} %EffDischarge={STORAGE_EFF_DCH} Balanced=yes varFollowInverter=yes\n\n"
+                    f"~ %EffCharge={STORAGE_EFF_CHG} %EffDischarge={STORAGE_EFF_DCH} Balanced=yes varFollowInverter=yes "
+                    f"%IdlingkW={format(idling_pct, '.6g')}\n\n"
                 )
                 mon_pwr  = f"mon_{stg_name}_power"
                 mon_soc  = f"mon_{stg_name}_soc"

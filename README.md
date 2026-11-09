@@ -232,6 +232,8 @@ PV size (DC) under `pv_rule_<segment>: roof_and_use` (the default) is the lesser
 - `storage_measure`: `all_placed` (the default; buildings, PV and, under `after_cars`, cars) or `buildings_only`.
 - `storage_layer`: `add_kw` (the default; a buildings-only solve plus the kW of the layers on the view) or `solve` (an OpenDSS solve with the layers in).
 
+Every battery draws standby power, written as the OpenDSS `%IdlingkW` of each Storage element. `storage_standby_case` (`low`, `moderate`, the default, or `high`) picks the entry. A home battery draws `storage_standby_w` (2, 12 or 71 W), the lowest, median and highest standby power measured with the battery discharged on 26 residential systems by Orth et al. (2023), https://doi.org/10.1016/j.est.2023.107299, as a percent of the host's storage kW. A commercial battery draws `storage_standby_pct_of_kw` of its kW (0.04, 0.24 or 1.42 %).
+
 ## Known limitations
 
 - The simulation horizon is one day of 96 fifteen-minute steps. The deploy script, `pfs_ev_base_profiles.py` and the max-day script keep their names until the horizon becomes configurable.
@@ -249,6 +251,7 @@ PV size (DC) under `pv_rule_<segment>: roof_and_use` (the default) is the lesser
 - The forecast error of the valley rules is hourly and independent from hour to hour, while real forecast errors are correlated over hours.
 - Controlled cars are placed one at a time in order of plug-in time, so later cars get the valleys that earlier cars leave.
 - The start spread of `offpeak_start` is an assumed normal spread, 60 minutes on a typical day and 15 on a stress day.
+- Battery standby comes from lab tests of 26 German residential systems and is applied to every battery, commercial ones included. A commercial battery takes the home values per kW of a 5 kW system, as a percent of its kW. Each battery draws its discharged-state standby at every step of the day.
 - The stress day changes behaviour (the share of cars charging, the months drawn, the check curve, the forecast horizon, the start spread), never hardware.
 - The tariff is the weekday schedule of one utility per donor state. The saved file records whether the rate was current when it was fetched, and `offpeak_start` uses a rate that is no longer current as it is.
 - Workplace and public EV charging are not modelled.

@@ -102,6 +102,21 @@ der_sizing:
     # 4-hour device as the default":
     # https://atb.nlr.gov/electricity/2024/commercial_battery_storage
     storage_hours: {low: 2.0, moderate: 2.0, high: 4.0}
+    # Standby power of one home battery system in W (storage_standby_case picks the
+    # entry). Orth et al., Efficiency characterization of 26 residential photovoltaic
+    # battery storage systems, Journal of Energy Storage 65 (2023) 107299,
+    # https://doi.org/10.1016/j.est.2023.107299, section 2.6, Fig. 16 and Tables VIII and
+    # IX, lab tests of German systems with the battery discharged: "the lowest standby
+    # consumption is only 2 W (B1 and B3). On average, the power consumption is 18 W and
+    # the median is even lower at 12 W"; the highest is 71 W (L2). low 2 (lowest),
+    # moderate 12 (median), high 71 (highest).
+    # ASSUMPTION: every home battery draws its discharged-state standby power at every
+    # step of the day, since a system "remains discharged between 2000 h and 4000 h per
+    # year" and "spends only 1000 h to 2000 h per year in a fully charged state"
+    # (section 2.6), where the same tests give 1 to 45 W (median 5 W). A higher value
+    # draws more grid power at every home battery all day. The deploy writes it as
+    # %IdlingkW = 100 x W / (1000 x the host's storage kW).
+    storage_standby_w: {low: 2.0, moderate: 12.0, high: 71.0}
   commercial:
     # LBNL 2025 Data Update, slide 24: "Roof-coverage ratios for non-residential systems
     # varied more widely, from 15-66%", median 32% ("from 37% to 32% for
@@ -135,6 +150,19 @@ der_sizing:
     # for each model", 21 % efficiency; section 5.1: 8,750 ft2 of roof gives 68 kW.
     comstock_roof_coverage: {value: 0.40}
     comstock_kw_per_m2: {value: 0.21}
+    # ASSUMPTION: a commercial battery draws 0.24 % of its rated kW as standby power
+    # (low 0.04 %, high 1.42 %), at every step, for every commercial storage system: the
+    # home standby of Orth et al. 2023 (storage_standby_w above, 2, 12 and 71 W) over a
+    # 5 kW system, since "In almost half of the systems, the nominal discharge power is
+    # less than 5 kW" (section 2.2). It scales the home measurements to the battery's
+    # rating. Public comparisons: two utility-scale lithium-ion systems drew a mean
+    # auxiliary power of 0.004 and 0.011 kW per rated kW while operating, cooling and
+    # heating included (Crawford et al., PNNL-29378, 2020, Table 6.2,
+    # https://www.osti.gov/servlets/purl/1602252); a 60 kW lead-acid system showed
+    # standby losses of 414 to 452 W at rest, 0.69 to 0.75 % (Rose, Schenkman and
+    # Borneo, SAND2013-8849, 2013, Table 1, https://www.osti.gov/servlets/purl/1115242).
+    # A higher value draws more grid power at every commercial battery all day.
+    storage_standby_pct_of_kw: {low: 0.04, moderate: 0.24, high: 1.42}
   # ASSUMPTION: every PVSystem turns on above 0.1 % and off below 0.1 % of its inverter
   # kVA (%Cutin, %Cutout), so the array produces whenever the sun is up. The SMART-DS
   # PV files of the donor feeders use the same values, for example
@@ -170,6 +198,12 @@ der_sizing:
   # https://sourceforge.net/p/electricdss/code/4176/tree/trunk/Version8/Source/PCElements/Storage.pas
   # A higher reserve lowers the energy the battery can shift.
   storage_reserve_pct: 20.0
+  # low, moderate or high: the entry of storage_standby_w (residential) and
+  # storage_standby_pct_of_kw (commercial) that every battery's %IdlingkW takes. OpenDSS
+  # draws %IdlingkW of kWRated at every step: from the grid while idling, from the
+  # battery while discharging, out of the charge while charging (Storage.pas, URL above;
+  # its default is 1 %). low gives the smaller standby losses.
+  storage_standby_case: moderate
   # peak_ratio rule (pv_rule_<segment>: peak_ratio), from the host's peak kW (the
   # maximum of its daily kW profile).
   # ASSUMPTION: storage power rating is 0.75 times the host's peak kW, for every
