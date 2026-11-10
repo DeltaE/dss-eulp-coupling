@@ -21,7 +21,7 @@ dt hours long.
 - feeding_lines(texts, hosts): the Line that feeds each host's bus (storage_view
   building).
 - level_above(curve, energy, cap, dt) and level_below(curve, energy, cap, dt): the
-  levels these rules use.
+  levels these rules use, each solved exactly.
 Energies are kWh, powers kW, start and reserve fractions of kWh.
 """
 import re
@@ -84,9 +84,9 @@ def feeding_lines(texts, hosts):
 
 def level_above(curve, energy, cap, dt):
     """The level L with sum over steps of min(cap, max(0, curve - L)) x dt = energy
-    (cap None: no cap), by BISECTION_STEPS bisection steps on [min(curve) - cap or
-    min(curve), max(curve)]. Energy at or above the most the curve holds gives the
-    lower end."""
+    (cap None: no cap), solved exactly: the sum is piecewise linear in L between the
+    breakpoints curve and curve - cap, on [min(curve) - cap or min(curve), max(curve)].
+    Energy at or above the most the curve holds gives the lower end."""
     f = np.asarray(curve, dtype=float)
     lo, hi = f.min() - (cap if cap is not None else 0.0), f.max()
 
@@ -98,19 +98,18 @@ def level_above(curve, energy, cap, dt):
         return hi
     if held(lo) <= energy:
         return lo
-    for _ in range(BISECTION_STEPS):
-        mid = (lo + hi) / 2.0
-        if held(mid) > energy:
-            lo = mid
-        else:
-            hi = mid
-    return (lo + hi) / 2.0
+    bp = np.unique(f if cap is None else np.concatenate((f, f - cap)))
+    d = np.maximum(0.0, f[None, :] - bp[:, None])
+    h = (d if cap is None else np.minimum(cap, d)).sum(axis=1) * dt
+    i = int(np.argmax(h <= energy))
+    return float(bp[i - 1] + (h[i - 1] - energy) * (bp[i] - bp[i - 1]) / (h[i - 1] - h[i]))
 
 
 def level_below(curve, energy, cap, dt):
-    """The level L with sum over steps of min(cap, max(0, L - curve)) x dt = energy, by
-    BISECTION_STEPS bisection steps on [min(curve), max(curve) + cap]. Energy at or
-    above the most that fits gives the upper end."""
+    """The level L with sum over steps of min(cap, max(0, L - curve)) x dt = energy,
+    solved exactly: the sum is piecewise linear in L between the breakpoints curve and
+    curve + cap, on [min(curve), max(curve) + cap]. Energy at or above the most that
+    fits gives the upper end."""
     f = np.asarray(curve, dtype=float)
     lo, hi = f.min(), f.max() + cap
 
@@ -121,13 +120,10 @@ def level_below(curve, energy, cap, dt):
         return lo
     if filled(hi) <= energy:
         return hi
-    for _ in range(BISECTION_STEPS):
-        mid = (lo + hi) / 2.0
-        if filled(mid) < energy:
-            lo = mid
-        else:
-            hi = mid
-    return (lo + hi) / 2.0
+    bp = np.unique(np.concatenate((f, f + cap)))
+    h = np.minimum(cap, np.maximum(0.0, bp[:, None] - f[None, :])).sum(axis=1) * dt
+    i = int(np.argmax(h >= energy))
+    return float(bp[i - 1] + (energy - h[i - 1]) * (bp[i] - bp[i - 1]) / (h[i] - h[i - 1]))
 
 
 def simple_targets(curve, peak_fraction, mean_fraction):
@@ -186,7 +182,7 @@ def schedule(curve, kw, kwh, start, reserve, eff_charge, eff_discharge, dt):
     stored energy e, starting at start x kwh and moving by (c_i x eff_charge - d_i /
     eff_discharge) x dt per step, ends the day where it started. x is the largest budget
     in [0, (1 - reserve) x kwh x eff_discharge] found by BISECTION_STEPS bisection
-    steps for which e stays within [reserve x kwh, kwh] at every step, ends within a
+    steps, stopping once the interval cannot shrink further, for which e stays within [reserve x kwh, kwh] at every step, ends within a
     rounding tolerance of its start and L_c < L_d;
     x = 0 (no schedule) always qualifies. net_i = d_i - c_i (kW, positive discharge),
     energy the 97 stored energies (kWh) from the start of the day to its end."""
@@ -206,6 +202,8 @@ def schedule(curve, kw, kwh, start, reserve, eff_charge, eff_discharge, dt):
     elif hi > 0:
         for _ in range(BISECTION_STEPS):
             mid = (lo + hi) / 2.0
+            if mid == lo or mid == hi:
+                break
             if ok(mid):
                 lo = mid
             else:

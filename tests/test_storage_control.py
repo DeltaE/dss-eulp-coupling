@@ -19,7 +19,8 @@ import numpy as np
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation", "deployer_modules"))
-from storage_control import best_start, feeding_lines, schedule, simple_targets, tuned_targets  # noqa: E402
+from storage_control import (best_start, feeding_lines, level_above, level_below, schedule,  # noqa: E402
+                             simple_targets, tuned_targets)
 
 DT = 0.25
 STEPS = np.arange(96)
@@ -96,6 +97,29 @@ def test_best_start_tie_takes_the_lower_start():
     flat = np.full(96, 800.0)
     start, net, energy, x = best_start(flat, 100.0, 200.0, 0.2, 0.95, 0.95, DT, [0.5, 0.2, 0.8])
     assert start == 0.2 and x == 0.0 and not net.any()
+
+
+def test_levels_are_exact():
+    # held and filled from their definitions; the level returned gives back the energy
+    rng = np.random.default_rng(0)
+    for k in range(200):
+        f = rng.uniform(100.0, 15000.0, 96)
+        cap = None if k % 2 == 0 else rng.uniform(10.0, 5000.0)
+
+        def held(level):
+            d = np.maximum(0.0, f - level)
+            return (d if cap is None else np.minimum(cap, d)).sum() * DT
+
+        most = held(f.min() - (cap if cap is not None else 0.0))
+        energy = rng.uniform(0.0, most)
+        assert abs(held(level_above(f, energy, cap, DT)) - energy) <= 1e-9 * max(1.0, energy)
+        kw = cap if cap is not None else rng.uniform(10.0, 5000.0)
+
+        def filled(level):
+            return np.minimum(kw, np.maximum(0.0, level - f)).sum() * DT
+
+        energy = rng.uniform(0.0, filled(f.max() + kw))
+        assert abs(filled(level_below(f, energy, kw, DT)) - energy) <= 1e-9 * max(1.0, energy)
 
 
 def test_feeding_lines():
