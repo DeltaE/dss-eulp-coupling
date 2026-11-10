@@ -16,6 +16,8 @@ dt hours long.
   battery's charge and discharge per step, peak shaving and valley filling (Gan, Topcu
   and Low 2013, https://doi.org/10.1109/TPWRS.2012.2210288) within its kW, kWh,
   efficiencies and reserve, ending the day at its starting energy.
+- best_start(curve, kw, kwh, reserve, eff_charge, eff_discharge, dt, starts): the
+  schedule of the start among starts whose plan leaves the lowest curve maximum.
 - feeding_lines(texts, hosts): the Line that feeds each host's bus (storage_view
   building).
 - level_above(curve, energy, cap, dt) and level_below(curve, energy, cap, dt): the
@@ -213,3 +215,17 @@ def schedule(curve, kw, kwh, start, reserve, eff_charge, eff_discharge, dt):
         return z, _energy(z, z, e0, eff_charge, eff_discharge, dt), 0.0
     dis, chg, _, _ = _plan(f, lo, kw, eff_charge, eff_discharge, dt)
     return dis - chg, _energy(dis, chg, e0, eff_charge, eff_discharge, dt), lo
+
+
+def best_start(curve, kw, kwh, reserve, eff_charge, eff_discharge, dt, starts):
+    """Return (start, net, energy, x): schedule(curve, kw, kwh, start, ...) for every
+    start in starts (fractions of kwh), keeping the start whose plan leaves the lowest
+    max(curve - net). Ties go to the larger x, then to the lower start."""
+    f = np.asarray(curve, dtype=float)
+    best = None
+    for start in starts:
+        net, energy, x = schedule(f, kw, kwh, start, reserve, eff_charge, eff_discharge, dt)
+        key = (float((f - net).max()), -x, start)
+        if best is None or key < best[0]:
+            best = (key, start, net, energy, x)
+    return best[1:]

@@ -190,8 +190,19 @@ der_sizing:
   # to end the day where it started, so a one-day run borrows no energy from the day
   # before. SMART-DS storage files start at 50 % (kWhStored=8.0 of 16.0); the OpenDSS
   # default is 100 % (Storage.pas, URL below). A higher start lets a battery discharge
-  # before it charges.
+  # before it charges. Under schedule_start: best the schedule rule replaces it for its
+  # batteries.
   storage_start_pct: 20.0
+  # best or fixed: the starting energy of the batteries under storage_rule: schedule.
+  # fixed: every battery starts at storage_start_pct. best: for each host the schedule
+  # rule tries every start of schedule_start_step_pct and keeps the one whose plan
+  # leaves the lowest forecast maximum on its view; the host's batteries start and end
+  # the day at that energy. The other rules keep storage_start_pct.
+  schedule_start: best
+  # ASSUMPTION: under schedule_start: best, the starts tried for every host are every
+  # 10 % of kWh from storage_reserve_pct to 100 % (20, 30, ..., 100 with the defaults).
+  # A finer step finds a start closer to the best and takes longer to run.
+  schedule_start_step_pct: 10.0
   # ASSUMPTION: no battery discharges below 20 % of its kWh, for every storage system,
   # which keeps energy for backup. This is the OpenDSS default %reserve of a Storage
   # element ("Default = 20", Storage.pas):

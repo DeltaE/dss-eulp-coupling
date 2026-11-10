@@ -39,6 +39,7 @@ CHOICES = {
     "storage_layer": ("add_kw", "solve"),
     "storage_standby_case": SIZING_CASES,
     "storage_standby_element": ("load", "idling"),
+    "schedule_start": ("best", "fixed"),
 }
 
 

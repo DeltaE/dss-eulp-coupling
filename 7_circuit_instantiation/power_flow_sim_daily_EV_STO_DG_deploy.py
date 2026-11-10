@@ -146,7 +146,9 @@ Steps
    StorageController per view (PeakShave, PeakShaveLow, %Reserve, %kWBand and %kWBandLow
    storage_kw_band_pct, DispFactor storage_disp_factor) into Storage.dss;
    schedule writes a daily loadshape per host and sets its batteries to DispMode=FOLLOW,
-   computed host by host on the view's forecast, each schedule joining it.
+   computed host by host on the view's forecast, each schedule joining it; under
+   schedule_start best from the start of SCHEDULE_START_PCTS whose plan leaves the
+   lowest maximum (best_start), written as the batteries' %stored.
 8. Compiles Master.dss in OpenDSS (dss_engine), which runs its Solve and Export lines,
    and reads Solution.Converged.
 9. When converged, reads every load Monitor through the engine (no Export lines) and
@@ -294,7 +296,7 @@ from ev_control import valley_fill, valley_fill_curves, monitor_p_kw, service_tr
 from ev_control import water_fill, plugin_order, forecast_curve, start_offsets
 from der_sizing import (SEGMENTS, der_choice, der_number, der_value, annual_yield, roof_area_m2,
                         pv_kw_roof_and_use, storage_size, standby_pct)
-from storage_control import simple_targets, tuned_targets, schedule, feeding_lines
+from storage_control import simple_targets, tuned_targets, schedule, best_start, feeding_lines
 
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
@@ -333,6 +335,12 @@ STORAGE_EFF_CHG      = der_number(CFG, "storage_eff_charge_pct")
 STORAGE_EFF_DCH      = der_number(CFG, "storage_eff_discharge_pct")
 STORAGE_START_PCT    = der_number(CFG, "storage_start_pct")
 STORAGE_RESERVE_PCT  = der_number(CFG, "storage_reserve_pct")
+SCHEDULE_START       = der_choice(CFG, "schedule_start")
+SCHEDULE_START_STEP  = der_number(CFG, "schedule_start_step_pct")
+# The starts schedule_start best tries, percent of kWh: from storage_reserve_pct up to 100 in its steps
+SCHEDULE_START_PCTS  = [min(100.0, STORAGE_RESERVE_PCT + k * SCHEDULE_START_STEP)
+                        for k in range(int((100 - STORAGE_RESERVE_PCT) / SCHEDULE_START_STEP + 1e-9) + 1)]
+SCHEDULE_STARTS      = [p / 100 for p in SCHEDULE_START_PCTS]
 STANDBY_CASE         = der_choice(CFG, "storage_standby_case")
 STANDBY_ELEMENT      = der_choice(CFG, "storage_standby_element")
 STANDBY_W            = der_value(CFG, "residential", "storage_standby_w", STANDBY_CASE)
@@ -1486,17 +1494,23 @@ def storage_control_step(with_cars):
             for host in dict.fromkeys(u["host"] for u in units):
                 h_units = [u for u in units if u["host"] == host]
                 h_kw, h_kwh = sum(u["kw"] for u in h_units), sum(u["kwh"] for u in h_units)
-                net, energy, x = schedule(cur, h_kw, h_kwh, start, reserve, eff_c, eff_d, dt)
+                if SCHEDULE_START == "best":
+                    h_start, net, energy, x = best_start(cur, h_kw, h_kwh, reserve, eff_c, eff_d, dt, SCHEDULE_STARTS)
+                    h_pct = SCHEDULE_START_PCTS[SCHEDULE_STARTS.index(h_start)]
+                    stored = f" %stored={format(h_pct, '.6g')}"
+                else:
+                    net, energy, x = schedule(cur, h_kw, h_kwh, start, reserve, eff_c, eff_d, dt)
+                    h_pct, stored = STORAGE_START_PCT, ""
                 cur = cur - net
                 shape = f"StoSched_{n_sched}"
                 n_sched += 1
                 text.append(f"New Loadshape.{shape} npts={IRRADIANCE_NPTS} interval={IRR_INTERVAL_H} "
                             f"mult=({' '.join(f'{v / h_kw:.6f}' for v in net)})\n")
                 for u in h_units:
-                    text.append(f"Edit Storage.{u['name']} DispMode=FOLLOW daily={shape}\n")
+                    text.append(f"Edit Storage.{u['name']} DispMode=FOLLOW daily={shape}{stored}\n")
                     STORAGE_TARGET_ROWS.append({**base_row, "battery": u["name"], "host": host,
                                                 "segment": u["segment"], "kw_rated": u["kw"], "kwh_rated": u["kwh"],
-                                                "schedule_discharge_kwh": x * u["kw"] / h_kw})
+                                                "start_pct": h_pct, "schedule_discharge_kwh": x * u["kw"] / h_kw})
                 for i in range(IRRADIANCE_NPTS):
                     sched_rows.append({"view": key, "host": host, "loadshape": shape, "step": i + 1,
                                        "net_kw": net[i], "stored_kwh_start": energy[i], "stored_kwh_end": energy[i + 1]})
@@ -1517,7 +1531,7 @@ def storage_control_step(with_cars):
                     f"~ elementList=({' '.join(u['name'] for u in units)})\n\n")
         for u in units:
             STORAGE_TARGET_ROWS.append({**base_row, "battery": u["name"], "host": u["host"], "segment": u["segment"],
-                                        "kw_rated": u["kw"], "kwh_rated": u["kwh"],
+                                        "kw_rated": u["kw"], "kwh_rated": u["kwh"], "start_pct": STORAGE_START_PCT,
                                         "kw_target": float(f"{target:.4f}"), "kw_target_low": float(f"{low:.4f}")})
     with open(storage_path, "a", encoding="utf-8") as f_st:
         f_st.writelines(text)
@@ -1720,7 +1734,7 @@ if COMPILE_CIRCUIT and master_dss_path:
             kwh = np.asarray(mon.Channel(chan["kwh"]), dtype=float)
             row.update({"charged_kwh": float(np.sum(mon.Channel(chan["kwin"]))) * IRR_INTERVAL_H,
                         "discharged_kwh": float(np.sum(mon.Channel(chan["kwout"]))) * IRR_INTERVAL_H,
-                        "stored_kwh_start": row["kwh_rated"] * STORAGE_START_PCT / 100.0,
+                        "stored_kwh_start": row["kwh_rated"] * row["start_pct"] / 100.0,
                         "stored_kwh_end": float(kwh[-1]), "stored_kwh_min": float(kwh.min()),
                         "stored_kwh_max": float(kwh.max())})
     if n_storage > 0:

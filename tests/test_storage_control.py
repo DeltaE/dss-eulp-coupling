@@ -19,7 +19,7 @@ import numpy as np
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation", "deployer_modules"))
-from storage_control import feeding_lines, schedule, simple_targets, tuned_targets  # noqa: E402
+from storage_control import best_start, feeding_lines, schedule, simple_targets, tuned_targets  # noqa: E402
 
 DT = 0.25
 STEPS = np.arange(96)
@@ -73,6 +73,29 @@ def test_schedule_without_room_is_empty():
     falling = np.linspace(2000.0, 500.0, 96)
     net, energy, x = schedule(falling, 100.0, 200.0, 0.2, 0.2, 0.95, 0.95, DT)
     assert x < 1e-6 and np.abs(net).max() < 1e-3 and np.allclose(energy, 40.0, atol=1e-6)
+
+
+def test_best_start_when_the_valley_follows_the_peak():
+    # peak at steps 30 to 33, lowest load at steps 90 to 96: at the reserve start the
+    # battery cannot discharge at the peak; a higher start can, and recharges in the valley
+    curve = np.full(96, 800.0)
+    curve[29:33] = 1500.0
+    curve[89:96] = 400.0
+    kw, kwh, reserve, eff_c, eff_d = 100.0, 200.0, 0.2, 0.95, 0.95
+    start, net, energy, x = best_start(curve, kw, kwh, reserve, eff_c, eff_d, DT, [0.2])
+    assert start == 0.2 and x < 1e-6
+    start, net, energy, x = best_start(curve, kw, kwh, reserve, eff_c, eff_d, DT, [0.2, 0.5])
+    assert start == 0.5 and x > 0
+    assert math.isclose(energy[0], 0.5 * kwh) and math.isclose(energy[-1], 0.5 * kwh, abs_tol=1e-6)
+    assert energy.min() >= reserve * kwh - 1e-6 and energy.max() <= kwh + 1e-6
+    assert (curve - net).max() < curve.max()
+
+
+def test_best_start_tie_takes_the_lower_start():
+    # a flat curve has no peak to shave: every start plans nothing and leaves the same maximum
+    flat = np.full(96, 800.0)
+    start, net, energy, x = best_start(flat, 100.0, 200.0, 0.2, 0.95, 0.95, DT, [0.5, 0.2, 0.8])
+    assert start == 0.2 and x == 0.0 and not net.any()
 
 
 def test_feeding_lines():

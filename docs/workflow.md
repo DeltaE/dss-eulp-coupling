@@ -171,7 +171,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 - `skip_circuits` lists numeric `circuit_id` values that Phase 7 skips.
 - `quota` sets the Phase 4 quota rules.
 - `eulp_release` names the ResStock and ComStock releases that Phase 5a downloads.
-- `der_sizing` sets the PV and storage hosts (Phase 7b), their sizes, the storage control and the battery standby losses (`storage_standby_case`, default `moderate`; `storage_standby_element`, default `load`, a constant-power Load beside each battery, or `idling`, the battery's `%IdlingkW`) (Phase 7 deploy) (README, "PV and storage").
+- `der_sizing` sets the PV and storage hosts (Phase 7b), their sizes, the storage control (with `schedule_start`, default `best`: under `schedule` each host's starting energy is the one of a grid that leaves the lowest forecast maximum) and the battery standby losses (`storage_standby_case`, default `moderate`; `storage_standby_element`, default `load`, a constant-power Load beside each battery, or `idling`, the battery's `%IdlingkW`) (Phase 7 deploy) (README, "PV and storage").
 - `peak_day_rule` sets the day each mixed or stress circuit runs on (section 3.2, "Phase mix_days and the peak-day rules"; README, "Peak-day rules").
 - `heating_label_unit` sets whether the heating split counts buildings or customers (section 3.2, Phase 7b; README, "Heating labels and EV hosts").
 - `voltage_band` sets the band of the load voltage summaries.
