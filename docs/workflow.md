@@ -127,13 +127,13 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 
 - **EV cars:** `ev_cars` in `pipeline_config.yaml` (default `evwatts_sessions`; also `nhts_days`, `session_rows`), `ev_home_window` (default `true`) and `ev_day` (default `typical`; also `stress`, the value set of `ev_inputs.yaml`). Main runs use the defaults. See README, "EV cars".
 - **EV control:** `ev_control` in `pipeline_config.yaml` (default `valley_fill_feeder`; also `uncontrolled`, `valley_fill_transformer`, `offpeak_start`, `water_fill_feeder`) and `ev_valley_base` (default `buildings_only`; also `after_pv`). Main runs use the defaults. See README, "EV control".
-- **PV and storage:** Phase 7b draws the PV and storage hosts per segment (homes and commercial loads) with the mix shares `pv_res_perc`, `pv_com_perc`, `storage_res_perc` and `storage_com_perc`, the `der_sizing` switches and `storage_hosts` (default `with_pv`), and writes them per segment and as `pv_targets` and `storage_targets`. The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes them (`pv_rule_residential` and `pv_rule_commercial`, default `roof_and_use`; `sizing_case`, default `moderate`; `roof_area_source`, default `floor_stories`; `coverage_rule_commercial`, default `lbnl`) and controls storage (`storage_rule`, default `simple`; `storage_view`, default `feeder`; `storage_order`, default `after_cars`; `storage_measure`, default `all_placed`; `storage_layer`, default `add_kw`). Main runs use the defaults. See README, "PV and storage".
+- **PV and storage:** Phase 7b draws the PV and storage hosts per segment (homes and commercial loads) with the mix shares `pv_res_perc`, `pv_com_perc`, `storage_res_perc` and `storage_com_perc`, the `der_sizing` switches and `storage_hosts` (default `with_pv`), and writes them per segment and as `pv_targets` and `storage_targets`. The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes them (`pv_rule_residential` and `pv_rule_commercial`, default `roof_and_use`; `sizing_case`, default `moderate`; `roof_area_source`, default `floor_stories`; `coverage_rule_commercial`, default `lbnl`) and controls storage (`storage_rule`, default `schedule`; `storage_view`, default `feeder`; `storage_order`, default `after_cars`; `storage_measure`, default `all_placed`; `storage_layer`, default `add_kw`). Main runs use the defaults. See README, "PV and storage".
 
 ```{admonition} Tip: Storage Controller Defaults (example)
 :class: tip
 - PV: the lesser of the roof cap and the annual use cap (moderate entries)
 - Storage: 1.0 x PV kW (0.5 above 100 kW commercial), 2 h
-- Rule: `simple`, kWTarget 0.98 x forecast peak, kWTargetLow 0.80 x forecast mean
+- Rule: `schedule`, each host's start chosen on a grid from the reserve to full (`schedule_start: best`)
 - Start and reserve: 20%
 ```
 

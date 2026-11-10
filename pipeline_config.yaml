@@ -210,15 +210,16 @@ der_sizing:
   # A higher reserve lowers the energy the battery can shift.
   storage_reserve_pct: 20.0
   # low, moderate or high: the entry of storage_standby_w (residential) and
-  # storage_standby_pct_of_kw (commercial) that every battery's %IdlingkW takes. OpenDSS
-  # draws %IdlingkW of kWRated at every step: from the grid while idling, from the
-  # battery while discharging, out of the charge while charging (Storage.pas, URL above;
-  # its default is 1 %). low gives the smaller standby losses.
+  # storage_standby_pct_of_kw (commercial) that is the standby of every battery, drawn
+  # as set by storage_standby_element. low gives the smaller standby losses.
   storage_standby_case: moderate
   # load or idling: where each battery's standby kW (storage_standby_case) is drawn.
   # load: every Storage element gets %IdlingkW=0, and a constant-power Load on the
   # battery's bus (model=1, status=fixed) draws the same standby kW at every step.
-  # idling: the standby is the Storage element's %IdlingkW, as described above.
+  # idling: the standby is the Storage element's %IdlingkW. OpenDSS draws %IdlingkW of
+  # kWRated at every step: from the grid while idling, from the battery while
+  # discharging, out of the charge while charging (Storage.pas, URL above; its default
+  # is 1 %).
   # ASSUMPTION: under load, every battery's standby kW is drawn from the grid at every
   # step, also while the battery discharges, where OpenDSS takes %IdlingkW from the
   # battery ("If supplying idling losses, when discharging, the Storage supplies the
@@ -256,9 +257,7 @@ der_sizing:
   # an array at a host with a low peak from being negligible. A higher minimum
   # raises PV output at hosts with a low peak.
   pv_min_kw: 10.0
-  # How the batteries run. original: one StorageController per view with kWTarget =
-  # max(original_kw_target_min_kw, original_kw_target_per_storage_kw x the view's
-  # storage kW), kWTargetLow = original_kw_target_low_kw. simple: kWTarget =
+  # How the batteries run; schedule is the default. simple: kWTarget =
   # simple_peak_fraction x the view's daily peak, kWTargetLow = simple_mean_fraction x
   # its daily mean. tuned: kWTarget at the level above which the view's curve holds the
   # usable energy of its batteries, kWTargetLow at the level below which filling the
@@ -267,7 +266,7 @@ der_sizing:
   # controller rules run PeakShave for discharging and PeakShaveLow for charging.
   # Targets and schedules use a forecast of the measured curve (forecast_error of the
   # ev_day value set).
-  storage_rule: simple
+  storage_rule: schedule
   # The view a battery watches. feeder: the feeder-head line (Monitor m2 of Master.dss).
   # transformer: its host's service transformer. building: the line that feeds its
   # host's bus.
@@ -282,21 +281,15 @@ der_sizing:
   # add_kw: the measured curve is a buildings-only solve plus the kW of the layers
   # placed after it. solve: an OpenDSS solve with the layers in.
   storage_layer: add_kw
-  # ASSUMPTION: under simple, each controller discharges above 0.98 of its view's
+  # ASSUMPTION: under simple, each controller discharges above 0.95 of its view's
   # forecast daily peak and charges below 0.80 of its forecast daily mean, for every
-  # view. 0.98 aims discharge at the top of the peak and 0.80 aims charge at the night
-  # valley. A lower peak fraction discharges longer and empties the battery earlier; a
-  # higher mean fraction charges longer.
-  simple_peak_fraction: 0.98
+  # view. 0.95 leaves a discharge band of 5 % of the peak, wider than the typical
+  # hour-ahead forecast error of a feeder curve (about 1.4 % at 14,563 kW,
+  # forecast_error in ev_inputs.yaml), and 0.80 aims charge at the night valley. A lower
+  # peak fraction discharges longer and empties the battery earlier; a higher mean
+  # fraction charges longer.
+  simple_peak_fraction: 0.95
   simple_mean_fraction: 0.80
-  # ASSUMPTION: under original, kWTarget is 0.8 times the view's total storage kW, at
-  # least 50 kW, and kWTargetLow is 0 kW, for every view. The OpenDSS example sets
-  # kWTarget against the feeder load instead (kwtarget=10200 on a 1,550 kW fleet):
-  # https://opendss.epri.com/PeakShaveDischargingandPeakShave.html
-  # A higher kWTarget discharges less.
-  original_kw_target_per_storage_kw: 0.8
-  original_kw_target_min_kw: 50.0
-  original_kw_target_low_kw: 0.0
   # ASSUMPTION: a circuit with storage allows up to 10000 control iterations per time
   # step (Set MaxControlIter before the Solve). A StorageController shares the kW it
   # needs over every battery of its fleet, so when most are full or empty the last ones

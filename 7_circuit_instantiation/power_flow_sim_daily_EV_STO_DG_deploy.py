@@ -142,7 +142,7 @@ Steps
    on the view; under solve an OpenDSS solve with those layers in
    StorageControl/measure_solve/. Targets and schedules use its forecast
    (forecast_curve, forecast_error of the ev_day value set, z from
-   rng(forecast_storage_<view>)). original and simple and tuned write one
+   rng(forecast_storage_<view>)). simple and tuned write one
    StorageController per view (PeakShave, PeakShaveLow, %Reserve, %kWBand and %kWBandLow
    storage_kw_band_pct, DispFactor storage_disp_factor) into Storage.dss;
    schedule writes a daily loadshape per host and sets its batteries to DispMode=FOLLOW,
@@ -337,6 +337,10 @@ STORAGE_START_PCT    = der_number(CFG, "storage_start_pct")
 STORAGE_RESERVE_PCT  = der_number(CFG, "storage_reserve_pct")
 SCHEDULE_START       = der_choice(CFG, "schedule_start")
 SCHEDULE_START_STEP  = der_number(CFG, "schedule_start_step_pct")
+if SCHEDULE_START_STEP <= 0:
+    print(f"[FAIL] der_sizing.schedule_start_step_pct in pipeline_config.yaml is {SCHEDULE_START_STEP}; "
+          "expected a number above 0.")
+    sys.exit(1)
 # The starts schedule_start best tries, percent of kWh: from storage_reserve_pct up to 100 in its steps
 SCHEDULE_START_PCTS  = [min(100.0, STORAGE_RESERVE_PCT + k * SCHEDULE_START_STEP)
                         for k in range(int((100 - STORAGE_RESERVE_PCT) / SCHEDULE_START_STEP + 1e-9) + 1)]
@@ -347,9 +351,6 @@ STANDBY_W            = der_value(CFG, "residential", "storage_standby_w", STANDB
 STANDBY_PCT_OF_KW    = der_value(CFG, "commercial", "storage_standby_pct_of_kw", STANDBY_CASE)
 SIMPLE_PEAK_FRACTION = der_number(CFG, "simple_peak_fraction")
 SIMPLE_MEAN_FRACTION = der_number(CFG, "simple_mean_fraction")
-ORIGINAL_KW_PER_STORAGE_KW = der_number(CFG, "original_kw_target_per_storage_kw")
-ORIGINAL_MIN_KW            = der_number(CFG, "original_kw_target_min_kw")
-ORIGINAL_LOW_KW            = der_number(CFG, "original_kw_target_low_kw")
 STORAGE_MAX_CONTROL_ITER   = int(der_number(CFG, "storage_max_control_iter"))
 STORAGE_KW_BAND_PCT        = der_number(CFG, "storage_kw_band_pct")
 STORAGE_DISP_FACTOR        = der_number(CFG, "storage_disp_factor")
@@ -1516,9 +1517,7 @@ def storage_control_step(with_cars):
                                        "net_kw": net[i], "stored_kwh_start": energy[i], "stored_kwh_end": energy[i + 1]})
             text.append("\n")
             continue
-        if STORAGE_RULE == "original":
-            target, low = max(ORIGINAL_MIN_KW, ORIGINAL_KW_PER_STORAGE_KW * kw_view), ORIGINAL_LOW_KW
-        elif STORAGE_RULE == "simple":
+        if STORAGE_RULE == "simple":
             target, low = simple_targets(fc, SIMPLE_PEAK_FRACTION, SIMPLE_MEAN_FRACTION)
         else:
             target, low, _, _, _ = tuned_targets(fc, kw_view, kwh_view, reserve, eff_c, eff_d, dt)
@@ -1731,12 +1730,20 @@ if COMPILE_CIRCUIT and master_dss_path:
             mon = DSScircuit.Monitors
             mon.Name = soc_mon[row["battery"]]
             chan = {str(h).strip().lower(): i for i, h in enumerate(mon.Header, start=1)}
+            for h in ("kwh", "kwin", "kwout", "kwtotallosses"):
+                if h not in chan:
+                    raise RuntimeError(f"Monitor {soc_mon[row['battery']]} has no {h} channel.")
             kwh = np.asarray(mon.Channel(chan["kwh"]), dtype=float)
+            # The monitor writes each step's energy before that step acts; e_after adds step 96
+            kwin = np.asarray(mon.Channel(chan["kwin"]), dtype=float)
+            kwout = np.asarray(mon.Channel(chan["kwout"]), dtype=float)
+            losses = np.asarray(mon.Channel(chan["kwtotallosses"]), dtype=float)
+            e_after = float(kwh[-1] + (kwin[-1] - kwout[-1] - losses[-1]) * IRR_INTERVAL_H)
             row.update({"charged_kwh": float(np.sum(mon.Channel(chan["kwin"]))) * IRR_INTERVAL_H,
                         "discharged_kwh": float(np.sum(mon.Channel(chan["kwout"]))) * IRR_INTERVAL_H,
                         "stored_kwh_start": row["kwh_rated"] * row["start_pct"] / 100.0,
-                        "stored_kwh_end": float(kwh[-1]), "stored_kwh_min": float(kwh.min()),
-                        "stored_kwh_max": float(kwh.max())})
+                        "stored_kwh_end": e_after, "stored_kwh_min": min(float(kwh.min()), e_after),
+                        "stored_kwh_max": max(float(kwh.max()), e_after)})
     if n_storage > 0:
         pd.DataFrame(STORAGE_TARGET_ROWS).to_csv(os.path.join(STC_DIR, "storage_targets.csv"), index=False)
 else:

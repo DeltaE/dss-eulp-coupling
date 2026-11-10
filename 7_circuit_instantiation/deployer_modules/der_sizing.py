@@ -32,7 +32,7 @@ CHOICES = {
     "pv_rule_commercial": ("roof_and_use", "peak_ratio"),
     "roof_area_source": ("floor_stories", "metadata"),
     "coverage_rule_commercial": ("lbnl", "comstock"),
-    "storage_rule": ("original", "simple", "tuned", "schedule"),
+    "storage_rule": ("simple", "tuned", "schedule"),
     "storage_view": ("feeder", "transformer", "building"),
     "storage_order": ("after_cars", "before_cars", "same_measurement"),
     "storage_measure": ("all_placed", "buildings_only"),

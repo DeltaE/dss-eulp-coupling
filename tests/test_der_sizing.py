@@ -128,7 +128,7 @@ def test_setting_readers():
         assert der_switch(cfg, key) is True
     assert der_choice(cfg, "storage_hosts") == "with_pv"
     assert der_choice(cfg, "sizing_case") == "moderate"
-    assert der_choice(cfg, "storage_rule") == "simple"
+    assert der_choice(cfg, "storage_rule") == "schedule"
     assert der_value(cfg, "residential", "roof_coverage", "moderate") == 0.25
     assert der_value(cfg, "commercial", "large_pv_kw") == 100.0
     assert der_number(cfg, "storage_reserve_pct") == 20.0
@@ -136,6 +136,7 @@ def test_setting_readers():
     assert _stops(der_switch, {"der_sizing": {"pv_residential": "yes"}}, "pv_residential")
     assert _stops(der_choice, {"der_sizing": {"storage_hosts": "nearby"}}, "storage_hosts")
     assert _stops(der_choice, {"der_sizing": {}}, "storage_rule")
+    assert _stops(der_choice, {"der_sizing": {"storage_rule": "original"}}, "storage_rule")
     assert _stops(der_choice, {}, "storage_view")
     assert _stops(der_number, {"der_sizing": {"storage_pf": "high"}}, "storage_pf")
     assert _stops(der_value, {"der_sizing": {"residential": {}}}, "residential", "roof_coverage", "low")
