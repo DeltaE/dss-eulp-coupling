@@ -149,6 +149,12 @@ def test_standby_pct():
     assert _stops(der_choice, {"der_sizing": {"storage_standby_case": "median"}}, "storage_standby_case")
 
 
+def test_standby_element():
+    for value in ("load", "idling"):
+        assert der_choice({"der_sizing": {"storage_standby_element": value}}, "storage_standby_element") == value
+    assert _stops(der_choice, {"der_sizing": {"storage_standby_element": "storage"}}, "storage_standby_element")
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

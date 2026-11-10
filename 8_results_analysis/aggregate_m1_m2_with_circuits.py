@@ -197,7 +197,7 @@ if __name__ == "__main__":
 
                 # Count loads / storage / PV / EVs (heuristic for EV names)
                 mload = re.search(r"\bnew\s+load\.([^\s=]+)", line)
-                if mload:
+                if mload and not mload.group(1).startswith("standby_storage_"):
                     nm = mload.group(1)
                     load_names.add(nm)
                     if any(h in nm for h in EV_HINTS) or any(h in line for h in EV_HINTS):

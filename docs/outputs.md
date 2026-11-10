@@ -23,7 +23,7 @@ A feeder‑level **time series** of power flows plus a one‑line metadata “su
 ### `circuit_summary_combined.csv`
 One row per circuit/scenario/season/design—metadata to contextualize the time series.
 
-- Fields: `n_loads`, `n_evs`, `n_storage`, `n_pv`, `feeder_head_kva`, etc.  
+- Fields: `n_loads` (without the battery standby Loads `standby_storage_<unit>` that `storage_standby_element: load` writes in `Storage.dss`), `n_evs`, `n_storage`, `n_pv`, `feeder_head_kva`, etc.
 - Join keys: `circuit_folder + season + design (+ scenario)`
 
 ### Load voltages

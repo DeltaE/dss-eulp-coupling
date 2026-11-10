@@ -334,6 +334,7 @@ STORAGE_EFF_DCH      = der_number(CFG, "storage_eff_discharge_pct")
 STORAGE_START_PCT    = der_number(CFG, "storage_start_pct")
 STORAGE_RESERVE_PCT  = der_number(CFG, "storage_reserve_pct")
 STANDBY_CASE         = der_choice(CFG, "storage_standby_case")
+STANDBY_ELEMENT      = der_choice(CFG, "storage_standby_element")
 STANDBY_W            = der_value(CFG, "residential", "storage_standby_w", STANDBY_CASE)
 STANDBY_PCT_OF_KW    = der_value(CFG, "commercial", "storage_standby_pct_of_kw", STANDBY_CASE)
 SIMPLE_PEAK_FRACTION = der_number(CFG, "simple_peak_fraction")
@@ -1126,6 +1127,7 @@ storage_path = os.path.join(OUT_DIR, "Storage.dss")
 monitor_export_lines = []
 monitor_names = []       # bare monitor names (no class prefix), for the post-export existence check
 STORAGE_UNITS = []       # one per Storage object: name, host, segment, kW, kWh, state monitor
+STANDBY_LOADS = []       # under storage_standby_element load: the standby Load of each Storage object
 n_storage = 0
 n_zero_size = 0          # PV or storage hosts sized at 0 kW, written without an object
 
@@ -1147,12 +1149,17 @@ if storage_host_list:
                     f"~ kWRated={kw_u:.4f} kWhRated={kwh_u:.4f} %stored={STORAGE_START_PCT} "
                     f"%reserve={STORAGE_RESERVE_PCT} State=IDLE\n"
                     f"~ %EffCharge={STORAGE_EFF_CHG} %EffDischarge={STORAGE_EFF_DCH} Balanced=yes varFollowInverter=yes "
-                    f"%IdlingkW={format(idling_pct, '.6g')}\n\n"
+                    f"%IdlingkW={format(idling_pct if STANDBY_ELEMENT == 'idling' else 0, '.6g')}\n\n"
                 )
                 mon_pwr  = f"mon_{stg_name}_power"
                 mon_soc  = f"mon_{stg_name}_soc"
                 f_st.write(f"New Monitor.{mon_pwr} element=Storage.{stg_name} mode=1\n")
                 f_st.write(f"New Monitor.{mon_soc} element=Storage.{stg_name} mode=3\n\n")
+                if STANDBY_ELEMENT == "load":
+                    f_st.write(f"New Load.standby_{stg_name} phases={info['ph']} bus1={info['bus1']} kV={info['kV']} "
+                               f"conn={info['conn'] or 'wye'} kW={format(idling_pct / 100 * kw_u, '.6g')} kvar=0 "
+                               f"model=1 status=fixed\n\n")
+                    STANDBY_LOADS.append(f"standby_{stg_name}")
                 monitor_export_lines.append(f"Export Monitors {mon_pwr}\n")
                 monitor_export_lines.append(f"Export Monitors {mon_soc}\n")
                 monitor_names.append(mon_pwr)
@@ -1688,7 +1695,7 @@ if COMPILE_CIRCUIT and master_dss_path:
     # Voltage at every load, read from the monitors through the engine
     if converged:
         lv_start = time.time()
-        engine_loads = {str(n).lower() for n in DSScircuit.Loads.AllNames}
+        engine_loads = {str(n).lower() for n in DSScircuit.Loads.AllNames} - {n.lower() for n in STANDBY_LOADS}
         if engine_loads != {n.lower() for n in LV_LOADS}:
             raise RuntimeError(f"Loads in the compiled circuit ({len(engine_loads)}) differ from "
                                f"the loads with a voltage monitor ({len(LV_LOADS)}).")

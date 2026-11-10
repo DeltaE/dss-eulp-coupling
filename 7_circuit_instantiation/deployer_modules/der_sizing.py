@@ -38,6 +38,7 @@ CHOICES = {
     "storage_measure": ("all_placed", "buildings_only"),
     "storage_layer": ("add_kw", "solve"),
     "storage_standby_case": SIZING_CASES,
+    "storage_standby_element": ("load", "idling"),
 }
 
 

@@ -204,6 +204,23 @@ der_sizing:
   # battery while discharging, out of the charge while charging (Storage.pas, URL above;
   # its default is 1 %). low gives the smaller standby losses.
   storage_standby_case: moderate
+  # load or idling: where each battery's standby kW (storage_standby_case) is drawn.
+  # load: every Storage element gets %IdlingkW=0, and a constant-power Load on the
+  # battery's bus (model=1, status=fixed) draws the same standby kW at every step.
+  # idling: the standby is the Storage element's %IdlingkW, as described above.
+  # ASSUMPTION: under load, every battery's standby kW is drawn from the grid at every
+  # step, also while the battery discharges, where OpenDSS takes %IdlingkW from the
+  # battery ("If supplying idling losses, when discharging, the Storage supplies the
+  # idling losses", Storage.pas, URL above); the difference is at most the standby kW
+  # during discharge steps. The reason: an idle battery reports its %IdlingkW as a
+  # negative kW, and a StorageController asks each battery for that kW plus its share
+  # of the kW needed (ChargekW := PresentkW + kWNeeded * (FWeights[i]/TotalWeight) *
+  # DispFactor, DoPeakShaveModeLow in StorageController.pas:
+  # https://sourceforge.net/p/electricdss/code/HEAD/tree/trunk/Version8/Source/Controls/StorageController.pas),
+  # so a battery whose idling draw exceeds its share keeps charging and the step does
+  # not settle. With idling, the discharge covers the standby and a tuned controller
+  # can stop the solve.
+  storage_standby_element: load
   # peak_ratio rule (pv_rule_<segment>: peak_ratio), from the host's peak kW (the
   # maximum of its daily kW profile).
   # ASSUMPTION: storage power rating is 0.75 times the host's peak kW, for every
