@@ -327,11 +327,13 @@ der_sizing:
   # disables it. A smaller value settles more slowly.
   storage_disp_factor: 0.5
 
-# Which calendar day each mixed or stress circuit is simulated on.
+# Which calendar day each circuit is simulated on.
 # per_group: each heating group (baseline, dm, un) on its own seasonal peak day.
 # per_circuit: all groups of a circuit on one day, the peak day of the circuit's
-# building load. Baseline circuits use the baseline peak day under both values.
-# per_circuit is the default; per_group remains available through this setting.
+# building load. Baseline circuits use the baseline peak day under these two values.
+# given: every circuit on the day the caller gives its feeder and season in
+# given_days.csv of the run_case.py --settings folder (README, "Peak-day rules").
+# per_circuit is the default; per_group and given remain available through this setting.
 peak_day_rule: per_circuit
 
 # What the heating split of Phase 7b and phase mix_days counts (heating_split.py).

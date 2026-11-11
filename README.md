@@ -10,7 +10,7 @@ Each value has one owner:
 - `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root`, `runs_root` and `evwatts_extract_dir` (see "EV cars"), `openei_api_key_file` for the tariff fetch only (see "EV control"), and `nhts2017_csv_dir` and `evwatts_raw_dir` for the two extract scripts only. Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
-- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release` (the ResStock and ComStock release names with their OEDI years `residential_year` and `commercial_year`, see "Settings from a caller"), `der_sizing` (PV and storage hosts, sizes and control, see "PV and storage"), `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `heating_label_unit` (default `building`; `customer` remains available, see "Heating labels and EV hosts"), `voltage_band` (the band for the load voltage summaries), `ev_cars`, `ev_home_window`, `ev_day` and `ev_work_share_case` (defaults `evwatts_sessions`, `true`, `typical` and `moderate`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release` (the ResStock and ComStock release names with their OEDI years `residential_year` and `commercial_year`, see "Settings from a caller"), `der_sizing` (PV and storage hosts, sizes and control, see "PV and storage"), `peak_day_rule` (default `per_circuit`; `per_group` and `given` remain available, see "Peak-day rules"), `heating_label_unit` (default `building`; `customer` remains available, see "Heating labels and EV hosts"), `voltage_band` (the band for the load voltage summaries), `ev_cars`, `ev_home_window`, `ev_day` and `ev_work_share_case` (defaults `evwatts_sessions`, `true`, `typical` and `moderate`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
@@ -161,18 +161,28 @@ A program that calls this repository can change settings without editing its fil
 4. The merged values reach `run_case.py` and, through `PIPELINE_SETTINGS_DIR`, every phase: `pipeline_utils.load_config` merges the folder's `pipeline_config.yaml` in each script.
 5. `run_case.py` prints the folder and the key paths of each settings file. `<run_dir>/resolved_case.yaml` gains a `settings` block with the folder and the key paths of each file, and `<run_dir>/settings/` holds a copy of each settings file.
 
+The folder may also hold `given_days.csv`, the day the caller gives each feeder and season under `peak_day_rule: given` (see "Peak-day rules").
+
 Without `--settings` a run is as before.
 
 `eulp_release` in `pipeline_config.yaml` names the ResStock and ComStock releases and their OEDI year folders (`residential_year` and `commercial_year`, both 2024). The current releases, 2024 `resstock_tmy3_release_2` and 2024 `comstock_amy2018_release_1`, keep the folder names `Metadata_<ST>_Residential`, `Metadata_<ST>_Commercial`, `parquet_residential_short_<date>_<ST>` and `parquet_commercial_<date>_comm_<ST>`. Any other release adds `_<year>_<release>` to the metadata folder and to the download folder of its dataset, so the files of two releases never mix. Phase 1 stops with `[FAIL]` when the metadata folder of such a release is missing under `eulp_metadata_root`.
 
 ## Peak-day rules
 
-`peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each mixed or stress circuit is simulated on. Baseline circuits run on each feeder's baseline seasonal peak day under both values.
+`peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each circuit is simulated on. Under `per_circuit` and `per_group`, baseline circuits run on each feeder's baseline seasonal peak day and the rule sets the day of each mixed or stress circuit.
 
 - `per_circuit`, the default: all heating groups of a circuit run on one day, the seasonal peak day of the circuit's building load under its mix. Phase `mix_days` finds that day and writes `<ws>/mix_days/<ST>_circuit_days.csv`, `<ST>_circuit_labels.csv` and `<ST>_circuit_weights.csv`. For each mix that is not 100 % baseline, it also writes the subtree `<ws>/mix_days/<mix>/` with the 5b, 5c, 6 and 7a outputs for that day.
 - `per_group`: each heating group (baseline, dm, uncontrolled) runs on its own seasonal peak day. Phase `mix_days` writes nothing.
+- `given`: the caller names the day of every circuit. In this example the caller runs both feeders of a substation of `NC_GSO_urban__NC`, `uhs13_1247--udt4015` and `uhs13_1247--udt4819`, on 15 July.
+  1. The settings folder `my_settings/` holds `pipeline_config.yaml` with `peak_day_rule: given` and `given_days.csv` with the columns `Feeder`, `Season`, `Month` and `Day`. Each row gives one feeder, named as its SMART-DS feeder folder (as in `<ST>_peak_days.csv`), one season, and a month and day without a year. Here the rows are `uhs13_1247--udt4015,summer,7,15` and `uhs13_1247--udt4819,summer,7,15`.
+  2. `python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --season summer --settings my_settings` checks the file before any phase runs.
+  3. Phase `mix_days` takes the given day for every mix, 100 % baseline mixes included, and cuts the profiles of every heating group on it. `<ws>/mix_days/<ST>_circuit_days.csv` records the day with the largest value of the mix's feeder curve on it as `Peak_kW`.
+  4. Phases 7b and 7c read the day and the profiles of every circuit from `<ws>/mix_days/<mix>/`. PV follows the day.
+  5. `run_case.py` prints the rows. `<run_dir>/resolved_case.yaml` lists them in its `settings` block, and `<run_dir>/settings/` holds a copy of `given_days.csv`.
 
-To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on.
+  `run_case.py` stops with `[FAIL]` when the rule is `given` without `--settings` or without `given_days.csv` in the folder, when the folder holds `given_days.csv` under another rule, and on a wrong header, no data row, an empty feeder, a season other than `summer` or `winter`, a month or day that is not a whole number, a month and day that are not a date of a 365-day year (29 February stops), a month outside the season (6 to 8 for summer, 12, 1 and 2 for winter) or a feeder and season given twice; phase `mix_days` stops when a feeder of the case has no row for the run's season.
+
+To switch, set `peak_day_rule` to `per_circuit`, `per_group` or `given` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on.
 
 ## Heating labels and EV hosts
 
