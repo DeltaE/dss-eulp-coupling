@@ -83,12 +83,13 @@ Both phases write `_kvar_` CSVs beside the `_kw_` CSVs.
 
 ### Phase mix_days and the peak-day rules
 
-`peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each mixed or stress circuit is simulated on. Baseline circuits run on each feeder's baseline seasonal peak day under both values.
+`peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each circuit is simulated on. Under `per_circuit` and `per_group`, baseline circuits run on each feeder's baseline seasonal peak day and the rule sets the day of each mixed or stress circuit.
 
 - `per_circuit`, the default: all heating groups of a circuit run on one day, the seasonal peak day of the circuit's building load under its mix. `mix_days.py` finds that day and writes `<ws>/mix_days/<STATE>_circuit_days.csv`, `<STATE>_circuit_labels.csv` and `<STATE>_circuit_weights.csv`. For each mix that is not 100 % baseline, it reruns the day-dependent steps of 5c, 5c_variants, 6, 6_variants and 7a into `<ws>/mix_days/<mix>/`. Phases 7b and 7c then read the circuit's day and its profiles from there.
 - `per_group`: each heating group (baseline, dm, uncontrolled) runs on its own seasonal peak day. `mix_days.py` prints one line and writes nothing.
+- `given`: every circuit runs on the day the caller gives its feeder and season in `given_days.csv` (columns `Feeder`, `Season`, `Month`, `Day`) of the `--settings` folder, which `run_case.py` checks before any phase runs. `mix_days.py` takes that day for every mix, 100 % baseline mixes included, records it in `<ws>/mix_days/<STATE>_circuit_days.csv` with the largest value of the mix's feeder curve on it as `Peak_kW`, and writes every `<ws>/mix_days/<mix>/` subtree as under `per_circuit`; Phases 7b and 7c read every circuit's day and profiles from there. `<run_dir>/resolved_case.yaml` and `<run_dir>/settings/` record the file (README, "Peak-day rules", lists the stops).
 
-To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on. After `mix_days`, `run_case.py` runs the 5b and 5c checks of `verify_phase.py` for baseline, dm and uncontrolled in each `<ws>/mix_days/<mix>/` subtree, under `per_circuit` only.
+To switch, set `peak_day_rule` to `per_circuit`, `per_group` or `given` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on. After `mix_days`, `run_case.py` runs the 5b and 5c checks of `verify_phase.py` for baseline, dm and uncontrolled in each `<ws>/mix_days/<mix>/` subtree, under `per_circuit` and `given` only.
 
 ### Phases 7a, 7b and 7c: circuit instantiation and simulation (7_circuit_instantiation)
 
@@ -174,7 +175,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 - `quota` sets the Phase 4 quota rules.
 - `eulp_release` names the ResStock and ComStock releases that Phase 5a downloads, with their OEDI year folders `residential_year` and `commercial_year` (default 2024). A release other than 2024 `resstock_tmy3_release_2` or 2024 `comstock_amy2018_release_1` adds `_<year>_<release>` to its metadata folder and its download folder, and Phase 1 stops when that metadata folder is missing (README, "Settings from a caller").
 - `der_sizing` sets the PV and storage hosts (Phase 7b), their sizes, the storage control (with `schedule_start`, default `best`: under `schedule` each host's starting energy is the one of a grid that leaves the lowest forecast maximum) and the battery standby losses (`storage_standby_case`, default `moderate`; `storage_standby_element`, default `load`, a constant-power Load beside each battery, or `idling`, the battery's `%IdlingkW`) (Phase 7 deploy) (README, "PV and storage").
-- `peak_day_rule` sets the day each mixed or stress circuit runs on (section 3.2, "Phase mix_days and the peak-day rules"; README, "Peak-day rules").
+- `peak_day_rule` sets the day each mixed or stress circuit runs on, or under `given` the day of every circuit from the caller (section 3.2, "Phase mix_days and the peak-day rules"; README, "Peak-day rules").
 - `heating_label_unit` sets whether the heating split counts buildings or customers (section 3.2, Phase 7b; README, "Heating labels and EV hosts").
 - `voltage_band` sets the band of the load voltage summaries.
 - `ev_control` sets how the Phase 7 deploy shapes controlled EV charging (section 3.3; README, "EV control").

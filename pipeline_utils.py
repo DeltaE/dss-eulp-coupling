@@ -1,3 +1,5 @@
+import csv
+import datetime
 import json
 import os
 import sys
@@ -83,7 +85,7 @@ def load_mixes(path):
         return json.load(f) if suffix == ".json" else yaml.safe_load(f)
 
 
-PEAK_DAY_RULES = ("per_group", "per_circuit")
+PEAK_DAY_RULES = ("per_group", "per_circuit", "given")
 
 
 def peak_day_rule(cfg):
@@ -95,6 +97,75 @@ def peak_day_rule(cfg):
               f"expected one of {', '.join(PEAK_DAY_RULES)}.")
         sys.exit(1)
     return rule
+
+
+# peak_day_rule given: the caller names one day per circuit (feeder) and season in
+# <settings folder>/given_days.csv. The season months are those of Phase 5b
+# (find_max_day_curve_impl.py SUMMER_MONTHS, WINTER_MONTHS).
+GIVEN_DAYS_FILE = "given_days.csv"
+GIVEN_SEASON_MONTHS = {"summer": (6, 7, 8), "winter": (12, 1, 2)}
+
+
+def read_given_days(folder):
+    """{(feeder, season): (month, day)} from <folder>/given_days.csv (UTF-8, a byte order
+    mark is accepted; columns Feeder, Season, Month, Day). A missing file, a wrong header,
+    no data row, an empty Feeder, a Season other than summer or winter, a Month or Day
+    that is not a whole number, a month and day that are not a date of a 365-day year, a
+    month outside the season's months, or a (Feeder, Season) pair given twice prints
+    [FAIL] with the file and the row number (header is row 1) and exits 1."""
+    path = Path(folder) / GIVEN_DAYS_FILE
+    where = path.as_posix()
+    if not path.is_file():
+        print(f"[FAIL] {where} not found.")
+        sys.exit(1)
+    with open(path, encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.reader(f))
+    header = ["Feeder", "Season", "Month", "Day"]
+    if not rows or rows[0] != header:
+        found = ",".join(rows[0]) if rows else ""
+        print(f"[FAIL] {where} row 1: header is {found!r}; expected {','.join(header)}.")
+        sys.exit(1)
+    days = {}
+    for number, row in enumerate(rows[1:], start=2):
+        if not row:
+            continue
+
+        def fail(message):
+            print(f"[FAIL] {where} row {number}: {message}")
+            sys.exit(1)
+
+        if len(row) != len(header):
+            fail(f"{len(row)} fields; expected {len(header)}.")
+        feeder, season, month, day = (value.strip() for value in row)
+        if not feeder:
+            fail("Feeder is empty.")
+        if season not in GIVEN_SEASON_MONTHS:
+            fail(f"Season is {season!r}; expected summer or winter.")
+        for name, value in (("Month", month), ("Day", day)):
+            if not (value.isascii() and value.isdigit()):
+                fail(f"{name} is {value!r}; expected a whole number.")
+        month, day = int(month), int(day)
+        try:
+            datetime.date(2025, month, day)
+        except ValueError:
+            fail(f"month {month} and day {day} are not a date of a 365-day year.")
+        if month not in GIVEN_SEASON_MONTHS[season]:
+            fail(f"month {month} is not a {season} month "
+                 f"({', '.join(str(m) for m in GIVEN_SEASON_MONTHS[season])}).")
+        if (feeder, season) in days:
+            fail(f"feeder {feeder} and season {season} are given twice.")
+        days[(feeder, season)] = (month, day)
+    if not days:
+        print(f"[FAIL] {where} has no data row.")
+        sys.exit(1)
+    return days
+
+
+def uses_mix_days(rule, baseline_only):
+    """Whether a circuit reads its day and profiles from <work_root>/mix_days/<mix>/:
+    always under peak_day_rule given, and under per_circuit for a mix that is not 100 %
+    baseline."""
+    return rule == "given" or (rule == "per_circuit" and not baseline_only)
 
 
 EV_CONTROL_RULES = ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start",

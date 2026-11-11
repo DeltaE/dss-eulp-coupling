@@ -20,6 +20,11 @@ nothing and exits 0. With per_circuit, for every mix in the mixes file
    of Phase 7 for day X. save_needed_sd_parquets.py does not depend on the day and is
    not rerun: compute_kvar_kw_ratios.py reads its needed_parquets.pkl from the
    workspace.
+With peak_day_rule: given, the phase runs as under per_circuit, with two differences.
+Day X of each feeder and season is the day the caller gives in given_days.csv of the
+--settings folder (PIPELINE_SETTINGS_DIR), not the mix's peak day, and every mix,
+100 % baseline included, has its profiles cut on day X and runs step 2, so every
+circuit reads its day and profiles from <work_root>/mix_days/<mix>/.
 A step that exits non-zero stops the phase with that exit code.
 """
 
@@ -30,7 +35,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
-from pipeline_utils import load_config, load_mixes, peak_day_rule, resolve_work_path
+from pipeline_utils import load_config, load_mixes, peak_day_rule, resolve_work_path, uses_mix_days
 
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
 from heating_split import is_baseline_only
@@ -62,7 +67,7 @@ def run(cwd, args, env):
 def main():
     cfg = load_config()
     rule = peak_day_rule(cfg)
-    if rule != "per_circuit":
+    if rule not in ("per_circuit", "given"):
         print(f"[mix_days] peak_day_rule is {rule}: phase mix_days skipped, nothing written.")
         return
     mixes = load_mixes(cfg["mixes_file"])
@@ -71,7 +76,7 @@ def main():
         env = dict(os.environ)
         env.pop("PIPELINE_MIX", None)
         run("5b_profile_generation", ["find_max_day_curve_impl.py", "--mix", mix_name], env)
-        if is_baseline_only(mix_cfg["shares"]):
+        if not uses_mix_days(rule, is_baseline_only(mix_cfg["shares"])):
             continue
         for sub in ("5c_csv_conversion", "6_kvar_preparation", "7_circuit_instantiation"):
             os.makedirs(resolve_work_path("mix_days", mix_name, sub), exist_ok=True)

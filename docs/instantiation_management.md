@@ -51,6 +51,9 @@ repository's file: mappings merge key by key, and any other value replaces the r
 `pipeline_config.yaml` takes no key path the repository's file lacks and `defaults.yaml` no
 new top-level key; the phases read the merged values through `PIPELINE_SETTINGS_DIR`.
 
+Under `peak_day_rule: given` the folder also holds `given_days.csv`, one simulated day per
+feeder and season (columns `Feeder`, `Season`, `Month`, `Day`; README, "Peak-day rules").
+
 ## Adding a new topology
 
 1. Place/confirm the SMART-DS circuit under your `smart_ds_base`.
