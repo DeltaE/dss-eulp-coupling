@@ -17,6 +17,15 @@ Usage:
     python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --phase pre
     python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --phase 5c --season summer
     python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --dry-run
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --settings path/to/settings
+
+--settings names a folder of override files with the names of the repository's settings
+files: topology_registry.yaml, donor_registry.yaml, defaults.yaml, local.yaml and
+pipeline_config.yaml. Each file holds only the keys it changes and is merged over the
+repository's file: mappings merge key by key, any other value replaces the repository's.
+pipeline_config.yaml takes no key path the repository's file lacks, defaults.yaml no new
+top-level key. The phases read the merged pipeline_config.yaml through
+PIPELINE_SETTINGS_DIR; resolved_case.yaml and <run_dir>/settings/ record the overrides.
 """
 from __future__ import annotations
 
@@ -41,11 +50,19 @@ CONFIG_DIR = REPO_ROOT / "configs"
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
 from heating_split import is_baseline_only
 from pipeline_utils import load_mixes
+from pipeline_utils import (SETTINGS_ENV, check_settings_dir, merge_settings, read_settings_file,
+                            settings_key_paths)
 
 
 def _load_yaml(path: Path) -> dict:
     with open(path, "r", encoding="utf-8") as fh:
         return yaml.safe_load(fh) or {}
+
+
+def _with_settings(base: dict, settings, name: str) -> dict:
+    """base with the settings file <name> of the --settings folder merged over it."""
+    override = read_settings_file(settings, name) if settings else None
+    return base if override is None else merge_settings(base, override, name)
 
 
 def _git_info() -> dict:
@@ -67,18 +84,22 @@ def _subst(value: str, ctx: dict) -> str:
     return value
 
 
-def resolve_case(case_path: Path) -> dict:
-    """Merge case + registries + defaults + local into one resolved dict."""
+def resolve_case(case_path: Path, settings=None) -> dict:
+    """Merge case + registries + defaults + local into one resolved dict. Each configs/
+    file has the settings file of the same name (--settings folder) merged over it."""
     case = _load_yaml(case_path)
-    topo_reg = _load_yaml(CONFIG_DIR / "topology_registry.yaml")["topologies"]
-    donor_reg = _load_yaml(CONFIG_DIR / "donor_registry.yaml")["donors"]
-    defaults = _load_yaml(CONFIG_DIR / "defaults.yaml")
+    topo_reg = _with_settings(_load_yaml(CONFIG_DIR / "topology_registry.yaml"), settings,
+                              "topology_registry.yaml")["topologies"]
+    donor_reg = _with_settings(_load_yaml(CONFIG_DIR / "donor_registry.yaml"), settings,
+                               "donor_registry.yaml")["donors"]
+    defaults = _with_settings(_load_yaml(CONFIG_DIR / "defaults.yaml"), settings, "defaults.yaml")
 
     local_path = CONFIG_DIR / "local.yaml"
-    if not local_path.exists():
+    settings_local = bool(settings) and (Path(settings) / "local.yaml").is_file()
+    if not local_path.exists() and not settings_local:
         sys.exit(f"Missing {local_path}.\n"
                  f"  -> copy configs/local.yaml.example to configs/local.yaml and edit it.")
-    local = _load_yaml(local_path)
+    local = _with_settings(_load_yaml(local_path) if local_path.exists() else {}, settings, "local.yaml")
 
     topo_id, donor_id = case["topology_id"], case["donor_id"]
     if topo_id not in topo_reg:
@@ -174,6 +195,11 @@ def build_env(resolved: dict, season: str) -> dict:
     env["PIPELINE_PV_PROFILE_FILE"] = resolved["pv_profile_file"]  # donor pv_profile, Phase 7c
     if resolved["local"].get("evwatts_extract_dir"):  # EV WATTS extract, Phase 7 deploy (ev_cars)
         env["PIPELINE_EVWATTS_EXTRACT_DIR"] = Path(resolved["local"]["evwatts_extract_dir"]).as_posix()
+    # --settings folder; pipeline_utils.load_config merges its pipeline_config.yaml. A value
+    # inherited from the caller's environment is dropped when --settings is not given.
+    env.pop(SETTINGS_ENV, None)
+    if resolved.get("settings"):
+        env[SETTINGS_ENV] = resolved["settings"]
     return env
 
 
@@ -282,6 +308,11 @@ def write_manifest(run_dir: Path, resolved: dict, season: str) -> None:
         "git": _git_info(),
         "timestamp": _dt.datetime.now().isoformat(timespec="seconds"),
     }
+    if resolved.get("settings"):
+        manifest["settings"] = {"folder": resolved["settings"], "files": resolved["settings_files"]}
+        (run_dir / "settings").mkdir(exist_ok=True)
+        for name in resolved["settings_files"]:
+            shutil.copy2(Path(resolved["settings"]) / name, run_dir / "settings" / name)
     with open(run_dir / "resolved_case.yaml", "w", encoding="utf-8") as fh:
         yaml.safe_dump(manifest, fh, sort_keys=False)
 
@@ -337,12 +368,22 @@ def main() -> None:
     grp.add_argument("--all", action="store_true", help="run the full deterministic phase order")
     ap.add_argument("--season", choices=["summer", "winter"], help="run one season only")
     ap.add_argument("--dry-run", action="store_true", help="print commands without executing")
+    ap.add_argument("--settings", type=Path, help="folder of settings files merged over the repository's")
     args = ap.parse_args()
 
-    resolved = resolve_case(args.case)
+    settings = None
+    if args.settings:
+        settings = args.settings.resolve()
+        settings_names = check_settings_dir(settings)
+    resolved = resolve_case(args.case, settings)
+    if settings:
+        resolved["settings"] = settings.as_posix()
+        resolved["settings_files"] = {name: settings_key_paths(read_settings_file(settings, name))
+                                      for name in settings_names}
     # The scripts read peak_day_rule through pipeline_utils.load_config; a bad value
     # stops here before any phase runs.
-    rule = _load_yaml(REPO_ROOT / "pipeline_config.yaml").get("peak_day_rule")
+    rule = _with_settings(_load_yaml(REPO_ROOT / "pipeline_config.yaml"), settings,
+                          "pipeline_config.yaml").get("peak_day_rule")
     if rule not in ("per_group", "per_circuit"):
         sys.exit(f"[FAIL] peak_day_rule in pipeline_config.yaml is {rule!r}; "
                  f"expected one of per_group, per_circuit.")
@@ -362,6 +403,10 @@ def main() -> None:
     print(f"  PIPELINE_PARQUET_ROOT={resolved['parquet_root']}")
     print(f"  PIPELINE_EULP_METADATA_ROOT={resolved['eulp_metadata_root']}")
     print(f"  peak_day_rule={rule}")
+    if settings:
+        print(f"  settings={resolved['settings']}")
+        for name, paths in resolved["settings_files"].items():
+            print(f"  settings {name}: {', '.join(paths)}")
 
     workspaces = {season: (runs_root / resolved["case_id"] / season / "workspace").resolve()
                   for season in seasons}
