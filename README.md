@@ -10,7 +10,7 @@ Each value has one owner:
 - `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root`, `runs_root` and `evwatts_extract_dir` (see "EV cars"), `openei_api_key_file` for the tariff fetch only (see "EV control"), and `nhts2017_csv_dir` and `evwatts_raw_dir` for the two extract scripts only. Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
-- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing` (PV and storage hosts, sizes and control, see "PV and storage"), `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `heating_label_unit` (default `building`; `customer` remains available, see "Heating labels and EV hosts"), `voltage_band` (the band for the load voltage summaries), `ev_cars`, `ev_home_window` and `ev_day` (defaults `evwatts_sessions`, `true` and `typical`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing` (PV and storage hosts, sizes and control, see "PV and storage"), `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `heating_label_unit` (default `building`; `customer` remains available, see "Heating labels and EV hosts"), `voltage_band` (the band for the load voltage summaries), `ev_cars`, `ev_home_window`, `ev_day` and `ev_work_share_case` (defaults `evwatts_sessions`, `true`, `typical` and `moderate`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
@@ -62,7 +62,7 @@ Place the four EULP baseline metadata CSVs at these paths under `eulp_metadata_r
 
 Keep the file names exactly as downloaded, because Phase 1 writes them into its outputs.
 
-The EV cars of the default `ev_cars: evwatts_sessions`, and of `session_rows`, need the EV WATTS public database (https://doi.org/10.15483/1970735). Create a free account at https://livewire.energy.gov/ds/evwatts/evwatts.public and download its session and evse tables (`evwatts.public.session.csv`, `evwatts.public.evse.csv`). Set `evwatts_raw_dir` to their folder and `evwatts_extract_dir` to a folder outside the repository, then run `python 7_circuit_instantiation/build_evwatts_extract.py` once from the repository root. The EV WATTS data stays outside the repository. The 2017 NHTS extract in `7_circuit_instantiation/data_ev_cars/` is tracked; `python 7_circuit_instantiation/build_nhts_extract.py` rebuilds it from https://nhts.ornl.gov/assets/2016/download/Csv.zip, unpacked into the folder that `nhts2017_csv_dir` names.
+The EV cars of the default `ev_cars: evwatts_sessions`, and of `session_rows`, need the EV WATTS public database (https://doi.org/10.15483/1970735). Create a free account at https://livewire.energy.gov/ds/evwatts/evwatts.public and download its session and evse tables (`evwatts.public.session.csv`, `evwatts.public.evse.csv`). Set `evwatts_raw_dir` to their folder and `evwatts_extract_dir` to a folder outside the repository, then run `python 7_circuit_instantiation/build_evwatts_extract.py` from the repository root, once as is for the residential extract and a second time with `--venue office` for the Business Office extract that the work cars draw from. The EV WATTS data stays outside the repository. The 2017 NHTS extract in `7_circuit_instantiation/data_ev_cars/` is tracked; `python 7_circuit_instantiation/build_nhts_extract.py` rebuilds it from https://nhts.ornl.gov/assets/2016/download/Csv.zip, unpacked into the folder that `nhts2017_csv_dir` names.
 
 Each CSV downloads directly from OEDI. Each URL returns the exact bytes the pipeline uses:
 
@@ -183,7 +183,19 @@ The Phase 7 deploy builds one car per EV host, with its own uncontrolled row of 
 
 `ev_lvl2_perc` of the mix is the share of a group's cars with a Level 2 charger (7.2 kW); the rest charge at Level 1 (1 kW). Under `evwatts_sessions` a Level 2 car charges at its session's mean power. Under `evwatts_sessions` and `session_rows`, the share of cars that charge on the day is measured from the EV WATTS extract every run; the other cars do not charge. Every draw is seeded from the mix's `ev_seed`, the feeder and the draw's name, so the baseline, mixed and stress circuits of one feeder share their draws and a rerun repeats them.
 
-`ev_home_window: true` keeps the charging of each controlled car inside the intervals it is plugged in at home: its EV WATTS session, its NHTS vehicle-day, or under `session_rows` a drawn NHTS vehicle-day. Energy that does not fit is left over. With `false`, controlled cars may charge in any interval of the day.
+`ev_work_share_case` picks the share of the charging cars that charge at a workplace instead of at home: `low` 0, `moderate` 0.10 (the default) and `high` 0.20, the `work_share` menu of `ev_inputs.yaml` (from EVI-Pro Lite and the INL charging study). Each car charges at one place on the simulated weekday. One car goes through these stages:
+
+1. It charges today: it drew an EV WATTS session under `evwatts_sessions`, or an NHTS vehicle-day that drove under `nhts_days`.
+2. It is one of the floor(share x charging cars + 0.5) cars of its group drawn for work, with the draw `work_<group>`.
+3. It draws an office: one of the circuit's commercial loads, at random with replacement (`office_<group>`), so several cars can share one office.
+4. Under `evwatts_sessions` it draws one Business Office Level 2 weekday session of the office extract, from chargers in the donor state's census division: it plugs in at the session's start for the session's duration and charges the session's energy at its mean power. Under `nhts_days` it draws one weekday vehicle-day with a stop at work: its window is the time parked at work, in pieces when it leaves and returns, and it charges the miles it drove times kWh per mile at 7.2 kW.
+5. Its two EV loads sit on the office's buses (`EVu_w<i>_<office>_1` and `_2`, or `EVc_w<j>_`), and nothing is charged at its home.
+6. A controlled work car keeps its charging inside its window at work, and under `valley_fill_transformer` it fills the service transformer of its office.
+7. Its row in `<circuit>/EVControl/ev_places.csv` records its home host and its office, with the bus and coordinates of each.
+
+Under `session_rows` every car charges at home: the work share is not applied. A circuit without a commercial load keeps every car at home. The deploy prints the case, the share, the commercial loads and the work cars per group.
+
+`ev_home_window: true` keeps the charging of each controlled car inside the intervals it is plugged in at home or at work: its EV WATTS session, its NHTS vehicle-day, or under `session_rows` a drawn NHTS vehicle-day. Energy that does not fit is left over. With `false`, controlled cars may charge in any interval of the day.
 
 `ev_day` picks the value set of every input in `ev_inputs.yaml`. Main runs use the default, `ev_day: typical`. `stress` changes behaviour, never hardware:
 
@@ -265,7 +277,10 @@ Every battery draws standby power. Under `storage_standby_element: load` (the de
 - Battery standby comes from lab tests of 26 German residential systems and is applied to every battery, commercial ones included. A commercial battery takes the home values per kW of a 5 kW system, as a percent of its kW. Each battery draws its discharged-state standby at every step of the day. Under `storage_standby_element: load` the grid supplies the standby also while a battery discharges, where OpenDSS `%IdlingkW` would take it from the battery.
 - The stress day changes behaviour (the share of cars charging, the months drawn, the check curve, the forecast horizon, the start spread), never hardware.
 - The tariff is the weekday schedule of one utility per donor state. The saved file records whether the rate was current when it was fetched, and `offpeak_start` uses a rate that is no longer current as it is.
-- Workplace and public EV charging are not modelled.
+- Public EV charging is not modelled.
+- Several work cars can share one office load, because the office is drawn with replacement among the circuit's commercial loads (the TX circuits hold 20 and 22 commercial loads).
+- An EV WATTS office session is one plug-in at a shared charger, so it can cover less than a car's whole stay at work.
+- Cars leaving the feeder for work are taken to balance cars arriving from other feeders: a work car charges at a commercial load of its own circuit.
 - Homes heated by electricity run ResStock upgrade 1 in the dm group, the same profile as in the un group. The dm homes that still run baseline are homes the measure does not reach: fuel-heated homes that the ResStock 2024 Release 2 known issue on measure applicability leaves without the measure (https://natlabrockies.github.io/ResStock.github.io/docs/resources/explanations/Issue_2024_2_Measure_Applicability.html), homes with a shared HVAC system, and homes heated by a fuel other than natural gas, propane or fuel oil, which Measure Package 4 does not cover.
 - NC cars draw EV WATTS sessions of chargers in the South Atlantic census division and TX cars of chargers in the West South Central division, because EV WATTS gives no state.
 - EV WATTS sessions are from 2019 to 2022 and come from early adopters.

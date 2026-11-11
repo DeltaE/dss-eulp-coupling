@@ -13,8 +13,10 @@ openei_api_key_file: "path/to/OPENEI_API_KEY.txt"
 nhts2017_csv_dir: "path/to/nhts2017/csv"
 # Only for 7_circuit_instantiation/build_evwatts_extract.py: the EV WATTS public tables.
 evwatts_raw_dir: "path/to/evwatts.public"
-# The EV WATTS extract folder, outside the repository; the Phase 7 deploy reads it
-# under ev_cars evwatts_sessions (the default) and session_rows.
+# The EV WATTS extract folder, outside the repository; the Phase 7 deploy reads
+# evwatts_residential_l2_weekday.csv there under ev_cars evwatts_sessions (the default)
+# and session_rows, and evwatts_office_l2_weekday.csv (build_evwatts_extract.py
+# --venue office) under evwatts_sessions with a work share above 0.
 evwatts_extract_dir: "path/to/evwatts_extract"
 
 # run_case.py derives the parquet roots from topology_registry.yaml (the parquet_data
