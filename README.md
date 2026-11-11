@@ -291,21 +291,6 @@ Every battery draws standby power. Under `storage_standby_element: load` (the de
 | `profiles_use_bench/` | `7_circuit_instantiation/instantiate_circuits.py` | `7_circuit_instantiation/power_flow_sim_daily_EV_STO_DG_deploy.py` |
 | `0_experimental_design/mixes_fixed.yaml` (three hand-set mixes, tracked) | Set by hand | `bridge_phase5c_to_phase7.py` (Phase 7a) copies it to `<ws>/7_circuit_instantiation/mixes.yaml`, keeping the extension of the mixes file, which `7_circuit_instantiation/instantiate_circuits.py` reads |
 
-## Citation
-
-If you use this pipeline, please cite:
-
-```bibtex
-@article{victorgallardo2026coupling,
-  title={Open-Data Coupling of Synthetic Distribution Feeders with End-Use Load Profiles
-         for Distribution System Planning Under Uncertainty},
-  author={Victor-Gallardo, Luis and co-authors and Niet, Taco},
-  journal={MethodsX},
-  year={2026},
-  note={Submitted}
-}
-```
-
 ## License
 
 [Apache-2.0](LICENSE)
