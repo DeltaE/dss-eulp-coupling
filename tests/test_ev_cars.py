@@ -5,9 +5,9 @@ test_ev_cars.py
 ev_cars.py (Phase 7 deploy, the EV cars) and the two extract scripts on small
 hand-made data: the seeds, the level and charging draws, charge_shape and the plug-in
 window, the share of cars charging, the NHTS day classes and windows, the NHTS speed
-check (class iv), the EV WATTS
-extract filters, the repaired 2024 generator, and the ev_cars, ev_home_window and
-ev_day settings.
+check (class iv), the NHTS work pieces, the EV WATTS
+extract filters (residential and office venues), the repaired 2024 generator, and the
+ev_cars, ev_home_window and ev_day settings.
 
 Run directly (no pytest needed): python tests/test_ev_cars.py
 Or under pytest: pytest tests/test_ev_cars.py
@@ -30,6 +30,8 @@ from build_evwatts_extract import apply_filters  # noqa: E402
 from pipeline_utils import ev_cars, ev_day, ev_home_window  # noqa: E402
 
 INPUTS = {"level2_kw": 7.2, "level1_kw": 1.0, "kwh_per_mile": 33.7 / 99.9}
+OLD_COLUMNS = ["HOUSEID", "VEHID", "TDAYDATE", "TRAVDAY", "WTHHFIN", "day_class", "arrival_min",
+               "departure_min", "window_min", "driver_miles", "n_driver_trips", "n_miles_missing"]
 
 
 def test_seed_is_the_sha256_formula():
@@ -110,7 +112,9 @@ def test_nhts_day_classes_and_windows():
         _trip("4", "01", "2200", "2300", "03", "01", 1.0),
         _trip("4", "01", "0200", "0230", "01", "03", 1.0),
     ])
-    days = vehicle_days(veh, trips, 85).set_index(["HOUSEID", "VEHID"])
+    days = vehicle_days(veh, trips, 85)
+    assert list(days.columns)[:12] == OLD_COLUMNS
+    days = days.set_index(["HOUSEID", "VEHID"])
     a = days.loc[("1", 1)]
     assert a["day_class"] == "i"
     assert (a["arrival_min"], a["departure_min"], a["window_min"]) == (120, 420, 300)
@@ -122,6 +126,38 @@ def test_nhts_day_classes_and_windows():
     assert days.loc[("3", 1), "window_min"] == 270    # d' - a' when d' >= a'
     c = days.loc[("4", 1)]
     assert (c["arrival_min"], c["departure_min"], c["window_min"]) == (1380, 120, 180)
+    # the work pieces of the same days: house 1 vehicle 1 parks at work 07:30 to 12:00
+    assert (a["n_work_pieces"], a["work_min"], a["work_pieces"]) == (1, 270, "450:270")
+    assert (b["n_work_pieces"], b["work_pieces"]) == (0, "") and pd.isna(b["work_min"])
+    assert days.loc[("2", 1), "work_pieces"] == "510:1170"     # parked to 04:00 (class iii)
+    assert days.loc[("3", 1), "work_pieces"] == "630:1050"
+    assert days.loc[("4", 1), "work_pieces"] == "150:90"       # 02:30 at work, parked to 04:00
+
+
+def test_nhts_work_pieces():
+    veh = pd.DataFrame({"HOUSEID": ["1", "2", "3", "4"], "VEHID": ["01"] * 4, "TDAYDATE": ["201608"] * 4,
+                        "TRAVDAY": ["03"] * 4, "WTHHFIN": [1.0] * 4})
+    trips = pd.DataFrame([
+        # house 1: one stay at work, 08:00 to 17:00
+        _trip("1", "01", "0730", "0800", "01", "03", 5.0),
+        _trip("1", "01", "1700", "1730", "03", "01", 5.0),
+        # house 2: a lunch trip splits the stay into two pieces
+        _trip("2", "01", "0730", "0800", "01", "03", 5.0),
+        _trip("2", "01", "1200", "1215", "03", "13", 1.0),
+        _trip("2", "01", "1245", "1300", "13", "03", 1.0),
+        _trip("2", "01", "1750", "1820", "03", "01", 5.0),
+        # house 3: arrives at work 22:00 and has no later trip: parked to 04:00
+        _trip("3", "01", "2130", "2200", "01", "03", 5.0),
+        # house 4: the next trip does not start from work; the piece still ends at its start
+        _trip("4", "01", "0730", "0800", "01", "03", 5.0),
+        _trip("4", "01", "1200", "1230", "01", "04", 2.0),
+    ])
+    days = vehicle_days(veh, trips, 85).set_index("HOUSEID")
+    assert (days.loc["1", "n_work_pieces"], days.loc["1", "work_min"], days.loc["1", "work_pieces"]) == (1, 540, "480:540")
+    assert (days.loc["2", "n_work_pieces"], days.loc["2", "work_min"], days.loc["2", "work_pieces"]) == (2, 530, "480:240|780:290")
+    assert (days.loc["3", "n_work_pieces"], days.loc["3", "work_min"], days.loc["3", "work_pieces"]) == (1, 360, "1320:360")
+    assert (days.loc["4", "n_work_pieces"], days.loc["4", "work_min"], days.loc["4", "work_pieces"]) == (1, 240, "480:240")
+    assert list(days.reset_index().columns)[:12] == OLD_COLUMNS
 
 
 def test_nhts_speed_check():
@@ -142,7 +178,9 @@ def test_nhts_speed_check():
     for hid, (start, end, miles) in legs.items():
         trips.append(_trip(hid, "01", start, end, "01", "03", miles))
         trips.append(_trip(hid, "01", "1700", "1730", "03", "01", 5.0))
-    days = vehicle_days(veh, pd.DataFrame(trips), 85).set_index("HOUSEID")
+    days = vehicle_days(veh, pd.DataFrame(trips), 85)
+    assert list(days.columns)[:12] == OLD_COLUMNS
+    days = days.set_index("HOUSEID")
     assert days.loc["1", "day_class"] == "i" and days.loc["4", "day_class"] == "i"
     for hid in ("2", "3", "5"):
         d = days.loc[hid]
@@ -185,6 +223,14 @@ def test_evwatts_extract_filters():
     r = out.iloc[0]
     assert (r["start_date"], r["weekday"], r["month"], r["start_min"], r["plug_min"]) == ("2024-01-03", 2, 1, 1080.0, 780.0)
     assert before_flag == {"South Atlantic": 6}
+    # the office venue keeps only Business Office rows; the default keeps today's rows
+    evse.loc[3, "venue"] = "Business Office"
+    office, dropped_o, _ = apply_filters(s, evse, ["South Atlantic", "West South Central"], 19.2,
+                                         ["Business Office"])
+    assert list(office["session_id"]) == [3] and list(office["venue"]) == ["Business Office"]
+    assert dropped_o[2] == 9
+    again, dropped_r, _ = apply_filters(s, evse, ["South Atlantic", "West South Central"], 19.2)
+    assert list(again["session_id"]) == [12] and dropped_r == [1] * 11
 
 
 def test_repaired_generator():

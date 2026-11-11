@@ -6,7 +6,7 @@ input_files:
 - hhpub.csv
 - trippub.csv
 - vehpub.csv
-built_utc: '2026-11-09T05:42:50Z'
+built_utc: '2026-11-11T02:42:37Z'
 filters:
 - HHSTATE NC or TX
 - VEHTYPE 01 to 04
@@ -20,6 +20,9 @@ window_rule: 'class i: window_min = d'' - a'' when d'' >= a'', else d'' + 1440 -
   from home'
 speed_rule: 'class iv: a driver trip with a valid start, end and miles faster than
   85 mph, speed = miles / ((end - start, plus 1440 when negative, + 1) / 60)'
+work_rule: 'work pieces: each driver trip with WHYTO 03 and a valid end time starts
+  a piece at its ENDTIME; the piece ends at the STRTTIME of the next driver trip when
+  it exists and is valid, else at 04:00; parked minutes as the window rule'
 rows_per_state_and_class:
   NC:
     i: 8096
@@ -31,3 +34,14 @@ rows_per_state_and_class:
     ii: 12655
     iii: 2498
     iv: 215
+work_days_per_state_and_class:
+  NC:
+    i: 3687
+    ii: 0
+    iii: 346
+    iv: 38
+  TX:
+    i: 12061
+    ii: 0
+    iii: 1012
+    iv: 109

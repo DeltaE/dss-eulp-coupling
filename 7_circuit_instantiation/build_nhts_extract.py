@@ -43,13 +43,23 @@ Rules
    mph. A vehicle-day with any driver trip faster than nhts_max_trip_speed_mph (typical
    value of data_ev_cars/ev_inputs.yaml) is class (iv), with no window, whatever its
    class under rule 4. Trips with a missing time or missing miles are not tested.
+7. Work is WHYTO 03. Over the vehicle's driver trips in the rule 3 order, each trip with
+   WHYTO 03 and a valid end time starts a work piece at its ENDTIME. The piece ends at
+   the STRTTIME of the vehicle's next driver trip in that order when that trip exists
+   and its start time is valid, else at 04:00 (minute 240), the end of the travel day.
+   Parked minutes = e' - a' when e' >= a', else e' + 1440 - a', with x' = (x - 240) mod
+   1440, as the home window of rule 4. Work pieces are computed for every class.
 
 Outputs (in 7_circuit_instantiation/data_ev_cars/)
 - <ST>_nhts2017_vehicle_days.csv for NC and TX, sorted by HOUSEID and VEHID, columns
   HOUSEID, VEHID, TDAYDATE, TRAVDAY, WTHHFIN, day_class, arrival_min, departure_min,
-  window_min, driver_miles, n_driver_trips, n_miles_missing.
+  window_min, driver_miles, n_driver_trips, n_miles_missing, n_work_pieces (0 when
+  none), work_min (the sum of parked minutes at work, empty when none), work_pieces
+  (the pieces in day order as arrival:minutes joined by |, for example 480:240|780:290,
+  arrival as a clock minute; empty when none).
 - nhts2017_extract.yaml: source URLs, build time UTC, filters, window rule, speed rule,
-  rows per state and class (i to iv).
+  work rule, rows per state and class (i to iv), days with a work stop per state and
+  class.
 
 Stops (exit 1): nhts2017_csv_dir missing from configs/local.yaml, or an input file
 missing.
@@ -68,9 +78,11 @@ STATES = ["NC", "TX"]
 CAR_TYPES = {1, 2, 3, 4}
 WEEKDAYS = {2, 3, 4, 5, 6}
 HOME = {1, 2}
+WORK = 3
 DAY_START_MIN = 240
 COLUMNS = ["HOUSEID", "VEHID", "TDAYDATE", "TRAVDAY", "WTHHFIN", "day_class", "arrival_min",
-           "departure_min", "window_min", "driver_miles", "n_driver_trips", "n_miles_missing"]
+           "departure_min", "window_min", "driver_miles", "n_driver_trips", "n_miles_missing",
+           "n_work_pieces", "work_min", "work_pieces"]
 
 
 def hhmm_to_min(s):
@@ -80,8 +92,27 @@ def hhmm_to_min(s):
     return (v // 100) * 60 + (v % 100)
 
 
+def work_pieces(t):
+    """Rule 7 on the sorted driver trips t (columns HOUSEID, VEHID, start_min, end_min,
+    WHYTO, in the rule 3 order). Returns a frame indexed by (HOUSEID, VEHID) with
+    n_work_pieces, work_min and work_pieces for the vehicles that have a piece."""
+    next_start = t.groupby(["HOUSEID", "VEHID"], sort=False)["start_min"].shift(-1)
+    at_work = (pd.to_numeric(t["WHYTO"], errors="coerce") == WORK) & t["end_min"].notna()
+    a = t.loc[at_work, "end_min"]
+    e = next_start[at_work].fillna(DAY_START_MIN)
+    a1 = (a - DAY_START_MIN) % 1440
+    e1 = (e - DAY_START_MIN) % 1440
+    parked = (e1 - a1).where(e1 >= a1, e1 + 1440 - a1)
+    pieces = pd.DataFrame({"HOUSEID": t.loc[at_work, "HOUSEID"], "VEHID": t.loc[at_work, "VEHID"],
+                           "parked": parked.astype("int64"),
+                           "text": [f"{int(x)}:{int(m)}" for x, m in zip(a, parked)]})
+    g = pieces.groupby(["HOUSEID", "VEHID"], sort=False)
+    return pd.DataFrame({"n_work_pieces": g.size(), "work_min": g["parked"].sum(),
+                         "work_pieces": g["text"].agg("|".join)})
+
+
 def vehicle_days(veh, trips, max_speed_mph):
-    """Classify vehicle-days (rules 2 to 6).
+    """Classify vehicle-days (rules 2 to 7).
 
     veh: one row per vehicle-day with HOUSEID, VEHID (integer), TDAYDATE, TRAVDAY,
     WTHHFIN. trips: trippub.csv rows with HOUSEID, VEHID, STRTTIME, ENDTIME, WHYFROM,
@@ -116,6 +147,10 @@ def vehicle_days(veh, trips, max_speed_mph):
     arr = t[t["to_home"] & t["end_min"].notna()].groupby(["HOUSEID", "VEHID"])["end_min"].last()
     dep = t[t["from_home"] & t["start_min"].notna()].groupby(["HOUSEID", "VEHID"])["start_min"].first()
     v = v.join(stats, on=["HOUSEID", "VEHID"])
+    v = v.join(work_pieces(t), on=["HOUSEID", "VEHID"])
+    v["n_work_pieces"] = v["n_work_pieces"].fillna(0).astype("int64")
+    v["work_min"] = v["work_min"].astype("Int64")
+    v["work_pieces"] = v["work_pieces"].fillna("")
     v["arrival_min"] = [arr.get(k, np.nan) for k in zip(v["HOUSEID"], v["VEHID"])]
     v["departure_min"] = [dep.get(k, np.nan) for k in zip(v["HOUSEID"], v["VEHID"])]
     v["n_driver_trips"] = v["n_driver_trips"].fillna(0).astype("int64")
@@ -158,14 +193,16 @@ def main():
     vh["WTHHFIN"] = pd.to_numeric(vh["WTHHFIN"])
     with open(os.path.join(OUT_DIR, "ev_inputs.yaml"), encoding="utf-8") as f:
         max_speed_mph = yaml.safe_load(f)["nhts_max_trip_speed_mph"]["typical"]
-    counts = {}
+    counts, work_counts = {}, {}
     for st in STATES:
         days = vehicle_days(vh[vh["HHSTATE"] == st][["HOUSEID", "VEHID", "TDAYDATE", "TRAVDAY", "WTHHFIN"]],
                             tr[tr["HOUSEID"].isin(set(vh.loc[vh["HHSTATE"] == st, "HOUSEID"]))],
                             max_speed_mph)
         days.to_csv(os.path.join(OUT_DIR, f"{st}_nhts2017_vehicle_days.csv"), index=False)
         counts[st] = {c: int((days["day_class"] == c).sum()) for c in ("i", "ii", "iii", "iv")}
-        print(f"[OK] {st}: {len(days):,} vehicle-days {counts[st]}")
+        work_counts[st] = {c: int(((days["day_class"] == c) & (days["n_work_pieces"] > 0)).sum())
+                           for c in ("i", "ii", "iii", "iv")}
+        print(f"[OK] {st}: {len(days):,} vehicle-days {counts[st]}, with a work stop {work_counts[st]}")
     record = {
         "source": "2017 National Household Travel Survey, U.S. Department of Transportation, Federal Highway Administration",
         "data_url": "https://nhts.ornl.gov/assets/2016/download/Csv.zip",
@@ -182,7 +219,9 @@ def main():
         ],
         "window_rule": "class i: window_min = d' - a' when d' >= a', else d' + 1440 - a', with x' = (x - 240) mod 1440, a the last arrival home and d the first departure from home",
         "speed_rule": f"class iv: a driver trip with a valid start, end and miles faster than {max_speed_mph} mph, speed = miles / ((end - start, plus 1440 when negative, + 1) / 60)",
+        "work_rule": "work pieces: each driver trip with WHYTO 03 and a valid end time starts a piece at its ENDTIME; the piece ends at the STRTTIME of the next driver trip when it exists and is valid, else at 04:00; parked minutes as the window rule",
         "rows_per_state_and_class": counts,
+        "work_days_per_state_and_class": work_counts,
     }
     with open(os.path.join(OUT_DIR, "nhts2017_extract.yaml"), "w", encoding="utf-8") as f:
         yaml.safe_dump(record, f, sort_keys=False)
