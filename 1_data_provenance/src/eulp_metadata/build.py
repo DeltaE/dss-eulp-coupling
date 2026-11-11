@@ -24,6 +24,7 @@ REPO_ROOT = PROJECT_ROOT.parent
 DEFAULT_CONFIG = PROJECT_ROOT / "config" / "workflow.yaml"
 sys.path.insert(0, str(REPO_ROOT))
 from pipeline_utils import load_config as load_pipeline_config
+from pipeline_utils import eulp_release, eulp_release_suffix
 
 
 @dataclass
@@ -140,13 +141,20 @@ def planned_files_for_dataset(
     upgrade_labels = cluster.get(upgrades_key, [])
     states = cluster["states"]
     folder_groups = config["folder_groups"]
+    pipeline_cfg = load_pipeline_config()
     files: list[dict[str, Any]] = []
 
     for state in states:
         for group_name in group_names:
             group = folder_groups[group_name]
-            folder = metadata_root / group["folder_pattern"].format(state=state)
+            suffix = eulp_release_suffix(pipeline_cfg, group["dataset"])
+            folder = metadata_root / (group["folder_pattern"].format(state=state) + suffix)
             if not folder.exists():
+                if suffix:
+                    year, release = eulp_release(pipeline_cfg, group["dataset"])
+                    print(f"[FAIL] EULP metadata folder {folder.relative_to(metadata_root).as_posix()} "
+                          f"for {year} {release} is missing under eulp_metadata_root.")
+                    sys.exit(1)
                 files.append(
                     {
                         "state": state,

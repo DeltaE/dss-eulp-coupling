@@ -10,7 +10,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, resolve_work_path
+from pipeline_utils import eulp_parquet_folder, eulp_release, load_config, resolve_work_path
 
 # =========================
 # Configuration
@@ -31,8 +31,7 @@ STATES_OF_INTEREST = [STATE]           # e.g. ["NC", "TX", ...]
 CASE_ID = f"{DOWNLOAD_DATE}_comm_{STATE}"
 
 # Dataset location
-QUERY_YEAR = 2024
-DATASET = cfg['eulp_release']['commercial']  # eulp_release in pipeline_config.yaml
+QUERY_YEAR, DATASET = eulp_release(cfg, 'commercial')  # eulp_release in pipeline_config.yaml
 BUCKET = "oedi-data-lake"
 ROOT_PREFIX = "nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock"
 
@@ -48,7 +47,7 @@ UPGRADES = [0, 1, 2, 3, 8, 9, 19, 20]
 # Resolved via resolve_work_path at read time (see load_target_bldg_ids_for_state).
 
 # Output folder
-DOWNLOAD_DIR_TEMPLATE = os.path.join(PARQUET_DATA_ROOT, f"parquet_commercial_{CASE_ID}")
+DOWNLOAD_DIR_TEMPLATE = os.path.join(PARQUET_DATA_ROOT, eulp_parquet_folder(cfg, 'commercial'))
 
 # Download throttling
 CHUNK_SIZE = 100

@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, resolve_work_path
+from pipeline_utils import eulp_parquet_folder, load_config, resolve_work_path
 
 START_PROCESS = time.time()
 
@@ -71,8 +71,8 @@ commercial_names = {
 
 # Folders to process
 folders = [
-    PARQUET_DATA_ROOT / ("parquet_commercial_" + DOWNLOAD_DATE + "_comm_" + STATE),
-    PARQUET_DATA_ROOT / ("parquet_residential_short_" + DOWNLOAD_DATE + "_" + STATE)
+    PARQUET_DATA_ROOT / eulp_parquet_folder(cfg, "commercial"),
+    PARQUET_DATA_ROOT / eulp_parquet_folder(cfg, "residential")
 ]
 
 # We'll keep partial results in a dict: 

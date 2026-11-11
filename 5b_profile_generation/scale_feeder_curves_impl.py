@@ -11,7 +11,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, load_feeder_registry, resolve_work_path
+from pipeline_utils import eulp_parquet_folder, load_config, load_feeder_registry, resolve_work_path
 
 START_PROCESS = time.time()
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -80,8 +80,8 @@ for feeder in relevant_feeders:
     dropped_residential_rows = initial_residential_rows - len(residential_merged)
 
     # Assign folder paths using `.assign()`
-    commercial_merged = commercial_merged.assign(Parquet_Folder="parquet_commercial_" + DOWNLOAD_DATE + "_comm_" + STR_STATE)
-    residential_merged = residential_merged.assign(Parquet_Folder="parquet_residential_short_" + DOWNLOAD_DATE + "_" + STR_STATE)
+    commercial_merged = commercial_merged.assign(Parquet_Folder=eulp_parquet_folder(cfg, "commercial"))
+    residential_merged = residential_merged.assign(Parquet_Folder=eulp_parquet_folder(cfg, "residential"))
 
     residential_merged_index = residential_merged.index.tolist()
     residential_merged_index_len = len(residential_merged_index)

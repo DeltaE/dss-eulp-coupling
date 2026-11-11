@@ -11,11 +11,23 @@ quota:
   residential_order: auto
   commercial_order: auto
 
-# EULP releases on the OEDI data lake that Phase 5a downloads from, under
-# https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/
+# EULP releases on the OEDI data lake that Phase 5a downloads from. Each release sits in
+# the OEDI folder
+# https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/<year>/<release>/
+# with <year> from residential_year or commercial_year.
+# The current releases are 2024 resstock_tmy3_release_2 and 2024 comstock_amy2018_release_1.
+# They keep today's folder names.
+# For another residential release, Phase 1 reads Metadata_<ST>_Residential_<year>_<release>
+# under eulp_metadata_root and stops when that folder is missing.
+# Phase 5a then writes, and Phases 5b and 5d read,
+# parquet_residential_short_<date>_<ST>_<year>_<release>.
+# For another commercial release, the folders are Metadata_<ST>_Commercial_<year>_<release>
+# and parquet_commercial_<date>_comm_<ST>_<year>_<release>.
 eulp_release:
   residential: resstock_tmy3_release_2
   commercial: comstock_amy2018_release_1
+  residential_year: 2024
+  commercial_year: 2024
 
 # PV and storage hosts (Phase 7b), sizes and storage control (Phase 7 deploy).
 # Residential hosts are loads whose yearly loadshapes all start res_, commercial hosts

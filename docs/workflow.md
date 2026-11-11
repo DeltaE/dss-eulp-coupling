@@ -149,6 +149,8 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 
 `run_case.py` sets `PIPELINE_*` environment variables. The scripts read the run values only from these variables. A script that reads a run value whose variable is not set exits 1 and names the variable.
 
+`--settings <folder>` merges a caller's settings files over the repository's files of the same names (README, "Settings from a caller"). `run_case.py` then sets `PIPELINE_SETTINGS_DIR` to the folder, and `pipeline_utils.load_config` merges its `pipeline_config.yaml` in every phase.
+
 | Variable | Meaning |
 | --- | --- |
 | `PIPELINE_STATE` | Two-letter code of the donor state, from `donor_state` in `configs/donor_registry.yaml`. It sets state-specific metadata, file names and folder prefixes. |
@@ -170,7 +172,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 - `random_seed` seeds representative building selection in Phase 4.
 - `skip_circuits` lists numeric `circuit_id` values that Phase 7 skips.
 - `quota` sets the Phase 4 quota rules.
-- `eulp_release` names the ResStock and ComStock releases that Phase 5a downloads.
+- `eulp_release` names the ResStock and ComStock releases that Phase 5a downloads, with their OEDI year folders `residential_year` and `commercial_year` (default 2024). A release other than 2024 `resstock_tmy3_release_2` or 2024 `comstock_amy2018_release_1` adds `_<year>_<release>` to its metadata folder and its download folder, and Phase 1 stops when that metadata folder is missing (README, "Settings from a caller").
 - `der_sizing` sets the PV and storage hosts (Phase 7b), their sizes, the storage control (with `schedule_start`, default `best`: under `schedule` each host's starting energy is the one of a grid that leaves the lowest forecast maximum) and the battery standby losses (`storage_standby_case`, default `moderate`; `storage_standby_element`, default `load`, a constant-power Load beside each battery, or `idling`, the battery's `%IdlingkW`) (Phase 7 deploy) (README, "PV and storage").
 - `peak_day_rule` sets the day each mixed or stress circuit runs on (section 3.2, "Phase mix_days and the peak-day rules"; README, "Peak-day rules").
 - `heating_label_unit` sets whether the heating split counts buildings or customers (section 3.2, Phase 7b; README, "Heating labels and EV hosts").

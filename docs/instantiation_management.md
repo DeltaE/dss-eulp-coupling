@@ -38,10 +38,18 @@ for that machine. The same case YAML then runs unchanged on every machine.
     python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --phase pre
     python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --dry-run   # preview only
     python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --season summer
+    python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --settings path/to/settings
 
 `--all` runs the deterministic phase order from `defaults.yaml`. `--dry-run` prints the
 resolved variables and every command and copy, and writes nothing. Provenance is written to
 `<runs_root>/<case_id>/<season>/`, with `runs_root` from `configs/local.yaml`.
+
+`--settings` names a folder of files named as the repository's settings files
+(`topology_registry.yaml`, `donor_registry.yaml`, `defaults.yaml`, `local.yaml`,
+`pipeline_config.yaml`). Each file holds only the keys it changes and is merged over the
+repository's file: mappings merge key by key, and any other value replaces the repository's.
+`pipeline_config.yaml` takes no key path the repository's file lacks and `defaults.yaml` no
+new top-level key; the phases read the merged values through `PIPELINE_SETTINGS_DIR`.
 
 ## Adding a new topology
 

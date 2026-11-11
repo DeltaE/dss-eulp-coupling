@@ -207,11 +207,132 @@ def resolve_dss_file(directory, filename):
     raise FileNotFoundError(f"{filename} not found in {directory} (case-insensitive search)")
 
 
+# Settings from a caller: run_case.py --settings <folder> sets PIPELINE_SETTINGS_DIR. The
+# folder holds override files named as the repository's settings files; each holds only
+# the keys it changes and is merged over the repository's file (merge_settings).
+SETTINGS_ENV = "PIPELINE_SETTINGS_DIR"
+SETTINGS_FILES = ("topology_registry.yaml", "donor_registry.yaml", "defaults.yaml", "local.yaml",
+                  "pipeline_config.yaml")
+
+
+def check_settings_dir(folder):
+    """The names of the settings files in `folder`, in SETTINGS_FILES order. A missing
+    folder, or a .yaml or .yml file that is not one of SETTINGS_FILES, prints [FAIL] and
+    exits 1. Other files are ignored."""
+    folder = Path(folder)
+    if not folder.is_dir():
+        print(f"[FAIL] settings folder {folder.as_posix()} does not exist or is not a folder.")
+        sys.exit(1)
+    for entry in sorted(folder.iterdir()):
+        if not entry.name.lower().endswith((".yaml", ".yml")):
+            continue
+        if entry.name not in SETTINGS_FILES or not entry.is_file():
+            print(f"[FAIL] settings file {entry.name} in {folder.as_posix()} is not one of "
+                  f"{', '.join(SETTINGS_FILES)}.")
+            sys.exit(1)
+    return [name for name in SETTINGS_FILES if (folder / name).is_file()]
+
+
+def read_settings_file(folder, name):
+    """The override dict of <folder>/<name>: {} for an empty file, None when the file is
+    absent. A file that does not load as a mapping prints [FAIL] and exits 1."""
+    path = Path(folder) / name
+    if not path.is_file():
+        return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except yaml.YAMLError as exc:
+        print(f"[FAIL] settings file {path.as_posix()} does not load as YAML: {exc}")
+        sys.exit(1)
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        print(f"[FAIL] settings file {path.as_posix()} does not hold a mapping of keys.")
+        sys.exit(1)
+    return data
+
+
+def merge_settings(base, override, name, _path=()):
+    """A new dict: `base` with `override` merged in. Mappings on both sides merge key by
+    key; any other override value replaces the base value. A mapping against a
+    non-mapping prints [FAIL] and exits 1. Strict keys: in pipeline_config.yaml every key
+    path of the override must exist in the base, in defaults.yaml every top-level key;
+    the registries and local.yaml take new keys at any level."""
+    merged = dict(base)
+    for key, value in override.items():
+        path = _path + (str(key),)
+        strict = name == "pipeline_config.yaml" or (name == "defaults.yaml" and not _path)
+        if key not in base:
+            if strict:
+                print(f"[FAIL] settings {name}: key {'.'.join(path)} is not in the repository's {name}.")
+                sys.exit(1)
+            merged[key] = value
+        elif isinstance(base[key], dict) and isinstance(value, dict):
+            merged[key] = merge_settings(base[key], value, name, path)
+        elif isinstance(base[key], dict) or isinstance(value, dict):
+            print(f"[FAIL] settings {name}: key {'.'.join(path)} is a mapping on one side only "
+                  f"(repository file or settings file).")
+            sys.exit(1)
+        else:
+            merged[key] = value
+    return merged
+
+
+def settings_key_paths(override, _prefix=""):
+    """The dotted key paths of the leaf values of `override`, sorted."""
+    paths = []
+    for key, value in override.items():
+        if isinstance(value, dict) and value:
+            paths.extend(settings_key_paths(value, f"{_prefix}{key}."))
+        else:
+            paths.append(f"{_prefix}{key}")
+    return sorted(paths)
+
+
+# The OEDI year folder and release whose metadata and download folders carry no release
+# in their names.
+EULP_CURRENT_RELEASE = {"residential": (2024, "resstock_tmy3_release_2"),
+                        "commercial": (2024, "comstock_amy2018_release_1")}
+
+
+def eulp_release(cfg, dataset):
+    """(year, name) of the EULP release of `dataset` (residential or commercial) in
+    eulp_release of pipeline_config.yaml; the year key defaults to 2024."""
+    name = cfg["eulp_release"][dataset]
+    year = int(cfg["eulp_release"].get(f"{dataset}_year", 2024))
+    return year, name
+
+
+def eulp_release_suffix(cfg, dataset):
+    """The empty string for the current release of `dataset`, else _<year>_<release>."""
+    year, name = eulp_release(cfg, dataset)
+    if (year, name) == EULP_CURRENT_RELEASE[dataset]:
+        return ""
+    return f"_{year}_{name}"
+
+
+def eulp_parquet_folder(cfg, dataset):
+    """The Phase 5a download folder name of `dataset` under the parquet data root."""
+    date, state = cfg["eulp_download_date"], cfg["state"]
+    suffix = eulp_release_suffix(cfg, dataset)
+    if dataset == "residential":
+        return f"parquet_residential_short_{date}_{state}{suffix}"
+    return f"parquet_commercial_{date}_comm_{state}{suffix}"
+
+
 def load_config(config_path=None):
+    settings_dir = os.environ.get(SETTINGS_ENV) if config_path is None else None
     if config_path is None:
         config_path = REPO_ROOT / "pipeline_config.yaml"
     with open(config_path, encoding="utf-8") as f:
-        cfg = PipelineConfig(yaml.safe_load(f) or {})
+        cfg = yaml.safe_load(f) or {}
+    if settings_dir:
+        check_settings_dir(settings_dir)
+        override = read_settings_file(settings_dir, "pipeline_config.yaml")
+        if override is not None:
+            cfg = merge_settings(cfg, override, "pipeline_config.yaml")
+    cfg = PipelineConfig(cfg)
 
     for key, var in RUN_VALUES.items():
         if os.environ.get(var):
