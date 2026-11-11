@@ -10,7 +10,7 @@ Each value has one owner:
 - `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root`, `runs_root` and `evwatts_extract_dir` (see "EV cars"), `openei_api_key_file` for the tariff fetch only (see "EV control"), and `nhts2017_csv_dir` and `evwatts_raw_dir` for the two extract scripts only. Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
-- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release`, `der_sizing` (PV and storage hosts, sizes and control, see "PV and storage"), `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `heating_label_unit` (default `building`; `customer` remains available, see "Heating labels and EV hosts"), `voltage_band` (the band for the load voltage summaries), `ev_cars`, `ev_home_window`, `ev_day` and `ev_work_share_case` (defaults `evwatts_sessions`, `true`, `typical` and `moderate`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
+- `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release` (the ResStock and ComStock release names with their OEDI years `residential_year` and `commercial_year`, see "Settings from a caller"), `der_sizing` (PV and storage hosts, sizes and control, see "PV and storage"), `peak_day_rule` (default `per_circuit`; `per_group` remains available, see "Peak-day rules"), `heating_label_unit` (default `building`; `customer` remains available, see "Heating labels and EV hosts"), `voltage_band` (the band for the load voltage summaries), `ev_cars`, `ev_home_window`, `ev_day` and `ev_work_share_case` (defaults `evwatts_sessions`, `true`, `typical` and `moderate`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
 
@@ -151,6 +151,20 @@ The saved time-of-use rates in `7_circuit_instantiation/data_tariffs/` are track
 
 The mixes file is an input. Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names, by default `0_experimental_design/mixes_fixed.yaml`. https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment.
 
+## Settings from a caller
+
+A program that calls this repository can change settings without editing its files. In this example the folder `my_settings/` sets the low work share and the runs folder.
+
+1. The caller writes only the keys it changes, in files named as the repository's settings files: `topology_registry.yaml`, `donor_registry.yaml`, `defaults.yaml`, `local.yaml` and `pipeline_config.yaml`. Here `my_settings/pipeline_config.yaml` holds `ev_work_share_case: low` and `my_settings/local.yaml` holds `runs_root: <folder>`.
+2. `python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --settings my_settings` checks the folder and the key paths before any phase runs. It stops with `[FAIL]` on a missing folder, on a `.yaml` or `.yml` file with another name, on a file that is not a mapping, on a key that is a mapping on one side only, and on a key path of `pipeline_config.yaml` or a top-level key of `defaults.yaml` that the repository's file lacks. Other files, such as a README, are ignored.
+3. Each settings file is merged over the repository's file of the same name. Mappings merge key by key. Any other value (a number, a string, a list, null) replaces the repository's value. The registries and `local.yaml` take new keys, such as a new topology, a new donor or a machine path. `configs/local.yaml` may be absent when the folder holds `local.yaml`.
+4. The merged values reach `run_case.py` and, through `PIPELINE_SETTINGS_DIR`, every phase: `pipeline_utils.load_config` merges the folder's `pipeline_config.yaml` in each script.
+5. `run_case.py` prints the folder and the key paths of each settings file. `<run_dir>/resolved_case.yaml` gains a `settings` block with the folder and the key paths of each file, and `<run_dir>/settings/` holds a copy of each settings file.
+
+Without `--settings` a run is as before.
+
+`eulp_release` in `pipeline_config.yaml` names the ResStock and ComStock releases and their OEDI year folders (`residential_year` and `commercial_year`, both 2024). The current releases, 2024 `resstock_tmy3_release_2` and 2024 `comstock_amy2018_release_1`, keep the folder names `Metadata_<ST>_Residential`, `Metadata_<ST>_Commercial`, `parquet_residential_short_<date>_<ST>` and `parquet_commercial_<date>_comm_<ST>`. Any other release adds `_<year>_<release>` to the metadata folder and to the download folder of its dataset, so the files of two releases never mix. Phase 1 stops with `[FAIL]` when the metadata folder of such a release is missing under `eulp_metadata_root`.
+
 ## Peak-day rules
 
 `peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each mixed or stress circuit is simulated on. Baseline circuits run on each feeder's baseline seasonal peak day under both values.
@@ -269,6 +283,7 @@ Every battery draws standby power. Under `storage_standby_element: load` (the de
 - Under `schedule_start: best` each battery starts the day with the energy that best serves that day and returns to it at midnight, as if every day had the same curve. A one-day run therefore assumes the day before left that energy.
 - Each case takes its PV daily shape from one SMART-DS solar site of the donor's region, on the day the circuit runs on: the feeder's baseline peak day under `per_group`, the circuit's day under `per_circuit`. See `pv_profile` in `configs/donor_registry.yaml`.
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
+- `gather_m2_cases.py`, `validate_2x2.py` and `gen_results_table.py` read `configs/local.yaml` only and ignore `--settings` (`gen_results_table.py` takes `--runs-root`).
 - Heating labels are dealt per building profile, and buildings serve different numbers of customers, so the realized customer shares can differ from the mix. Under `heating_label_unit: customer` both the building shares and the customer shares can differ, because a building shared by several customers takes the group of the last customer dealt.
 - A loadshape whose monthly peaks match no building within the largest tolerance takes the buildings of the next 5 % step that matches, so its profile is further from its SMART-DS peaks. The `Tolerance` column of `df_com_matches_out_<ST>.csv` and `df_res_matches_out_<ST>.csv` records the step reached.
 - The forecast error of the valley rules is hourly and independent from hour to hour, while real forecast errors are correlated over hours.
