@@ -75,6 +75,17 @@ Stops with [FAIL]: unknown mix; a load whose building is in some group's mapping
 not in the group it is labelled with; a building file missing from that group's
 required list. A loadshape whose building is in no group's mapping (Phase 7b gives it
 a flat shape) is left out of the curve and printed.
+With peak_day_rule: given, steps 1 to 4 run as above, and:
+- Day X of each feeder and season is the day of its row in given_days.csv of the
+  settings folder (PIPELINE_SETTINGS_DIR, pipeline_utils.read_given_days); a season
+  without a row is left out. Peak_kW is the largest value of the feeder's mix curve on
+  that month and day.
+- Stops with [FAIL]: PIPELINE_SETTINGS_DIR unset; a feeder of the case without a row
+  for the run's season (all such feeders in one message); a given day on which the
+  feeder's mix curve has other than 96 points. Rows for feeders outside the case are
+  printed and left out.
+- Step 6 cuts every mix on day X, 100 % baseline included; the baseline check runs
+  under per_circuit only.
 """
 
 import argparse
@@ -90,7 +101,7 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
-                            peak_day_rule, resolve_config_path, resolve_work_path)
+                            peak_day_rule, read_given_days, resolve_config_path, resolve_work_path)
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation'))
 from heating_split import is_baseline_only, read_loads, split_heating
 
@@ -245,7 +256,7 @@ def run_mix(mix_name):
     """Find day X for every feeder and season of mix_name, then cut its profiles (see
     the module docstring)."""
     rule = peak_day_rule(cfg)
-    if rule != "per_circuit":
+    if rule not in ("per_circuit", "given"):
         print(f"[mix_days] peak_day_rule is {rule}: mix {mix_name} skipped, nothing written.")
         return
     mixes = load_mixes(cfg["mixes_file"])
@@ -272,6 +283,21 @@ def run_mix(mix_name):
     if cfg.get('max_feeders') is not None:
         feeders = feeders[:int(cfg.get('max_feeders'))]
 
+    # peak_day_rule given: the caller's day for each feeder of the case and the run's season
+    given = None
+    if rule == "given":
+        if not os.environ.get("PIPELINE_SETTINGS_DIR"):
+            _fail("peak_day_rule given needs PIPELINE_SETTINGS_DIR (run through run_case.py --settings).")
+        given = read_given_days(os.environ["PIPELINE_SETTINGS_DIR"])
+        names = [feeder_dir.name for feeder_dir in feeders]
+        missing = [name for name in names if (name, SEASON) not in given]
+        if missing:
+            _fail(f"given_days.csv has no {SEASON} row for feeder {', '.join(missing)}.")
+        others = sorted(f"{feeder} {season}" for feeder, season in given if feeder not in names)
+        if others:
+            print(f"[mix_days] given_days.csv rows for feeders outside this case, left out: "
+                  f"{', '.join(others)}")
+
     maps, reqs = {}, {}
     for label, scen, _ in MIX_GROUPS:
         if scen == "baseline":
@@ -286,7 +312,7 @@ def run_mix(mix_name):
         reqs[label] = pd.read_csv(resolve_work_path(req_dir, STR_STATE + req_suffix))
 
     label_rows, weight_rows = [], []
-    mix_peak_curves = {}
+    mix_peak_curves, mix_curves = {}, {}
     n_buildings = n_count_diff = 0
     for feeder_dir in feeders:
         substation_name = feeder_dir.parent.name
@@ -377,12 +403,34 @@ def run_mix(mix_name):
                 else:
                     total_curve += scaled_demand
         if total_curve is not None:
-            mix_peak_curves[feeder_name], _ = monthly_peak_curves(feeder_name, total_curve)
+            mix_peak_curves[feeder_name], mix_curves[feeder_name] = monthly_peak_curves(feeder_name, total_curve)
 
     # 5) Day X per feeder and season
     df_peak_mix = peak_daily_frame(mix_peak_curves)
     day_rows, day_x = [], {}
-    for feeder in df_peak_mix["Feeder"].unique():
+    if given is not None:
+        # Every feeder of the case; one without a curve has 0 points on its day and stops.
+        for feeder in [feeder_dir.name for feeder_dir in feeders]:
+            for season in ("winter", "summer"):
+                if (feeder, season) not in given:
+                    continue
+                month, day = given[(feeder, season)]
+                curve = mix_curves.get(feeder)
+                if curve is None:
+                    on_day = pd.DataFrame(columns=["time", "demand"])
+                else:
+                    on_day = curve[(curve["time"].dt.month == month) & (curve["time"].dt.day == day)]
+                if len(on_day) != 96:
+                    _fail(f"{feeder} {season}: the mix curve of {mix_name} has {len(on_day)} points on "
+                          f"the given day {month:02d}-{day:02d}; expected 96.")
+                peak_date = on_day["time"].iloc[0].date()
+                peak_kw = on_day["demand"].max()
+                day_x[(feeder, season)] = peak_date
+                day_rows.append([feeder, season, mix_name, month, day, peak_kw])
+                print(f"[mix_days] {mix_name} {feeder} {season}: day X {month:02d}-{day:02d} "
+                      f"(given), Peak_kW {peak_kw:.2f}")
+    # Under per_circuit, day X is the mix curve's peak day of each feeder and season.
+    for feeder in (df_peak_mix["Feeder"].unique() if given is None else []):
         for season, months in (("winter", WINTER_MONTHS), ("summer", SUMMER_MONTHS)):
             peak = season_peak_row(df_peak_mix, feeder, months)
             if peak is None:
@@ -406,8 +454,8 @@ def run_mix(mix_name):
     print(f"[mix_days] {mix_name}: {n_buildings} buildings, {n_count_diff} with a load count "
           f"different from REAL_LOAD_COUNT. Written: {days_path}")
 
-    # 6) Baseline check, or the cut on day X
-    if is_baseline_only(shares):
+    # 6) Baseline check, or the cut on day X (every mix under peak_day_rule given)
+    if rule == "per_circuit" and is_baseline_only(shares):
         peak_days_path = resolve_work_path("5b_profile_generation", STR_STATE + "_peak_days.csv")
         ref = pd.read_csv(peak_days_path, dtype=str, keep_default_na=False)
         ref_keys = {(r.Feeder, r.Season): (r.Month, r.Day, r.Peak_kW) for r in ref.itertuples()}

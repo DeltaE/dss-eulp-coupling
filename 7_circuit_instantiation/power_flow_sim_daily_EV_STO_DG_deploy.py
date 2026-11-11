@@ -43,8 +43,9 @@ Inputs
 - <work_root>/5b_profile_generation/<STATE>_peak_days.csv: each feeder's baseline
   winter and summer peak day (Phase 5b).
 - With peak_day_rule: per_circuit in pipeline_config.yaml, for a circuit whose mix is
-  not 100 % baseline: <work_root>/mix_days/<STATE>_circuit_days.csv, the circuit's own
-  peak day per feeder, season and mix (phase mix_days), and the mix's shares in
+  not 100 % baseline, and with given, for every circuit:
+  <work_root>/mix_days/<STATE>_circuit_days.csv, the circuit's day per feeder, season
+  and mix (phase mix_days: its own peak day or the given day), and the mix's shares in
   <work_root>/7_circuit_instantiation/mixes.<ext>, the workspace copy of the mixes
   file (ext yaml, yml or json). The mix is the part of the circuit folder name after
   _circuit_<n>_.
@@ -329,6 +330,7 @@ from storage_control import simple_targets, tuned_targets, schedule, best_start,
 # DER sizing from der_sizing in pipeline_config.yaml (repository root, one level above ROOT)
 sys.path.insert(0, os.path.join(ROOT, '..'))
 from pipeline_utils import load_config, load_mixes, peak_day_rule, ev_control, ev_valley_base, ev_home_window, ev_day
+from pipeline_utils import uses_mix_days
 from pipeline_utils import ev_cars as ev_cars_source, ev_work_share_case
 sys.path.append(ROOT)
 from heating_split import is_baseline_only, load_segment
@@ -727,11 +729,12 @@ def simulated_day(feeder, season):
     """
     Return (month, day) of the simulated day of feeder for season: the feeder's
     baseline peak day for that season in <work_root>/5b_profile_generation/<STATE>_peak_days.csv.
-    With peak_day_rule per_circuit and a circuit mix that is not 100 % baseline, the
-    date is the row of the feeder, season and mix in
-    <work_root>/mix_days/<STATE>_circuit_days.csv instead. The records hold no year.
-    Stops if the season or the peak day is missing, or under per_circuit if the
-    circuit's mix is not in the workspace copy of the mixes file.
+    With peak_day_rule per_circuit and a circuit mix that is not 100 % baseline, and with
+    given for every circuit mix, the date is the row of the feeder, season and mix in
+    <work_root>/mix_days/<STATE>_circuit_days.csv instead (pipeline_utils.uses_mix_days).
+    The records hold no year. Stops if the season or the peak day is missing, or under
+    per_circuit or given if the circuit's mix is not in the workspace copy of the mixes
+    file.
     """
     if season not in ("summer", "winter"):
         print(f"[FAIL] scenario_assignments.json season is {season!r}; expected summer or winter.")
@@ -739,7 +742,7 @@ def simulated_day(feeder, season):
     peak_days_path = os.path.join(CFG["work_root"], "5b_profile_generation",
                                   f"{CFG['state']}_peak_days.csv")
     mix_name = None
-    if PEAK_DAY_RULE == "per_circuit":
+    if PEAK_DAY_RULE in ("per_circuit", "given"):
         m_mix = re.match(r"^.*_circuit_\d+_(.+)$", CIRCUIT_FOLDER)
         mixes_dir = os.path.join(CFG["work_root"], "7_circuit_instantiation")
         mixes_path = next((os.path.join(mixes_dir, f"mixes{ext}") for ext in (".yaml", ".yml", ".json")
@@ -749,7 +752,7 @@ def simulated_day(feeder, season):
         if not m_mix or m_mix.group(1) not in mixes:
             print(f"[FAIL] No mix for circuit folder {CIRCUIT_FOLDER} in {mixes_path}.")
             sys.exit(1)
-        if not is_baseline_only(mixes[m_mix.group(1)]["shares"]):
+        if uses_mix_days(PEAK_DAY_RULE, is_baseline_only(mixes[m_mix.group(1)]["shares"])):
             mix_name = m_mix.group(1)
             peak_days_path = os.path.join(CFG["work_root"], "mix_days",
                                           f"{CFG['state']}_circuit_days.csv")
@@ -765,7 +768,7 @@ def simulated_day(feeder, season):
               f"{' and mix ' + mix_name if mix_name else ''} in {peak_days_path}; expected 1.")
         sys.exit(1)
     if mix_name:
-        print(f"PV day -> peak_day_rule per_circuit, mix {mix_name}, from {peak_days_path}")
+        print(f"PV day -> peak_day_rule {PEAK_DAY_RULE}, mix {mix_name}, from {peak_days_path}")
     return int(rows[0]["Month"]), int(rows[0]["Day"])
 
 def pv_daily_shape(feeder, season):

@@ -30,7 +30,7 @@ from typing import Optional, Iterable
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
-                            peak_day_rule, resolve_work_path)
+                            peak_day_rule, resolve_work_path, uses_mix_days)
 from heating_split import is_baseline_only, line_shares, load_segment, split_heating
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deployer_modules'))
 from der_sizing import SEGMENTS, der_choice, der_switch, pick_hosts, segment_count
@@ -84,8 +84,8 @@ HP_BASELINE_ROOT = Path(resolve_work_path("7_circuit_instantiation", STATE + '_4
 HP_DM_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_6_profhp_dm'))
 HP_UN_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_7_profhp_un'))
 # peak_day_rule (pipeline_config.yaml): with per_circuit, a circuit whose mix is not
-# 100 % baseline reads the three profhp roots under <work_root>/mix_days/<mix>/
-# (phase mix_days) instead.
+# 100 % baseline, and with given, every circuit, reads the three profhp roots under
+# <work_root>/mix_days/<mix>/ (phase mix_days) instead (pipeline_utils.uses_mix_days).
 PEAK_DAY_RULE = peak_day_rule(cfg)
 # heating_label_unit (pipeline_config.yaml): building or customer, the unit the heating
 # split counts (heating_split.split_heating).
@@ -365,16 +365,16 @@ for feeder in feeders:
         # per-bucket indexing (state/season)
         bucket_name = bucket_from_map(feeder_name, STATE, SEASON)
         hp_baseline_root, hp_dm_root, hp_un_root = HP_BASELINE_ROOT, HP_DM_ROOT, HP_UN_ROOT
-        if PEAK_DAY_RULE == "per_circuit" and not is_baseline_only(shares):
+        if uses_mix_days(PEAK_DAY_RULE, is_baseline_only(shares)):
             mix_phase7 = Path(resolve_work_path("mix_days", mix_name, "7_circuit_instantiation"))
             hp_baseline_root = mix_phase7 / (STATE + '_4_profhp')
             hp_dm_root       = mix_phase7 / (STATE + '_6_profhp_dm')
             hp_un_root       = mix_phase7 / (STATE + '_7_profhp_un')
-            print(f"  - peak_day_rule per_circuit: profiles from {mix_phase7}")
+            print(f"  - peak_day_rule {PEAK_DAY_RULE}: profiles from {mix_phase7}")
             for root in (hp_baseline_root, hp_dm_root, hp_un_root):
                 if not (root / "daily_csvs" / (bucket_name or "")).is_dir():
                     print(f"[FAIL] {root / 'daily_csvs' / (bucket_name or '')} not found. "
-                          f"Run phase mix_days with peak_day_rule: per_circuit first.")
+                          f"Run phase mix_days with peak_day_rule: {PEAK_DAY_RULE} first.")
                     sys.exit(1)
         if bucket_name:
             print(f"  • Using mapped bucket: {bucket_name}")
