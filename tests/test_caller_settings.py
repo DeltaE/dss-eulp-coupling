@@ -5,7 +5,8 @@ test_caller_settings.py
 Settings from a caller (run_case.py --settings): the merge of a settings file over the
 repository's file with its strict keys, the check of the settings folder, load_config
 under PIPELINE_SETTINGS_DIR, and run_case.py --dry-run with and without --settings.
-Needs no SMART-DS/EULP data.
+The EULP release in data folder names: the parquet folder names and the Phase 1
+metadata folder of a release other than the current one. Needs no SMART-DS/EULP data.
 
 Run directly (no pytest needed): python tests/test_caller_settings.py
 Or under pytest: pytest tests/test_caller_settings.py
@@ -24,6 +25,8 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 from pipeline_utils import (SETTINGS_ENV, check_settings_dir, load_config, merge_settings,  # noqa: E402
                             read_settings_file, settings_key_paths)
+from pipeline_utils import (EULP_CURRENT_RELEASE, eulp_parquet_folder, eulp_release,  # noqa: E402
+                            eulp_release_suffix)
 
 
 def _stops(fn, *args):
@@ -176,6 +179,59 @@ def test_dry_run_with_and_without_settings():
         if metadata_dir:
             os.remove(local_path)
             os.rmdir(metadata_dir)
+
+
+def test_eulp_parquet_folder():
+    current = {"eulp_download_date": "20250330", "state": "NC",
+               "eulp_release": {"residential": "resstock_tmy3_release_2",
+                                "commercial": "comstock_amy2018_release_1",
+                                "residential_year": 2024, "commercial_year": 2024}}
+    assert eulp_parquet_folder(current, "residential") == "parquet_residential_short_20250330_NC"
+    assert eulp_parquet_folder(current, "commercial") == "parquet_commercial_20250330_comm_NC"
+    amy = dict(current, eulp_release=dict(current["eulp_release"], residential="resstock_amy2018_release_2"))
+    assert eulp_parquet_folder(amy, "residential").endswith("_2024_resstock_amy2018_release_2")
+    assert eulp_parquet_folder(amy, "commercial") == "parquet_commercial_20250330_comm_NC"
+    later = dict(current, eulp_release=dict(current["eulp_release"], residential_year=2025))
+    assert eulp_release_suffix(later, "residential") == "_2025_resstock_tmy3_release_2"
+    no_year = dict(current, eulp_release={"residential": "resstock_tmy3_release_2"})
+    assert eulp_release(no_year, "residential") == (2024, "resstock_tmy3_release_2")
+    assert eulp_release_suffix(no_year, "residential") == ""
+    assert eulp_release(load_config(os.path.join(REPO_ROOT, "pipeline_config.yaml")), "residential") == \
+        EULP_CURRENT_RELEASE["residential"]
+
+
+def test_planned_files_for_release_folder():
+    sys.path.insert(0, os.path.join(REPO_ROOT, "1_data_provenance", "src"))
+    from eulp_metadata.build import DEFAULT_CONFIG, load_workflow, planned_files_for_dataset
+    config = load_workflow(DEFAULT_CONFIG)
+    cluster = {"states": ["NC"], "residential_folder_groups": ["residential_tmy3"],
+               "residential_upgrades": ["baseline"]}
+    root = tempfile.mkdtemp()
+    settings = tempfile.mkdtemp()
+    saved = {k: os.environ.get(k) for k in (SETTINGS_ENV, "PIPELINE_EULP_METADATA_ROOT")}
+    try:
+        _write(settings, "pipeline_config.yaml", "eulp_release: {residential: resstock_amy2018_release_2}\n")
+        os.environ[SETTINGS_ENV] = settings
+        os.environ["PIPELINE_EULP_METADATA_ROOT"] = root
+        assert _stops(planned_files_for_dataset, config, cluster, "residential")
+        folder = os.path.join(root, "Metadata_NC_Residential_2024_resstock_amy2018_release_2")
+        os.makedirs(folder)
+        _write(folder, "NC_baseline_metadata_and_annual_results.csv", "bldg_id\n1\n")
+        files = planned_files_for_dataset(config, cluster, "residential")
+        assert [f["file"] for f in files] == [
+            "Metadata_NC_Residential_2024_resstock_amy2018_release_2/NC_baseline_metadata_and_annual_results.csv"]
+        del os.environ[SETTINGS_ENV]
+        files = planned_files_for_dataset(config, cluster, "residential")
+        assert files == [{"state": "NC", "group": "residential_tmy3", "folder": "Metadata_NC_Residential",
+                          "exists": False, "file": None}]
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+        shutil.rmtree(root)
+        shutil.rmtree(settings)
 
 
 if __name__ == "__main__":

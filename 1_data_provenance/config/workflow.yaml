@@ -4,6 +4,7 @@ paths:
   outputs: outputs
 
 # The EULP release of each metadata folder is eulp_release in pipeline_config.yaml.
+# For a release other than the current one, the folder name gains _<year>_<release>.
 folder_groups:
   residential_tmy3:
     dataset: residential

@@ -15,7 +15,7 @@ import requests
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, resolve_work_path
+from pipeline_utils import eulp_parquet_folder, eulp_release, load_config, resolve_work_path
 
 # -------------------------
 # Configuration
@@ -34,8 +34,7 @@ if not os.path.isabs(PARQUET_DATA_ROOT):
 # Match your use case (MN from your link); change as needed
 STATES_OF_INTEREST = [STATE]         # e.g. ["NC", "TX", ...]
 CASE_ID = f"{DOWNLOAD_DATE}_{STATE}"    # folder suffix for downloads
-QUERY_YEAR = 2024
-DATASET = cfg['eulp_release']['residential']  # eulp_release in pipeline_config.yaml
+QUERY_YEAR, DATASET = eulp_release(cfg, 'residential')  # eulp_release in pipeline_config.yaml
 BUCKET = "oedi-data-lake"
 ROOT_PREFIX = "nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock"
 
@@ -60,7 +59,7 @@ column_selection_case = {
 # Resolved via resolve_work_path at read time (see load_target_bldg_ids_for_state).
 
 # Download params
-DOWNLOAD_DIR_TEMPLATE = os.path.join(PARQUET_DATA_ROOT, f"parquet_residential_short_{CASE_ID}")
+DOWNLOAD_DIR_TEMPLATE = os.path.join(PARQUET_DATA_ROOT, eulp_parquet_folder(cfg, 'residential'))
 CHUNK_SIZE = 50              # split URL list into chunks to avoid burstiness
 REQUEST_TIMEOUT = 60
 SLEEP_BETWEEN_CHUNKS_SEC = 0.25

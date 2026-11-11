@@ -290,6 +290,37 @@ def settings_key_paths(override, _prefix=""):
     return sorted(paths)
 
 
+# The OEDI year folder and release whose metadata and download folders carry no release
+# in their names.
+EULP_CURRENT_RELEASE = {"residential": (2024, "resstock_tmy3_release_2"),
+                        "commercial": (2024, "comstock_amy2018_release_1")}
+
+
+def eulp_release(cfg, dataset):
+    """(year, name) of the EULP release of `dataset` (residential or commercial) in
+    eulp_release of pipeline_config.yaml; the year key defaults to 2024."""
+    name = cfg["eulp_release"][dataset]
+    year = int(cfg["eulp_release"].get(f"{dataset}_year", 2024))
+    return year, name
+
+
+def eulp_release_suffix(cfg, dataset):
+    """The empty string for the current release of `dataset`, else _<year>_<release>."""
+    year, name = eulp_release(cfg, dataset)
+    if (year, name) == EULP_CURRENT_RELEASE[dataset]:
+        return ""
+    return f"_{year}_{name}"
+
+
+def eulp_parquet_folder(cfg, dataset):
+    """The Phase 5a download folder name of `dataset` under the parquet data root."""
+    date, state = cfg["eulp_download_date"], cfg["state"]
+    suffix = eulp_release_suffix(cfg, dataset)
+    if dataset == "residential":
+        return f"parquet_residential_short_{date}_{state}{suffix}"
+    return f"parquet_commercial_{date}_comm_{state}{suffix}"
+
+
 def load_config(config_path=None):
     settings_dir = os.environ.get(SETTINGS_ENV) if config_path is None else None
     if config_path is None:
