@@ -6,8 +6,9 @@ ev_cars.py (Phase 7 deploy, the EV cars) and the two extract scripts on small
 hand-made data: the seeds, the level and charging draws, charge_shape and the plug-in
 window, the share of cars charging, the NHTS day classes and windows, the NHTS speed
 check (class iv), the NHTS work pieces, the EV WATTS
-extract filters (residential and office venues), the repaired 2024 generator, and the
-ev_cars, ev_home_window and ev_day settings.
+extract filters (residential and office venues), the repaired 2024 generator, the work
+cars (charge_window, work_window, work_cars, read_bus_coords, work_share), and the
+ev_cars, ev_home_window, ev_day and ev_work_share_case settings.
 
 Run directly (no pytest needed): python tests/test_ev_cars.py
 Or under pytest: pytest tests/test_ev_cars.py
@@ -23,13 +24,15 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation", "deployer_modules"))
-from ev_cars import (charge_shape, charging_share, evwatts_cars, pick, plug_window, rng,  # noqa: E402
-                     seed, session_rows_cars, window_intervals)
+from ev_cars import (charge_shape, charge_window, charging_share, evwatts_cars, load_inputs,  # noqa: E402
+                     nhts_cars, pick, plug_window, read_bus_coords, rng, seed, session_rows_cars,
+                     window_intervals, work_cars, work_window)
 from build_nhts_extract import vehicle_days  # noqa: E402
 from build_evwatts_extract import apply_filters  # noqa: E402
-from pipeline_utils import ev_cars, ev_day, ev_home_window  # noqa: E402
+from pipeline_utils import ev_cars, ev_day, ev_home_window, ev_work_share_case  # noqa: E402
 
 INPUTS = {"level2_kw": 7.2, "level1_kw": 1.0, "kwh_per_mile": 33.7 / 99.9}
+INPUTS_PATH = os.path.join(REPO_ROOT, "7_circuit_instantiation", "data_ev_cars", "ev_inputs.yaml")
 OLD_COLUMNS = ["HOUSEID", "VEHID", "TDAYDATE", "TRAVDAY", "WTHHFIN", "day_class", "arrival_min",
                "departure_min", "window_min", "driver_miles", "n_driver_trips", "n_miles_missing"]
 
@@ -251,6 +254,116 @@ def test_repaired_generator():
     assert not np.array_equal(rows, other)
 
 
+def test_charge_window():
+    # on a contiguous window charge_window equals charge_shape
+    for a, n_w, e in ((40, 5, 5.0), (94, 10, 5.0), (0, 96, 60.0), (10, 2, 7.0)):
+        assert np.array_equal(charge_window(window_intervals(a, n_w), 7.2, e), charge_shape(a, 7.2, e, n_w))
+    # a two-piece window (08:00 to 12:00 and 13:00 to 17:00) is filled in list order: 20 kWh at
+    # 7.2 kW = 80 kW-intervals = 11 full intervals and 0.8 kW left, all inside the first piece
+    a, window, minute = work_window("480:240|780:240")
+    assert (a, minute) == (32, 480.0)
+    row = charge_window(window, 7.2, 20.0)
+    assert list(np.flatnonzero(row)) == list(range(32, 44))
+    assert np.isclose(row[43], 0.8) and np.isclose(row.sum() / 4.0, 20.0)
+    # 50 kWh = 200 kW-intervals = 27 full intervals and 5.6 kW left: the first piece (16
+    # intervals) fills, then the second piece from interval 52, the leftover in interval 63
+    row = charge_window(window, 7.2, 50.0)
+    assert list(np.flatnonzero(row)) == list(range(32, 48)) + list(range(52, 64))
+    assert np.isclose(row[63], 5.6) and np.isclose(row.sum() / 4.0, 50.0)
+    # 60 kWh does not fit in the 32 intervals: every interval gets 7.2 kW, 2.4 kWh is left over
+    row = charge_window(window, 7.2, 60.0)
+    assert np.count_nonzero(row) == 32 and np.isclose(row.sum() / 4.0, 57.6)
+
+
+def test_work_window():
+    a, window, minute = work_window("480:240|780:290")
+    assert (a, minute) == (32, 480.0)
+    assert window == list(range(32, 48)) + list(range(52, 72))
+    assert len(window) == 36
+    # a piece that wraps past midnight and a repeated interval are not duplicated
+    a, window, minute = work_window("1410:60|0:30")
+    assert (a, minute) == (94, 1410.0)
+    assert window == [94, 95, 0, 1]
+
+
+def _office_pool():
+    return pd.DataFrame({"session_id": [101, 102, 103], "start_min": [480.0, 510.0, 540.0],
+                         "plug_min": [240.0, 180.0, 300.0], "charge_h": [2.0, 1.5, 2.5],
+                         "energy_kwh": [12.0, 9.0, 15.0]})
+
+
+def _same_car(a, b):
+    return all(np.array_equal(a[k], b[k]) if isinstance(a[k], np.ndarray) else a[k] == b[k] for k in a) and a.keys() == b.keys()
+
+
+def test_work_cars():
+    pool = pd.DataFrame({"session_id": [9], "start_min": [1080.0], "plug_min": [600.0], "charge_h": [2.0],
+                         "energy_kwh": [10.0]})
+    hosts = [f"h{k}" for k in range(30)]
+    cars = evwatts_cars("uncontrolled", hosts, pool, 1.0, 1.0, INPUTS, 555)
+    offices = ["off_a", "off_b", "off_c"]
+    # share 0: the same list, nothing drawn
+    assert work_cars("uncontrolled", cars, 0.0, offices, INPUTS, 555, "evwatts_sessions", _office_pool()) is cars
+    # no charging car: the same list
+    idle = evwatts_cars("uncontrolled", hosts[:5], pool, 0.0, 1.0, INPUTS, 555)
+    assert work_cars("uncontrolled", idle, 0.5, offices, INPUTS, 555, "evwatts_sessions", _office_pool()) is idle
+    # session_rows: the work share is not applied
+    assert work_cars("uncontrolled", cars, 0.5, offices, INPUTS, 555, "session_rows") is cars
+    # share 0.10 on 30 charging cars: floor(0.10 x 30 + 0.5) = 3 work cars
+    out = work_cars("uncontrolled", cars, 0.10, offices, INPUTS, 555, "evwatts_sessions", _office_pool())
+    work = [k for k, c in enumerate(out) if c["place"] == "work"]
+    assert len(out) == 30 and len(work) == 3
+    for k, c in enumerate(out):
+        if k in work:
+            assert c["place_load"] in offices and c["car"] == cars[k]["car"] and c["host"] == cars[k]["host"]
+            assert c["group"] == "uncontrolled" and c["level"] == "L2" and c["charges_today"]
+            assert c["source_id"] in ("101", "102", "103") and c["charging_share"] == cars[k]["charging_share"]
+            assert np.isclose(c["delivered_kwh"], c["energy_kwh"])
+            assert cars[k]["place"] == "home" and cars[k]["place_load"] == cars[k]["host"]
+        else:
+            assert _same_car(c, cars[k])
+    again = work_cars("uncontrolled", cars, 0.10, offices, INPUTS, 555, "evwatts_sessions", _office_pool())
+    assert all(_same_car(a, b) for a, b in zip(out, again))
+    other = work_cars("uncontrolled", cars, 0.10, offices, INPUTS, 556, "evwatts_sessions", _office_pool())
+    assert [c["place"] for c in other] != [c["place"] for c in out] or \
+        [c["place_load"] for c in other] != [c["place_load"] for c in out] or \
+        [c["source_id"] for c in other] != [c["source_id"] for c in out]
+    # the controlled group draws with its own names
+    cars_c = evwatts_cars("controlled", hosts, pool, 1.0, 1.0, INPUTS, 555)
+    out_c = work_cars("controlled", cars_c, 0.10, offices, INPUTS, 555, "evwatts_sessions", _office_pool())
+    assert sum(c["place"] == "work" for c in out_c) == 3
+    # nhts_days: a work car's row sums to its energy when the window holds it
+    days = pd.DataFrame({"HOUSEID": ["7"], "VEHID": [1], "TDAYDATE": ["201608"], "TRAVDAY": ["03"], "WTHHFIN": [1.0],
+                         "day_class": ["i"], "arrival_min": [1080], "departure_min": [420], "window_min": [780],
+                         "driver_miles": [30.0], "n_driver_trips": [2], "n_miles_missing": [0]})
+    work_days = pd.DataFrame({"HOUSEID": ["8", "9"], "VEHID": [1, 2], "WTHHFIN": [1.0, 1.0], "day_class": ["i", "i"],
+                              "driver_miles": [30.0, 40.0], "n_work_pieces": [1, 2],
+                              "work_pieces": ["480:540", "480:240|780:290"]})
+    cars_n = nhts_cars("uncontrolled", hosts, days, 1.0, INPUTS, 555)
+    out_n = work_cars("uncontrolled", cars_n, 0.10, offices, INPUTS, 555, "nhts_days", work_day_pool=work_days)
+    work_n = [c for c in out_n if c["place"] == "work"]
+    assert len(work_n) == 3
+    for c in work_n:
+        assert c["source_id"] in ("8-1", "9-2") and c["day_class"] == "i" and c["power_kw"] == 7.2
+        assert c["plug_in_interval"] == 33 and c["plug_minute"] == 480.0
+        assert np.isclose(c["energy_kwh"], (30.0 if c["source_id"] == "8-1" else 40.0) * INPUTS["kwh_per_mile"])
+        assert np.isclose(c["row"].sum() / 4.0, c["energy_kwh"]) and np.isclose(c["leftover_kwh"], 0.0)
+        assert c["window_intervals"] == 36
+        assert set(np.flatnonzero(c["row"])) <= set(c["window"])
+
+
+def test_read_bus_coords(tmp_path):
+    p = tmp_path / "Buscoords.dss"
+    p.write_text("udm715 -79.8022855531746 36.08618863548974\nB2,-79.1,36.2\n\nnot a line\nb3 x y\n",
+                 encoding="utf-8")
+    assert read_bus_coords(str(p)) == {"udm715": (-79.8022855531746, 36.08618863548974), "b2": (-79.1, 36.2)}
+
+
+def test_work_share_inputs():
+    for value_set in ("typical", "stress"):
+        assert load_inputs(INPUTS_PATH, value_set)["work_share"] == {"low": 0.0, "moderate": 0.10, "high": 0.20}
+
+
 def _stops(fn, cfg):
     try:
         fn(cfg)
@@ -273,6 +386,10 @@ def test_settings():
         assert ev_day({"ev_day": value}) == value
     assert _stops(ev_day, {"ev_day": "peak"})
     assert _stops(ev_day, {})
+    for value in ("low", "moderate", "high"):
+        assert ev_work_share_case({"ev_work_share_case": value}) == value
+    assert _stops(ev_work_share_case, {"ev_work_share_case": "medium"})
+    assert _stops(ev_work_share_case, {})
 
 
 if __name__ == "__main__":

@@ -152,6 +152,20 @@ def ev_day(cfg):
     return day
 
 
+EV_WORK_SHARE_CASES = ("low", "moderate", "high")
+
+
+def ev_work_share_case(cfg):
+    """Return ev_work_share_case from the loaded pipeline_config.yaml. A missing or
+    unknown value prints [FAIL] and exits 1."""
+    case = cfg.get("ev_work_share_case")
+    if case not in EV_WORK_SHARE_CASES:
+        print(f"[FAIL] ev_work_share_case in pipeline_config.yaml is {case!r}; "
+              f"expected one of {', '.join(EV_WORK_SHARE_CASES)}.")
+        sys.exit(1)
+    return case
+
+
 HEATING_LABEL_UNITS = ("building", "customer")
 
 

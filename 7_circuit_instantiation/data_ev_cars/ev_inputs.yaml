@@ -101,6 +101,15 @@ start_spread_min:
   source: "Uplight, What Does EV Charging Data Tell Us About TOU Program Effectiveness? (users often start charging right at the beginning of the off-peak period, often within the first minute): https://uplight.com/blog/what-does-ev-charging-data-tell-us-about-tou-program-effectiveness/"
   assumption: "ASSUMPTION: cars on a time-of-use schedule set their start around the start of the cheap period, normally distributed with a standard deviation of 60 minutes on a typical day and 15 minutes on a stress day, when more cars start at the same moment; field data show many users start charging at the beginning of the off-peak period (Uplight), and a narrower spread raises the fleet's peak at that moment. A scheduled car starts at the later of its schedule time and its plug-in time, so a car plugged in after its schedule time starts at once, not the next day."
 
+# Share of the EV cars charging on the simulated weekday that charge at a workplace
+# (a commercial load of the same circuit) and not at home; ev_work_share_case in
+# pipeline_config.yaml picks the case. The same menu holds on typical and stress days.
+work_share:
+  typical: {low: 0.0, moderate: 0.10, high: 0.20}
+  stress: {low: 0.0, moderate: 0.10, high: 0.20}
+  source: "EVI-Pro Lite daily-load-profile API, U.S. Department of Energy (weekday energy at work over energy at home and at work, 30,000 battery EVs, every car with home charging; 0.095 when every car prefers home, 0.212 when 60 percent prefer home): https://doi.org/10.15483/1855624; Idaho National Laboratory, Plugged In: How Americans Charge Their Electric Vehicles, INL/EXT-15-35584 (2015), Figure 3 (87 percent of Volt and 84 percent of Leaf charging at home) and Figure 7 (32 and 39 percent of charging at work for drivers with home and workplace charging): https://inldigitallibrary.inl.gov/sites/sti/sti/7323604.pdf"
+  assumption: "ASSUMPTION: under moderate, 10 percent of the EV cars that charge on the simulated weekday charge at a workplace and the other 90 percent at home, rounded from EVI-Pro Lite's 9.5 percent of home and work energy at work when every car has home charging and prefers it, and above the 84 and 87 percent of charging done at home by the drivers INL studied; high (20 percent) is rounded from EVI-Pro Lite's 21.2 percent when 60 percent prefer home, and low (0) keeps every car at home. The share is tunable: a higher share moves charging from evenings at homes to mornings at commercial loads. Public charging is not modelled, so the share divides charging between home and work only."
+
 # Highest average speed of an NHTS driver trip, mph. build_nhts_extract.py makes a
 # vehicle-day with a faster driver trip class (iv); it reads the typical value.
 nhts_max_trip_speed_mph:
