@@ -1,0 +1,2 @@
+New Load.load_1_1 phases=1 bus1=bus1.1 kV=0.24 kW=1 kvar=1 model=1 conn=wye daily=res_1_1
+New Load.load_1_2 phases=1 bus1=bus1.2 kV=0.24 kW=1 kvar=1 model=1 conn=wye daily=res_1_1

@@ -9,34 +9,29 @@ Created on Wed Nov 12 18:19:52 2025
 
 from pathlib import Path
 import os
+import re
 import sys
 import pandas as pd
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import load_config, resolve_work_path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation', 'deployer_modules'))
+from load_voltage import circuit_summary
 
 # --- Configuration ------------------------------------------------------------
 cfg = load_config()
 STATE = cfg['state']
 
-# Resolve season: PIPELINE_SEASON env var (set by run_case.py per season loop)
-# takes priority, then fall back to pipeline_config.yaml.  Never silently
-# default to 'unknown' — that masks the very bug this fix addresses.
-_env_season = os.environ.get("PIPELINE_SEASON", "").strip().lower()
-_cfg_season = cfg.get("season", "").strip().lower()
-SEASON = _env_season or _cfg_season
-if not SEASON:
-    raise RuntimeError(
-        "Cannot resolve season: neither PIPELINE_SEASON env var nor "
-        "pipeline_config.yaml 'season' key is set.  Fix your config."
-    )
+# Season: PIPELINE_SEASON, set by run_case.py for each season. load_config exits 1
+# when it is unset.
+SEASON = cfg['season'].strip().lower()
 VALID_SEASONS = {"summer", "winter"}
 if SEASON not in VALID_SEASONS:
     raise ValueError(
         f"Season '{SEASON}' not in {VALID_SEASONS}. "
-        f"Check PIPELINE_SEASON env var or pipeline_config.yaml."
+        f"Check PIPELINE_SEASON."
     )
-print(f"[append] season = '{SEASON}'  (source: {'env PIPELINE_SEASON' if _env_season else 'pipeline_config.yaml'})")
+print(f"[append] season = '{SEASON}'  (source: env PIPELINE_SEASON)")
 
 OUTPUT_DIR = Path(resolve_work_path("8_results_analysis"))
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -92,6 +87,34 @@ def combine_and_save(base_dir: Path, output_dir: Path,
     return combined
 
 
+def load_voltage_summary(circuits_dir: Path, output_dir: Path) -> pd.DataFrame:
+    """
+    One row per circuit folder (<substation>_circuit_<n>_<scenario>) of circuits_dir,
+    from its ModifiedCircuitData/load_voltage_loads.csv, over customer loads only
+    (ev_leg False, see circuit_summary): lowest and highest load v_pu of the day, loads
+    ever below and above voltage_band, and load-steps outside it.
+    Saves load_voltage_summary.csv in output_dir. Stops if a circuit has no file.
+    """
+    band = cfg.get("voltage_band") or {}
+    low, high = float(band["low_pu"]), float(band["high_pu"])
+    rows = []
+    print("\n=== Load voltage summary ===")
+    for circuit_dir in sorted(circuits_dir.iterdir(), key=lambda p: p.name.lower()):
+        if not (circuit_dir.is_dir() and re.match(r"^(.+)_(circuit_\d+)_(.+)$", circuit_dir.name, re.IGNORECASE)):
+            continue
+        in_path = circuit_dir / "ModifiedCircuitData" / "load_voltage_loads.csv"
+        if not in_path.exists():
+            print(f"  Missing input file {in_path}")
+            sys.exit(1)
+        rows.append({"circuit_folder": circuit_dir.name,
+                     **circuit_summary(pd.read_csv(in_path), low, high)})
+    out_path = output_dir / "load_voltage_summary.csv"
+    summary = pd.DataFrame(rows)
+    summary.to_csv(out_path, index=False)
+    print(f"  Wrote {len(summary):,} rows -> {out_path}")
+    return summary
+
+
 # --- Main ---------------------------------------------------------------------
 if __name__ == "__main__":
     # If your script is not in the parent folder, uncomment and set an absolute path:
@@ -99,5 +122,7 @@ if __name__ == "__main__":
 
     for in_name, out_name in TARGET_FILES:
         combine_and_save(Path("."), OUTPUT_DIR, FOLDERS, in_name, out_name)
+
+    load_voltage_summary(Path(resolve_work_path("7_circuit_instantiation")), OUTPUT_DIR)
 
     print("\nAll done.")

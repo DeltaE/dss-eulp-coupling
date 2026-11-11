@@ -20,7 +20,7 @@ python .\0_download_smartds\download_smartds.py `
   --regions GSO `
   --subregions rural `
   --scenarios base_timeseries `
-  --output-dir .\0_download_smartds\data_raw\smartds `
+  --output-dir <smart_ds_base> `
   --dry-run
 ```
 
@@ -29,10 +29,10 @@ Download the default legacy subset for all three regions:
 ```powershell
 python .\0_download_smartds\download_smartds.py `
   --regions SFO AUS GSO `
-  --output-dir .\0_download_smartds\data_raw\smartds
+  --output-dir <smart_ds_base>
 ```
 
-The default scenario subset matches the `D:\lvg` workflow:
+The default scenario subset matches the legacy download workflow:
 
 - `base_timeseries`
 - `solar_high_batteries_high_timeseries`
@@ -54,34 +54,30 @@ folder:
 
 ```powershell
 python .\0_download_smartds\stage_circuits_plain.py `
-  --smartds-root .\0_download_smartds\data_raw\smartds `
-  --target .\ab_3b\circuits_plain_format `
-  --registry .\feeder_registry.json
+  --smartds-root <smart_ds_base>\GSO\urban-suburban\base_timeseries\opendss `
+  --target <work_dir>\circuits_plain_format `
+  --registry <work_dir>\feeder_registry.json
 ```
 
 The staging script discovers feeder folders by looking for both `Loads.dss` and
 `LoadShapes.dss`, then copies each feeder into a flat folder. Name collisions are
 resolved with suffixes like `__2`.
 
-For a narrow fire test using the existing `D:\lvg` download without copying
+For a narrow fire test using an existing download without copying
 feeders into the repo, use the same source root for the registry and runtime:
 
 ```powershell
-$env:PIPELINE_SMART_DS_ROOT = "D:\lvg\GSO\rural\base_timeseries\opendss"
-$env:PIPELINE_FEEDER_REGISTRY_PATH = "feeder_registry.json"
-$env:PIPELINE_MAX_FEEDERS = "2"
-
 python .\0_download_smartds\stage_circuits_plain.py `
-  --smartds-root $env:PIPELINE_SMART_DS_ROOT `
-  --registry .\feeder_registry.json `
+  --smartds-root <smart_ds_base>\GSO\rural\base_timeseries\opendss `
+  --target <work_dir>\circuits_plain_format `
+  --registry <work_dir>\feeder_registry.json `
   --registry-only `
   --max-feeders 2
 ```
 
 ## Data Hygiene
 
-The downloaded and staged circuit data can be hundreds of gigabytes. The repo
-ignores the default data folders:
-
-- `0_download_smartds/data_raw/`
-- `ab_3b/circuits_plain_format/`
+The downloaded and staged circuit data can be hundreds of gigabytes. Both scripts
+require their output paths and have no default. Keep those paths outside the
+repository. `<smart_ds_base>` and `<work_dir>` stand for folders on your
+machine. Point `smart_ds_base` in `configs/local.yaml` at the download folder.

@@ -52,7 +52,6 @@ RNG = random.Random(RANDOM_SEED)
 random.seed(RANDOM_SEED)
 np.random.seed(RANDOM_SEED)
 
-current_dir = os.path.dirname(os.path.abspath(__file__))
 PHASE4_OUTPUT_DIR = resolve_work_path("4_quota_assignment")
 os.makedirs(PHASE4_OUTPUT_DIR, exist_ok=True)
 
@@ -314,7 +313,7 @@ assign_pass(com_order, com_type_records, com_quota, com_assigned_parquets,
 
 # commercial mop-up (NEW: the original had none)
 com_missing = set(unique_com_parquets) - com_assigned_parquets
-com_still = mop_up(com_missing, com_exploded, COM_TYPE, com_selected, RNG, com_df, com_used)
+mop_up(com_missing, com_exploded, COM_TYPE, com_selected, RNG, com_df, com_used)
 
 final_commercial = pd.DataFrame(com_selected)
 report(final_commercial, COM_TYPE, com_quota, com_target, "Commercial")
@@ -379,8 +378,8 @@ for csv_name in residential_priority:
 
 # residential mop-up: occupied pool first, then vacant fallback
 res_missing = set(unique_res_parquets) - res_assigned_parquets
-res_still = mop_up(res_missing, res_exploded, RES_TYPE, res_selected, RNG,
-                   final_residential_raw, res_used, fallback_lookup=final_residential_raw_vacant)
+mop_up(res_missing, res_exploded, RES_TYPE, res_selected, RNG,
+       final_residential_raw, res_used, fallback_lookup=final_residential_raw_vacant)
 
 final_residential = pd.DataFrame(res_selected)
 report(final_residential, RES_TYPE, res_quota, res_target, "Residential")
@@ -389,8 +388,6 @@ report(final_residential, RES_TYPE, res_quota, res_target, "Residential")
 # ==================================================================
 # OUTPUT
 # ==================================================================
-COPY_FILE_BOOL = False  # parquet copying handled downstream; kept off as in original
-
 final_commercial_csv = f"{FAMILY_STR}_final_commercial.csv"
 final_residential_csv = f"{FAMILY_STR}_final_residential.csv"
 final_commercial.to_csv(phase4_csv(final_commercial_csv), index=False)

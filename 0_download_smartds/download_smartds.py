@@ -24,11 +24,9 @@ import requests
 BUCKET = "oedi-data-lake"
 S3_BASE_URL = f"https://{BUCKET}.s3.amazonaws.com"
 SMARTDS_ROOT_PREFIX = "SMART-DS/v1.0"
-REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_YEAR = 2018
 DEFAULT_SCENARIOS = ("base_timeseries", "solar_high_batteries_high_timeseries")
 DEFAULT_REGIONS = ("SFO", "AUS", "GSO")
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "0_download_smartds" / "data_raw" / "smartds"
 DEFAULT_SUFFIXES = {
     "opendss": (".dss",),
     "analysis": (".csv",),
@@ -347,7 +345,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--regions", nargs="+", default=list(DEFAULT_REGIONS), help="SMART-DS regions such as SFO AUS GSO.")
     parser.add_argument("--subregions", nargs="+", help="Optional subregion filter, e.g. P21U rural urban-suburban.")
     parser.add_argument("--scenarios", nargs="+", default=list(DEFAULT_SCENARIOS))
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument("--output-dir", type=Path, required=True,
+                        help="Folder that receives the download, outside the repository (smart_ds_base in configs/local.yaml).")
     parser.add_argument("--manifest", type=Path, help="Optional JSONL manifest path for the planned files.")
     parser.add_argument("--only-opendss", action="store_true", help="Download only OpenDSS .dss files and analysis CSVs.")
     parser.add_argument("--skip-analysis", action="store_true", help="Skip analysis CSVs under opendss/**/analysis.")

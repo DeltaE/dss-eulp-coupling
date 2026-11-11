@@ -1,20 +1,29 @@
 # DSS-EULP Coupling Pipeline — Python dependencies
-# Tested with Python 3.9+
+# Pinned to Python 3.11 (matches the Windows machine that produced all existing
+# results). Every version below is pinned deliberately, not just the ones that
+# can move numbers (numpy/pandas/pyarrow) -- pinning the rest is free and
+# removes variables. Do not upgrade/downgrade without re-validating outputs
+# against the Windows baseline.
 # Install with: pip install -r requirements.txt
 
 # --- Core data handling ---
-pandas
-numpy
-pyarrow
-PyYAML
+pandas==2.1.4
+numpy==1.26.4
+pyarrow==14.0.2
+PyYAML==6.0.1
 
 # --- Plotting ---
-matplotlib
+matplotlib==3.8.0
 
 # --- EULP downloads (Phase 5a) ---
-requests
-urllib3
-selenium          # only needed for original download scripts; _redo variants use requests only
+requests==2.31.0
+urllib3==2.0.7
 
-# --- Phase 7 only: OpenDSS COM interface (Windows) ---
+# --- Optional: no tracked script imports selenium.
+selenium
+
+# --- Phase 7: OpenDSS engine access ---
+# Windows reaches OpenDSS through the COM interface; everywhere else goes
+# through opendssdirect (see 7_circuit_instantiation/deployer_modules/dss_engine.py).
 comtypes; sys_platform == "win32"
+opendssdirect.py; sys_platform != "win32"

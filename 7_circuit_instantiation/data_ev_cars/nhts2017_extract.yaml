@@ -1,0 +1,33 @@
+source: 2017 National Household Travel Survey, U.S. Department of Transportation,
+  Federal Highway Administration
+data_url: https://nhts.ornl.gov/assets/2016/download/Csv.zip
+codebook_url: https://nhts.ornl.gov/assets/codebook.pdf
+input_files:
+- hhpub.csv
+- trippub.csv
+- vehpub.csv
+built_utc: '2026-11-09T05:42:50Z'
+filters:
+- HHSTATE NC or TX
+- VEHTYPE 01 to 04
+- TRAVDAY 02 to 06
+- 'driver trips: DRVR_FLG 01, joined on HOUSEID and VEHID, duplicates (vehicle, STRTTIME,
+  ENDTIME, WHYFROM, WHYTO) kept once'
+- 'home: WHYFROM or WHYTO 01 or 02'
+- trips ordered by (start minute - 240) mod 1440
+window_rule: 'class i: window_min = d'' - a'' when d'' >= a'', else d'' + 1440 - a'',
+  with x'' = (x - 240) mod 1440, a the last arrival home and d the first departure
+  from home'
+speed_rule: 'class iv: a driver trip with a valid start, end and miles faster than
+  85 mph, speed = miles / ((end - start, plus 1440 when negative, + 1) / 60)'
+rows_per_state_and_class:
+  NC:
+    i: 8096
+    ii: 5509
+    iii: 913
+    iv: 105
+  TX:
+    i: 23448
+    ii: 12655
+    iii: 2498
+    iv: 215

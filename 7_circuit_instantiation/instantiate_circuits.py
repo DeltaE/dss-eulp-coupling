@@ -6,27 +6,34 @@ instantiate_circuits.py  (procedural; mixes with EV split)
 - For each feeder × mix:
     * Copies feeder into <substation>_circuit_<idx>_<mix_name>/
     * Rewrites LoadShapes.dss to consolidated ../profiles_use_bench/<circuit>/
-    * Normalizes Loads.dss (yearly->daily, kW=1, kvar=1), with flat-ones patch if CSVs missing
+    * Normalizes Loads.dss (yearly->daily; kW and kvar = the line's share of its customer's
+      SMART-DS kW and kvar, heating_split.line_shares); a loadshape without CSVs stops the run
     * Assigns EV/PV/Storage:
+         - EV hosts drawn among residential loads (heating_split.load_segment)
          - EV split into *uncontrolled* and *controlled* disjoint sets
+         - PV and storage hosts drawn per segment (residential, commercial) with the
+           der_sizing switches and storage_hosts rule (deployer_modules/der_sizing.py)
          - min-one for EV/Storage/PV when their perc > 0 and eligibles exist
+         - a mix without ev_lvl2_perc, pv_res_perc, pv_com_perc, storage_res_perc or
+           storage_com_perc stops the run
     * Writes scenario_assignments.json:
          - ev_loads_uncontrolled, ev_loads_controlled, ev_split
-         - storage_targets, pv_targets, disjoint_sets, season, etc.
+         - pv and storage hosts per segment, storage_targets, pv_targets, season, etc.
     * Patches the runner. Phase 7c (run_circuits.py) runs it.
 
 Keeps the procedural style and your working behaviors.
 """
 
-import os, re, sys, time, json, pickle, shutil, csv, hashlib
-from copy import deepcopy
+import os, re, sys, time, json, shutil, csv, hashlib
 from pathlib import Path
 from typing import Optional, Iterable
-from collections import defaultdict
-import math, random
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, load_feeder_registry, resolve_work_path
+from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
+                            peak_day_rule, resolve_work_path)
+from heating_split import is_baseline_only, line_shares, load_segment, split_heating
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deployer_modules'))
+from der_sizing import SEGMENTS, der_choice, der_switch, pick_hosts, segment_count
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -76,6 +83,13 @@ SMARTDS_ROOT = resolve_config_path(cfg['smart_ds_root'])
 HP_BASELINE_ROOT = Path(resolve_work_path("7_circuit_instantiation", STATE + '_4_profhp'))
 HP_DM_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_6_profhp_dm'))
 HP_UN_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_7_profhp_un'))
+# peak_day_rule (pipeline_config.yaml): with per_circuit, a circuit whose mix is not
+# 100 % baseline reads the three profhp roots under <work_root>/mix_days/<mix>/
+# (phase mix_days) instead.
+PEAK_DAY_RULE = peak_day_rule(cfg)
+# heating_label_unit (pipeline_config.yaml): building or customer, the unit the heating
+# split counts (heating_split.split_heating).
+HEATING_LABEL_UNIT = heating_label_unit(cfg)
 
 PROFILES_USE_BENCH_DIR = Path(resolve_work_path("7_circuit_instantiation", "profiles_use_bench"))
 PROFILES_USE_BENCH_DIR.mkdir(exist_ok=True)
@@ -87,20 +101,22 @@ MAX_FEEDERS = cfg.get('max_feeders')
 if MAX_FEEDERS is not None:
     MAX_FEEDERS = int(MAX_FEEDERS)
 
-# Defaults (used when a mix omits them)
-DEFAULT_LVL2_PERC = 0.80
-DEFAULT_DISJOINT  = True
+# PV and storage switches per segment and the storage host rule (der_sizing)
+PV_ON  = {seg: der_switch(cfg, f"pv_{seg}") for seg in SEGMENTS}
+STO_ON = {seg: der_switch(cfg, f"storage_{seg}") for seg in SEGMENTS}
+STORAGE_HOSTS = der_choice(cfg, "storage_hosts")
+MIX_KEYS_REQUIRED = ("ev_lvl2_perc", "pv_res_perc", "pv_com_perc", "storage_res_perc", "storage_com_perc")
 
 # State/Season used to build bucket name: "<STATE>_<circuit_n>_<SEASON>"
 
 # Optional: default split between controlled vs uncontrolled EVs when a mix omits it
 EV_SPLIT_CTL_DEFAULT = float(os.environ.get('EV_SPLIT_CONTROLLED', '0.5'))  # 0..1
 
-# Path to your DOE-generated mixes file
-MIXES_FILE = Path(resolve_work_path("7_circuit_instantiation", "mixes.json"))   # copied there by Phase 7a
-
-with MIXES_FILE.open("r", encoding="utf-8") as f:
-    MIXES = json.load(f)
+# The mixes file, copied there by Phase 7a with its extension kept
+MIXES_DIR = Path(resolve_work_path("7_circuit_instantiation"))
+MIXES_FILE = next((MIXES_DIR / f"mixes{ext}" for ext in (".yaml", ".yml", ".json")
+                   if (MIXES_DIR / f"mixes{ext}").is_file()), MIXES_DIR / "mixes.yaml")
+MIXES = load_mixes(MIXES_FILE)
 
 # print('Check the mixes')
 # sys.exit()
@@ -140,35 +156,6 @@ def bucket_from_map(feeder_name: str, state: str, season: str) -> Optional[str]:
         return None
     return f"{state}_{circ}_{season}"
 
-def parse_means_for_daily(loads_original_path: Path):
-    """Return (per_daily_mean: dict[name]=(mean_kw, mean_kvar), global_means=(kw,kvar))."""
-    sums = defaultdict(lambda: [0.0, 0.0, 0])
-    sum_kw_all = 0.0; sum_kvar_all = 0.0; cnt_all = 0
-    if not loads_original_path.exists():
-        return {}, (1.0, 0.0)
-    with loads_original_path.open("r", encoding="utf-8") as f:
-        for raw in f:
-            line = raw.strip()
-            if not line.lower().startswith("new load."):
-                continue
-            m_daily = re.search(r'\b(?:yearly|daily)=(\S+)', line, flags=re.IGNORECASE)
-            m_kw    = re.search(r'\bkW=\s*([0-9]*\.?[0-9]+)', line, flags=re.IGNORECASE)
-            m_kvar  = re.search(r'\bkvar=\s*([0-9]*\.?[0-9]+)', line, flags=re.IGNORECASE)
-            if not m_daily: 
-                continue
-            nm   = m_daily.group(1)
-            kw   = float(m_kw.group(1))   if m_kw   else 0.0
-            kvar = float(m_kvar.group(1)) if m_kvar else 0.0
-            sums[nm][0] += kw; sums[nm][1] += kvar; sums[nm][2] += 1
-            sum_kw_all  += kw; sum_kvar_all += kvar; cnt_all += 1
-    per = {nm: (s[0]/s[2], s[1]/s[2]) for nm, s in sums.items() if s[2]}
-    glob = ((sum_kw_all/cnt_all) if cnt_all else 1.0,
-            (sum_kvar_all/cnt_all) if cnt_all else 0.0)
-    return per, glob
-
-def make_ones_list(npts: int) -> str:
-    return " ".join(["1"] * int(npts))
-
 def index_csvs(root: Path, include_only: Optional[Iterable[str]] = None) -> dict:
     """Index CSVs ONLY under <root>/daily_csvs[/<bucket>...]"""
     mapping = {}
@@ -206,9 +193,6 @@ def circuit_num_from_tag(circ_tag: Optional[str], fallback: Optional[int] = None
 # =========================================
 # === Discover nested SMART-DS feeders  ===
 # =========================================
-'''
-This part changes significantly in this version because it must skip some folders.
-'''
 feeders = []
 skipped = []
 missing_registry_paths = []
@@ -265,10 +249,9 @@ for feeder in feeders:
         print(f"⚠️ Skipping feeder (missing DSS): {feeder}")
         continue
 
-    # parse Loads for bases, daily mapping, and phases
+    # parse Loads for bases and daily mapping
     unique_bases  = set()
     base_to_daily = {}
-    parsed_map    = {}  # full -> {'phases': '1'|'3'}
     with loads_src.open('r', encoding='utf-8') as f:
         for raw in f:
             line = raw.strip()
@@ -285,11 +268,6 @@ for feeder in feeders:
                 base_to_daily.setdefault(base, set()).add(m_daily.group(1).strip())
             # print('stop here')
             # sys.exit()
-            m_ph = re.search(r"\bphases=(\d+)", line, flags=re.IGNORECASE)
-            parsed_map[full] = {'phases': m_ph.group(1) if m_ph else None}
-
-    three_phase_full = [nm for nm, info in parsed_map.items() if info.get('phases') == '3']
-    three_phase_base = sorted(set([re.sub(r"_[0-9]+$", "", nm) for nm in three_phase_full]))
 
     # collect the CSV names needed by LoadShapes.dss
     required_bases = set()
@@ -307,16 +285,21 @@ for feeder in feeders:
 
     # ===== Process each mix =====
     for mix_name, mix_cfg in MIXES.items():
+        missing_keys = [k for k in MIX_KEYS_REQUIRED if k not in mix_cfg]
+        if missing_keys:
+            print(f"[FAIL] mix {mix_name} in {MIXES_FILE} has no {', '.join(missing_keys)}.")
+            sys.exit(1)
         shares        = mix_cfg['shares']
         heating_seed  = int(mix_cfg.get('heating_seed', 123))
         ev_perc       = float(mix_cfg.get('ev_perc', 0.0))
-        ev_lvl2       = float(mix_cfg.get('ev_lvl2_perc', DEFAULT_LVL2_PERC))
+        ev_lvl2       = float(mix_cfg['ev_lvl2_perc'])
         ev_seed       = int(mix_cfg.get('ev_seed', heating_seed))
-        storage_perc  = float(mix_cfg.get('storage_perc_3ph', 0.0))
+        storage_perc  = {'residential': float(mix_cfg['storage_res_perc']),
+                         'commercial':  float(mix_cfg['storage_com_perc'])}
         storage_seed  = int(mix_cfg.get('storage_seed', heating_seed))
-        pv_perc       = float(mix_cfg.get('pv_perc_3ph', 0.0))
+        pv_perc       = {'residential': float(mix_cfg['pv_res_perc']),
+                         'commercial':  float(mix_cfg['pv_com_perc'])}
         pv_seed       = int(mix_cfg.get('pv_seed', heating_seed))
-        disjoint_sets = bool(mix_cfg.get('disjoint_sets', DEFAULT_DISJOINT))
 
         # EV split (controlled/uncontrolled)
         split = mix_cfg.get('ev_split', {})
@@ -362,7 +345,9 @@ for feeder in feeders:
             shutil.copytree(EV_DATA_SRC, dst_folder / "data_ev", dirs_exist_ok=True)
             print("  • Copied data_ev/ into circuit folder")
         else:
-            print("  • data_ev/ not found at repo root; EV generator will use defaults")
+            print(f"[FAIL] {EV_DATA_SRC} not found. The EV generator in "
+                  f"{RUNNER_BASENAME} needs data_ev/ in every circuit folder.")
+            sys.exit(1)
 
         # paths
         loads_path = None; lshp_path = None
@@ -379,20 +364,28 @@ for feeder in feeders:
 
         # per-bucket indexing (state/season)
         bucket_name = bucket_from_map(feeder_name, STATE, SEASON)
+        hp_baseline_root, hp_dm_root, hp_un_root = HP_BASELINE_ROOT, HP_DM_ROOT, HP_UN_ROOT
+        if PEAK_DAY_RULE == "per_circuit" and not is_baseline_only(shares):
+            mix_phase7 = Path(resolve_work_path("mix_days", mix_name, "7_circuit_instantiation"))
+            hp_baseline_root = mix_phase7 / (STATE + '_4_profhp')
+            hp_dm_root       = mix_phase7 / (STATE + '_6_profhp_dm')
+            hp_un_root       = mix_phase7 / (STATE + '_7_profhp_un')
+            print(f"  - peak_day_rule per_circuit: profiles from {mix_phase7}")
+            for root in (hp_baseline_root, hp_dm_root, hp_un_root):
+                if not (root / "daily_csvs" / (bucket_name or "")).is_dir():
+                    print(f"[FAIL] {root / 'daily_csvs' / (bucket_name or '')} not found. "
+                          f"Run phase mix_days with peak_day_rule: per_circuit first.")
+                    sys.exit(1)
         if bucket_name:
             print(f"  • Using mapped bucket: {bucket_name}")
-            idx_baseline = index_csvs(HP_BASELINE_ROOT, include_only={bucket_name})
-            idx_dm       = index_csvs(HP_DM_ROOT,       include_only={bucket_name})
-            idx_un       = index_csvs(HP_UN_ROOT,       include_only={bucket_name})
+            idx_baseline = index_csvs(hp_baseline_root, include_only={bucket_name})
+            idx_dm       = index_csvs(hp_dm_root,       include_only={bucket_name})
+            idx_un       = index_csvs(hp_un_root,       include_only={bucket_name})
         else:
             print("  • No map entry; indexing all daily_csvs (may risk collisions).")
-            idx_baseline = index_csvs(HP_BASELINE_ROOT)
-            idx_dm       = index_csvs(HP_DM_ROOT)
-            idx_un       = index_csvs(HP_UN_ROOT)
-
-        # means for flat-ones patch
-        loads_original = loads_path.with_name('Loads_original.dss')
-        per_daily_mean, global_mean = parse_means_for_daily(loads_original)
+            idx_baseline = index_csvs(hp_baseline_root)
+            idx_dm       = index_csvs(hp_dm_root)
+            idx_un       = index_csvs(hp_un_root)
 
         # coverage diagnostics
         cov_b = sum(1 for fn in required_csvs if fn in idx_baseline)
@@ -400,99 +393,18 @@ for feeder in feeders:
         cov_u = sum(1 for fn in required_csvs if fn in idx_un)
         print(f"  • Coverage → baseline {cov_b}/{len(required_csvs)}, dm {cov_d}/{len(required_csvs)}, un {cov_u}/{len(required_csvs)}")
 
-        '''
-        # heating assignment (daily -> baseline/dm/un via shares)
-        p_b = float(shares.get('baseline', 0.0))
-        p_dm= float(shares.get('dm', 0.0))
-        p_un= float(shares.get('un', 0.0))
-
-        ttl = p_b + p_dm + p_un
-        if ttl <= 0: p_b, p_dm, p_un = 1.0, 0.0, 0.0
-        else:        p_b, p_dm, p_un = [x/ttl for x in (p_b, p_dm, p_un)]
-
-        import random
-        random.seed(int(heating_seed) + hash((substation_name, feeder_name)) % 10_000_000)
-
-        daily_to_scen = {}
-        for base in sorted(unique_bases):
-            r = random.random()
-            scen = 'baseline' if r < p_b else ('dm' if r < p_b + p_dm else 'un')
-            for ls in base_to_daily.get(base, []):
-                daily_to_scen[ls] = scen
-        '''
-
-        # 1) Normalize shares
-        p_b  = float(shares.get('baseline', 0.0))
-        p_dm = float(shares.get('dm',       0.0))
-        p_un = float(shares.get('un',       0.0))
-        tot = p_b + p_dm + p_un
-        if tot <= 0:
-            p_b, p_dm, p_un = 1.0, 0.0, 0.0
-        else:
-            p_b, p_dm, p_un = (p_b/tot, p_dm/tot, p_un/tot)
-
-        # 2) Exact counts via largest‑remainder rounding
-        bases = sorted(unique_bases)
-        N = len(bases)
-        raw = {'baseline': p_b*N, 'dm': p_dm*N, 'un': p_un*N}
-        cnt = {k: int(math.floor(v)) for k, v in raw.items()}
-        need = N - sum(cnt.values())
-        frac = sorted(((raw[k] - cnt[k], k) for k in raw), reverse=True)
-        for i in range(need):
-            cnt[frac[i % len(frac)][1]] += 1
-
-        # Optional: ensure min‑one for any category with positive share (keeps sum=N)
-        if p_b > 0 and cnt['baseline'] == 0:
-            donor = max((d for d in ('dm','un') if cnt[d] > 1), key=lambda d: cnt[d], default=None)
-            if donor: cnt[donor] -= 1; cnt['baseline'] += 1
-        if p_dm > 0 and cnt['dm'] == 0:
-            donor = max((d for d in ('baseline','un') if cnt[d] > 1), key=lambda d: cnt[d], default=None)
-            if donor: cnt[donor] -= 1; cnt['dm'] += 1
-        if p_un > 0 and cnt['un'] == 0:
-            donor = max((d for d in ('dm','baseline') if cnt[d] > 1), key=lambda d: cnt[d], default=None)
-            if donor: cnt[donor] -= 1; cnt['un'] += 1
-
-        n_b, n_dm, n_un = cnt['baseline'], cnt['dm'], cnt['un']  # totals sum exactly to N
-
-        # 3) Deterministic RNG per feeder (random look, reproducible)
-        # Same offset feeds ev/storage/pv seeds below (pick()) — it depends only
-        # on (substation_name, feeder_name), not on which seed it's added to.
-        mix_seed_offset = _stable_seed_offset(f"{substation_name}|{feeder_name}")
-        rng = random.Random(int(heating_seed) + mix_seed_offset)
-
-        # 4) Build randomized labels with exact counts, and randomized base order
-        labels = (['baseline'] * n_b) + (['dm'] * n_dm) + (['un'] * n_un)
-        rng.shuffle(labels)
-        rng.shuffle(bases)
-
-        # 5) Map daily loadshape names to scenarios
-        daily_to_scen = {}
-        for base, scen in zip(bases, labels):
-            for ls in base_to_daily.get(base, []):
-                daily_to_scen[ls] = scen
+        # 1) to 5) Heating split (heating_split.py): normalized shares, exact counts
+        # by largest remainder, deterministic shuffle per feeder, loadshape labels
+        heat = split_heating(unique_bases, base_to_daily, shares, heating_seed,
+                              substation_name, feeder_name, unit=HEATING_LABEL_UNIT)
+        p_b, p_dm, p_un = heat['p_b'], heat['p_dm'], heat['p_un']
+        n_b, n_dm, n_un, N = heat['n_b'], heat['n_dm'], heat['n_un'], heat['N']
+        mix_seed_offset = heat['mix_seed_offset']
+        bases, labels = heat['bases'], heat['labels']
+        daily_to_scen = heat['daily_to_scen']
 
         # (Optional) quick sanity print
         print(f"Assigned counts: baseline={n_b}, dm={n_dm}, un={n_un} out of N={N}")
-        '''
-        n_b  = int(round(p_b  * N))
-        n_dm = int(round(p_dm * N))
-        # ensure the remainder goes to 'un'
-        n_un = max(0, N - n_b - n_dm)
-
-        bases = list(sorted(unique_bases))
-        random.seed(int(heating_seed) + hash((substation_name, feeder_name)) % 10_000_000)
-        random.shuffle(bases)
-
-        B_set  = set(bases[:n_b])
-        DM_set = set(bases[n_b:n_b+n_dm])
-        UN_set = set(bases[n_b+n_dm:])
-
-        daily_to_scen = {}
-        for base in bases:
-            scen = 'baseline' if base in B_set else ('dm' if base in DM_set else 'un')
-            for ls in base_to_daily.get(base, []):
-                daily_to_scen[ls] = scen
-        '''
 
         # ----- STORE ASSIGNMENT for auditing -----
         # If you also want base-level counts, keep base_to_scen while you build daily_to_scen
@@ -562,13 +474,12 @@ for feeder in feeders:
         # print('get until here')
         # sys.exit()
 
-        # rewrite LoadShapes.dss, copy CSVs, or use flat-ones patch
+        # rewrite LoadShapes.dss and copy CSVs; a loadshape without CSVs stops the run
         profiles_dest_dir = PROFILES_USE_BENCH_DIR / dst_folder_name
         profiles_dest_dir.mkdir(parents=True, exist_ok=True)
 
         tracking = {"missing_files": {}, "missing_files_track": {}, "all_files_track": {},
                     "bucket_choices": {"baseline": bucket_name or "(all)", "dm": bucket_name or "(all)", "un": bucket_name or "(all)"}}
-        missing_bases_used_flat = set()
 
         with lshp_path.open('r', encoding='utf-8') as f:
             lines = f.readlines()
@@ -595,14 +506,10 @@ for feeder in feeders:
                         src_kvar = src_kvar or idx_baseline.get(kvar_csv)
 
                     if src_kw is None or src_kvar is None:
-                        # flat-ones patch
-                        npts = 96
-                        ones = make_ones_list(npts)
-                        line = re.sub(r"mult\s*=\s*\(file=.*?\)",  f"mult=({ones})",  line, flags=re.IGNORECASE)
-                        line = re.sub(r"qmult\s*=\s*\(file=.*?\)", f"qmult=({ones})", line, flags=re.IGNORECASE)
-                        line = force_loadshape_daily_96(line, FORCE_NPTS, FORCE_INTERVAL)
-                        missing_bases_used_flat.add(base)
-                        tracking['missing_files'].setdefault(base, []).append(kw_csv)
+                        # every load runs on a building profile: no CSV is a stop
+                        print(f"[FAIL] no building profile (kW or kvar CSV) for loadshape {base} "
+                              f"in circuit {dst_folder_name}.")
+                        sys.exit(1)
                     else:
                         shutil.copy2(src_kw,   profiles_dest_dir / kw_csv)
                         shutil.copy2(src_kvar, profiles_dest_dir / kvar_csv)
@@ -615,25 +522,31 @@ for feeder in feeders:
         with lshp_path.open('w', encoding='utf-8') as f:
             f.writelines(new_lines)
 
-        # Normalize Loads.dss (and preserve magnitude for flat-ones bases)
+        # Normalize Loads.dss: each line's kW and kvar are its share of the customer's
+        # SMART-DS kW and kvar (heating_split.line_shares), so a customer draws its building once
         with loads_path.open('r', encoding='utf-8') as f:
             orig = f.readlines()
+        shares_kw, n_kvar_fallback = line_shares(orig)
+        n_lines = {}
+        for full in shares_kw:
+            b = re.sub(r"_[0-9]+$", "", full)
+            n_lines[b] = n_lines.get(b, 0) + 1
+        by_count = {}
+        for k in n_lines.values():
+            by_count[k] = by_count.get(k, 0) + 1
+        print(f"  • Load lines per customer ({dst_folder_name}): "
+              + ", ".join(f"{k} line(s)={by_count[k]}" for k in sorted(by_count))
+              + f"; kvar fallbacks={n_kvar_fallback}")
+        num = r"\s*[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
         upd = []
         for line in orig:
             if line.lower().startswith('new load.'):
                 if 'yearly=' in line:
                     line = re.sub(r'yearly=', 'daily=', line, flags=re.IGNORECASE)
-                m_daily = re.search(r'\bdaily=(\S+)', line, flags=re.IGNORECASE)
-                daily_name = m_daily.group(1) if m_daily else None
-                if daily_name and daily_name in missing_bases_used_flat:
-                    est_kw, est_kvar = per_daily_mean.get(daily_name, global_mean)
-                    if 'kW=' in line:   line = re.sub(r"kW=\s*[0-9]*\.?[0-9]+", f"kW={est_kw:.6f}",   line, flags=re.IGNORECASE)
-                    else:               line = line.rstrip() + f" kW={est_kw:.6f}"
-                    if 'kvar=' in line: line = re.sub(r"kvar=\s*[0-9]*\.?[0-9]+", f"kvar={est_kvar:.6f}", line, flags=re.IGNORECASE)
-                    else:               line = line.rstrip() + f" kvar={est_kvar:.6f}"
-                else:
-                    if 'kW='   in line: line = re.sub(r"kW=\s*\d+(\.\d+)?",   "kW=1", line)
-                    if 'kvar=' in line: line = re.sub(r"kvar=\s*\d+(\.\d+)?", "kvar=1", line)
+                m_name = re.search(r"New\s+Load\.(\S+)", line, flags=re.IGNORECASE)
+                kw_share, kvar_share = shares_kw[m_name.group(1)]
+                if 'kW='   in line: line = re.sub(r"kW=" + num,   f"kW={format(kw_share, '.10g')}", line)
+                if 'kvar=' in line: line = re.sub(r"kvar=" + num, f"kvar={format(kvar_share, '.10g')}", line)
             upd.append(line)
         with loads_path.open('w', encoding='utf-8') as f:
             f.writelines(upd)
@@ -641,21 +554,23 @@ for feeder in feeders:
         # =================== EV / PV / Storage targets ===================
         def clamp01(x): return max(0.0, min(1.0, float(x)))
         ev_perc      = clamp01(ev_perc)
-        storage_perc = clamp01(storage_perc)
-        pv_perc      = clamp01(pv_perc)
+        storage_perc = {seg: clamp01(v) for seg, v in storage_perc.items()}
+        pv_perc      = {seg: clamp01(v) for seg, v in pv_perc.items()}
 
-        eligible_ev  = len(unique_bases)
-        eligible_3ph = len(three_phase_base)
+        # Residential and commercial loads (heating_split.load_segment); EV hosts are homes
+        segment = {b: load_segment(b, base_to_daily) for b in sorted(unique_bases)}
+        residential_bases = [b for b in sorted(unique_bases) if segment[b] == 'residential']
+        n_com_bases = sum(1 for v in segment.values() if v == 'commercial')
+        print(f"  • Segments ({dst_folder_name}): residential={len(residential_bases)}, "
+              f"commercial={n_com_bases}, unclassified={len(segment) - len(residential_bases) - n_com_bases}")
+
+        eligible_ev  = len(residential_bases)
 
         # raw counts
         n_ev  = int(round(ev_perc      * eligible_ev))
-        n_sto = int(round(storage_perc * eligible_3ph))
-        n_pv  = int(round(pv_perc      * eligible_3ph))
 
         # min-one rules (only if perc>0 and eligibles exist)
         if ev_perc > 0 and eligible_ev  > 0:    n_ev  = max(1, min(n_ev,  eligible_ev))
-        if storage_perc > 0 and eligible_3ph > 0:n_sto = max(1, min(n_sto, eligible_3ph))
-        if pv_perc > 0 and eligible_3ph > 0:     n_pv  = max(1, min(n_pv,  eligible_3ph))
 
         # If we must have both EV types and n_ev==1, bump to 2 when possible
         if n_ev == 1 and ev_perc > 0 and eligible_ev >= 2:
@@ -671,7 +586,7 @@ for feeder in feeders:
             rng.shuffle(items_copy)
             return items_copy[:min(k, len(items_copy))]
 
-        ev_hosts_all = pick(ev_seed, sorted(unique_bases), n_ev)
+        ev_hosts_all = pick(ev_seed, residential_bases, n_ev)
 
         # split EV hosts into uncontrolled vs controlled (disjoint)
         n_ev_ctl = int(round(n_ev * split_ctl))
@@ -683,43 +598,23 @@ for feeder in feeders:
         ev_loads_un  = ev_hosts_all[:n_ev_un]
         ev_loads_ctl = ev_hosts_all[n_ev_un:]
 
-        # Storage / PV on 3φ bases
-        '''
-        THIS IS ANOTHER CHANGE NEEDED IN THE SYSTEM
-        sto_base  = pick(storage_seed, three_phase_base, n_sto)
-        remaining = [b for b in three_phase_base if b not in sto_base] if disjoint_sets else list(three_phase_base)
-        if n_pv > 0 and len(remaining) == 0 and len(three_phase_base) > 0:
-            remaining = list(three_phase_base)  # relax disjointness to satisfy min-one PV
-        pv_base   = pick(pv_seed, remaining, n_pv)
-
-        storage_targets = [b + '_1' for b in sto_base]
-        pv_targets      = [b + '_1' for b in pv_base]
-        '''
-        # Eligible 3-phase bases chosen for storage
-        sto_base  = pick(storage_seed, three_phase_base, n_sto)
-
-        # Respect disjointness for PV if requested
-        remaining = [b for b in three_phase_base if b not in sto_base] if disjoint_sets else list(three_phase_base)
-
-        # If disjoint is enforced but storage consumed all eligibles, relax so PV isn't forced to zero
-        if n_pv > 0 and len(remaining) == 0 and len(three_phase_base) > 0:
-            remaining = list(three_phase_base)
-
-        # Choose PV bases from the remaining pool
-        pv_base   = pick(pv_seed, remaining, n_pv)
-
-        # Build a map base -> available full names actually present in Loads.dss
-        base_to_full3 = {}
-        for ff in three_phase_full:
-            b = re.sub(r"_[0-9]+$", "", ff)
-            base_to_full3.setdefault(b, []).append(ff)
-
-        # For each selected base, pick the first available full name
-        storage_targets = [base_to_full3[b][0] for b in sto_base if base_to_full3.get(b)]
-        pv_targets      = [base_to_full3[b][0] for b in pv_base   if base_to_full3.get(b)]
-        '''
-        up until here
-        '''
+        # PV and storage hosts per segment (der_sizing.pick_hosts): PV drawn with pv_seed
+        # among the segment's bases, storage with storage_seed by storage_hosts; a
+        # switched-off segment gets none. Targets are base names.
+        pick_offset = _stable_seed_offset(f"{substation_name}|{feeder_name}")
+        pv_seg, sto_seg = {}, {}
+        for seg in SEGMENTS:
+            seg_bases = [b for b in sorted(unique_bases) if segment[b] == seg]
+            n_pv_seg  = segment_count(pv_perc[seg], len(seg_bases), PV_ON[seg])
+            n_sto_seg = segment_count(storage_perc[seg], len(seg_bases), STO_ON[seg])
+            pv_hosts, sto_hosts = pick_hosts(seg_bases, n_pv_seg, n_sto_seg, pv_seed, storage_seed,
+                                             pick_offset, STORAGE_HOSTS)
+            pv_seg[seg] = {"perc": pv_perc[seg], "enabled": PV_ON[seg], "n_bases": len(seg_bases),
+                           "hosts": pv_hosts}
+            sto_seg[seg] = {"perc": storage_perc[seg], "enabled": STO_ON[seg], "n_bases": len(seg_bases),
+                            "hosts": sto_hosts}
+        storage_targets = [b for seg in SEGMENTS for b in sto_seg[seg]["hosts"]]
+        pv_targets      = [b for seg in SEGMENTS for b in pv_seg[seg]["hosts"]]
         assignments = {
             # seed_offset/effective_seed: sha256-derived replacement for the old
             # hash()-based offset (Task 0 determinism fix). Recorded so a referee
@@ -729,11 +624,11 @@ for feeder in feeders:
             "ev": {"perc": ev_perc, "lvl2_perc": ev_lvl2, "seed": ev_seed,
                    "seed_offset": mix_seed_offset, "effective_seed": ev_seed + mix_seed_offset},
             "ev_split": {"controlled": split_ctl, "uncontrolled": split_un},
-            "storage": {"perc_3ph": storage_perc, "seed": storage_seed,
-                        "seed_offset": mix_seed_offset, "effective_seed": storage_seed + mix_seed_offset},
-            "pv": {"perc_3ph": pv_perc, "seed": pv_seed,
-                   "seed_offset": mix_seed_offset, "effective_seed": pv_seed + mix_seed_offset},
-            "disjoint_sets": disjoint_sets,
+            "storage": {"seed": storage_seed, "seed_offset": mix_seed_offset,
+                        "effective_seed": storage_seed + mix_seed_offset, "storage_hosts": STORAGE_HOSTS,
+                        **sto_seg},
+            "pv": {"seed": pv_seed, "seed_offset": mix_seed_offset,
+                   "effective_seed": pv_seed + mix_seed_offset, **pv_seg},
             "ev_loads_uncontrolled": ev_loads_un,
             "ev_loads_controlled":   ev_loads_ctl,
             "ev_loads": ev_hosts_all,   # union (for backwards compatibility)
@@ -743,16 +638,16 @@ for feeder in feeders:
         }
         (dst_folder / 'scenario_assignments.json').write_text(json.dumps(assignments, indent=2), encoding='utf-8')
 
-        # tracking['missing_files']: bases that fell back to a flat 96-point loadshape
-        # because no kW/kVAr CSV was found (see the flat-ones patch above). Previously
-        # computed and discarded silently; persist it next to the manifest so a missing
-        # source CSV is visible instead of masquerading as a normal run.
+        # tracking['missing_files']: loadshapes without a kW/kVAr CSV. A missing CSV stops
+        # the run above, so the report written here is always empty.
         (dst_folder / 'missing_files_report.json').write_text(
             json.dumps(tracking['missing_files'], indent=2), encoding='utf-8')
 
         print(f"  • Assigned (mix={mix_name}) "
               f"EV_unctl={len(ev_loads_un)} + EV_ctl={len(ev_loads_ctl)} (total {len(ev_hosts_all)} @ {ev_perc:.2%}), "
-              f"Storage={len(storage_targets)} ({storage_perc:.2%}), PV={len(pv_targets)} ({pv_perc:.2%})")
+              f"Storage res={len(sto_seg['residential']['hosts'])} com={len(sto_seg['commercial']['hosts'])}, "
+              f"PV res={len(pv_seg['residential']['hosts'])} com={len(pv_seg['commercial']['hosts'])} "
+              f"(storage_hosts {STORAGE_HOSTS})")
 
         # ================= patch runner & optionally run ==================
         runner_path = dst_folder / RUNNER_BASENAME
@@ -769,10 +664,6 @@ for feeder in feeders:
         if 'import json' not in txt:
             txt = txt.replace('import sys', 'import sys\nimport json')
 
-        # Patch EV percentages textually (best-effort)
-        txt = re.sub(r"(ev_perc\s*=\s*)([0-9]*\.?[0-9]+)",          rf"\g<1>{ev_perc}", txt)
-        txt = re.sub(r"(lvl2_charger_perc\s*=\s*)([0-9]*\.?[0-9]+)", rf"\g<1>{ev_lvl2}", txt)
-
         # Ensure circuit_name
         if "circuit_name = " in txt:
             txt = re.sub(r"circuit_name\s*=\s*['\"].*?['\"]", f"circuit_name = '{dst_folder_name}'", txt)
@@ -786,7 +677,7 @@ for feeder in feeders:
         )
 
         runner_path.write_text(txt, encoding='utf-8')
-        print("  • Patched runner (EV % + circuit_name)")
+        print("  • Patched runner (circuit_name + deployer_modules path)")
 
     circuit_counter += 1
 
@@ -800,7 +691,6 @@ try:
         "n_daily_baseline","n_daily_dm","n_daily_un","N_daily_total",
         "n_base_baseline","n_base_dm","n_base_un","N_base_total",
     ]
-    import csv, json
     with open(sum_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=sum_fields)
         w.writeheader()

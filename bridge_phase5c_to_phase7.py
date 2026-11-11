@@ -10,7 +10,8 @@ What this script does:
   1. Builds profhp bridge directories (<STATE>_4_profhp, <STATE>_6_profhp_dm, <STATE>_7_profhp_un)
      by copying CSVs from 5c_csv_conversion into the structure Phase 7 expects.
   2. Copies the mixes file named by PIPELINE_MIXES_FILE (mixes_file in configs/defaults.yaml)
-     byte for byte to <workspace>/7_circuit_instantiation/. Exits 1 if that file is missing.
+     byte for byte to <workspace>/7_circuit_instantiation/mixes<ext>, keeping its extension.
+     Exits 1 if that file is missing.
   3. Checks for data_ev/ and warns if missing (cannot auto-generate).
   4. Prints a pre-flight summary.
 
@@ -25,7 +26,7 @@ from pathlib import Path
 from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pipeline_utils import load_config, resolve_config_path, resolve_work_path
+from pipeline_utils import load_config, load_mixes, resolve_config_path, resolve_day_path
 
 # ── CONFIG ──────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parent
@@ -33,7 +34,9 @@ cfg = load_config()
 STATE = cfg['state']
 SEASON = cfg['season']
 
-CSV_SOURCE = Path(resolve_work_path("5c_csv_conversion"))
+# Reads and writes go through resolve_day_path: the workspace, or the mix subtree
+# <work_root>/mix_days/<mix>/ when PIPELINE_MIX is set (phase mix_days).
+CSV_SOURCE = Path(resolve_day_path("5c_csv_conversion"))
 PHASE7_DIR = REPO_ROOT / "7_circuit_instantiation"
 # Workspace registry: PIPELINE_FEEDER_REGISTRY_PATH (set by run_case.py)
 REGISTRY_PATH = resolve_config_path(cfg["feeder_registry_path"])
@@ -42,8 +45,8 @@ REGISTRY_PATH = resolve_config_path(cfg["feeder_registry_path"])
 #   scenario suffix in 5c folder name  →  profhp root directory name
 SCENARIO_MAP = {
     "":              f"{STATE}_4_profhp",       # baseline (no suffix)
-    "_dm":           f"{STATE}_6_profhp_dm",    # demand management
-    "_uncontrolled": f"{STATE}_7_profhp_un",    # uncontrolled
+    "_dm":           f"{STATE}_6_profhp_dm",    # dm: heat pump that keeps a fuel backup
+    "_uncontrolled": f"{STATE}_7_profhp_un",    # uncontrolled: heat pump with electric backup
 }
 
 SEP = "=" * 60
@@ -89,7 +92,7 @@ for src_dir in all_5c_dirs:
         print(f"  SKIP: {src_dir.name} (unrecognized scenario suffix)")
         continue
 
-    profhp_root = Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP[scenario_suffix]))
+    profhp_root = Path(resolve_day_path("7_circuit_instantiation", SCENARIO_MAP[scenario_suffix]))
     dst_dir = profhp_root / "daily_csvs" / bucket_base
 
     csv_files = [f for f in src_dir.iterdir() if f.is_file() and f.suffix.lower() == ".csv"]
@@ -144,7 +147,7 @@ if copy_plan:
 # Verify
 header("STEP 1 VERIFY: profhp directory structure")
 for suffix, profhp_name in SCENARIO_MAP.items():
-    profhp_dir = Path(resolve_work_path("7_circuit_instantiation", profhp_name))
+    profhp_dir = Path(resolve_day_path("7_circuit_instantiation", profhp_name))
     daily = profhp_dir / "daily_csvs"
     if daily.is_dir():
         buckets = sorted([d for d in daily.iterdir() if d.is_dir()])
@@ -164,11 +167,10 @@ if not MIXES_PATH.is_file():
     print(f"  FATAL: mixes file not found: {MIXES_PATH}", file=sys.stderr)
     sys.exit(1)
 
-with MIXES_PATH.open("r", encoding="utf-8") as f:
-    mixes = json.load(f)
+mixes = load_mixes(MIXES_PATH)
 
-# 7b reads the mixes from the workspace; copy the file byte for byte
-WORK_MIXES_PATH = Path(resolve_work_path("7_circuit_instantiation", "mixes.json"))
+# 7b reads the mixes from the workspace; copy the file byte for byte, keeping its extension
+WORK_MIXES_PATH = Path(resolve_day_path("7_circuit_instantiation", "mixes" + MIXES_PATH.suffix.lower()))
 WORK_MIXES_PATH.parent.mkdir(parents=True, exist_ok=True)
 shutil.copyfile(MIXES_PATH, WORK_MIXES_PATH)
 print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
@@ -176,10 +178,10 @@ print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
 print(f"  Mixes defined: {list(mixes.keys())}")
 
 # Show what the instantiation will produce
-print(f"\n  Expected circuit folders after instantiation:")
+print("\n  Expected circuit folders after instantiation:")
 try:
     reg_path = REGISTRY_PATH
-    with reg_path.open("r") as f:
+    with reg_path.open("r", encoding="utf-8") as f:
         reg = json.load(f)
     for entry in reg["feeders"]:
         sub = entry["substation"]
@@ -200,18 +202,16 @@ if data_ev_target.is_dir():
 else:
     print(f"  ❌ data_ev/ NOT FOUND at {data_ev_target}")
     print()
-    print("  This directory contains state-independent NREL EV charging profiles.")
+    print("  This directory contains the state-independent Team-Nando EV charging profiles (check curves).")
     print("  You need to copy it from Machine 1 or Machine 2 (from NC runs).")
     print()
     print("  EXPECTED STRUCTURE:")
     print("    7_circuit_instantiation/data_ev/")
     print("      without_daily_plug_in_factor/")
     print("        *.csv  (EV charging profile CSVs)")
-    print("      with_daily_plug_in_factor_70/")
-    print("        *.csv  (EV charging profile CSVs)")
     print()
     print("  WORKAROUND (if you can't locate them right now):")
-    print("    Edit power_flow_sim_daily_EV_STO_DG_deploy.py line 41:")
+    print("    Edit ACTIVATE_EV in power_flow_sim_daily_EV_STO_DG_deploy.py:")
     print("    Change: ACTIVATE_EV = True")
     print("    To:     ACTIVATE_EV = False")
     print("    This skips EV generation. Everything else runs normally.")
@@ -222,9 +222,9 @@ else:
 header("STEP 4: Pre-flight summary")
 
 checks = {
-    f"profhp bridge ({SCENARIO_MAP['']})":              (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP[""])) / "daily_csvs").is_dir(),
-    f"profhp bridge ({SCENARIO_MAP['_dm']})":           (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_dm"])) / "daily_csvs").is_dir(),
-    f"profhp bridge ({SCENARIO_MAP['_uncontrolled']})": (Path(resolve_work_path("7_circuit_instantiation", SCENARIO_MAP["_uncontrolled"])) / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['']})":              (Path(resolve_day_path("7_circuit_instantiation", SCENARIO_MAP[""])) / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['_dm']})":           (Path(resolve_day_path("7_circuit_instantiation", SCENARIO_MAP["_dm"])) / "daily_csvs").is_dir(),
+    f"profhp bridge ({SCENARIO_MAP['_uncontrolled']})": (Path(resolve_day_path("7_circuit_instantiation", SCENARIO_MAP["_uncontrolled"])) / "daily_csvs").is_dir(),
     "mixes file":                     MIXES_PATH.is_file(),
     "feeder_registry.json":           REGISTRY_PATH.is_file(),
     "pipeline_config.yaml":           (REPO_ROOT / "pipeline_config.yaml").is_file(),
@@ -240,11 +240,11 @@ for label, ok in checks.items():
     print(f"  {status} {label}")
 
 if all_ok:
-    print(f"\n  🎉 ALL CHECKS PASS — ready to run Phase 7!")
+    print("\n  🎉 ALL CHECKS PASS - ready to run Phase 7!")
 else:
-    print(f"\n  ⚠️  Some checks failed — resolve before running Phase 7")
+    print("\n  ⚠️  Some checks failed - resolve before running Phase 7")
     if not data_ev_target.is_dir():
-        print(f"    → data_ev: copy from another machine OR set ACTIVATE_EV=False")
+        print("    → data_ev: copy from another machine OR set ACTIVATE_EV=False")
 
 print(f"\n{SEP}")
 print(f"  Preparation complete: {datetime.now().isoformat()}")

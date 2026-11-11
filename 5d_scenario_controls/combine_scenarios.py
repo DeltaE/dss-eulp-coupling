@@ -36,13 +36,22 @@ os.makedirs(output_folder, exist_ok=True)
 residential_ids = {
     "baseline": ["0"],
     "uncontrolled": ["1"],  # only one possibility
-    "demand_management": ["4"]  # only one possibility
+    "demand_management": ["4"],  # homes not heated by electricity
+    # ASSUMPTION: a home heated by electricity that draws the dm group (a heat pump that
+    # keeps the existing system as backup) takes ResStock upgrade 1, the same ENERGY STAR
+    # heat pump with electric backup, because ResStock 2024.2 Measure Package 4 applies
+    # only to homes heated by natural gas, propane or fuel oil; such a home then runs the
+    # same profile in dm and un. ResStock 2024.2 technical documentation:
+    # https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/resstock_tmy3_release_2/resstock_documentation_2024_release_2.pdf
+    "demand_management_electric_heating": ["1"]
 }
+# in.heating_fuel of a home heated by electricity, in the Phase 1 residential metadata
+ELECTRIC_HEATING_FUEL = "Electricity"
 
 commercial_ids = {
     "baseline": ["0"],
     "uncontrolled": ["1", "8"],  # pick whichever has largest abs diff from baseline
-    "demand_management": ["2", "9", "20"]  # pick largest abs diff from baseline
+    "demand_management": ["2", "9"]  # pick the one with the lowest annual demand
 }
 
 # Scenario name lookups
@@ -107,7 +116,6 @@ for folder_path in folders:
             continue
         # else:
             # print('nothings')
-        allowed_commercial_ids = list(set(commercial_names.keys()))
         if not is_residential and (scenario_id not in commercial_names):
             # print('happens? 4')
             continue
@@ -124,6 +132,13 @@ for folder_path in folders:
         sum_demand_dict[(folder, building_id, scenario_id)] = total_power_demand
 
 print('\n Finish when this is done.\n')
+
+# Homes heated by electricity (in.heating_fuel of the Phase 1 residential metadata)
+res_meta = pd.read_csv(
+    resolve_work_path("1_data_provenance", "outputs", "pipeline_state", "residential_data_SELECT_STATES.csv"),
+    usecols=["bldg_id", "in.heating_fuel"])
+electric_heated = set(res_meta.loc[res_meta["in.heating_fuel"] == ELECTRIC_HEATING_FUEL, "bldg_id"].astype(str))
+print(f"Homes heated by electricity in the Phase 1 metadata: {len(electric_heated)}")
 
 # -----------------------------
 # Step 2: Build final records for each (folder, building_id)
@@ -187,10 +202,14 @@ for folder_path in folders:
             row["uncontrolled_scenario_id"] = best_uncontrolled_id
             row["uncontrolled_diff"] = val - baseline_sum  # signed difference
 
-        # Demand management: pick the scenario with the **lowest absolute demand**
+        # dm (heat pump that keeps a fuel backup): pick the scenario with the **lowest absolute demand**
+        # (homes heated by electricity: upgrade 1, see residential_ids)
+        dm_ids = scenario_ids["demand_management"]
+        if is_residential and bldg_id in electric_heated:
+            dm_ids = scenario_ids["demand_management_electric_heating"]
         best_dm_id = None
         best_dm_val = None
-        for sid in scenario_ids["demand_management"]:
+        for sid in dm_ids:
             key = (folder, bldg_id, sid)
             if key in sum_demand_dict:
                 val = sum_demand_dict[key]

@@ -8,7 +8,7 @@ are intentionally OUT of scope here - they live downstream in 0_experimental_des
 LHS) and Phase 7 (DER deployment).
 
 This layer runs only the DETERMINISTIC instantiation chain (the proven fire-test sequence):
-    pre -> 1 -> 2 -> 3 -> 4 -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> 7a -> 7b -> 7c -> 8
+    pre -> 1 -> 2 -> 3 -> 4 -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> mix_days -> 7a -> 7b -> 7c -> 8
 It sets the PIPELINE_* environment variables the existing scripts already read
 (see pipeline_utils.py) and shells out to them. No core pipeline code is modified.
 
@@ -25,6 +25,7 @@ import datetime as _dt
 import io
 import json
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -37,6 +38,9 @@ except ImportError:
 
 REPO_ROOT = Path(__file__).resolve().parent
 CONFIG_DIR = REPO_ROOT / "configs"
+sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
+from heating_split import is_baseline_only
+from pipeline_utils import load_mixes
 
 
 def _load_yaml(path: Path) -> dict:
@@ -98,6 +102,11 @@ def resolve_case(case_path: Path) -> dict:
     if not Path(eulp_metadata_root).is_dir():
         sys.exit(f"eulp_metadata_root folder does not exist: {eulp_metadata_root}")
     eulp_metadata_root = Path(eulp_metadata_root).as_posix()
+    pv_profile = donor.get("pv_profile") or {}
+    if pv_profile.get("source") != "smartds" or not pv_profile.get("file"):
+        sys.exit(f"Donor '{donor_id}' needs pv_profile with source: smartds and file: "
+                 f"<path relative to smart_ds_base> in donor_registry.yaml.")
+    pv_profile_file = (Path(smart_ds_base) / pv_profile["file"]).as_posix()
     topo_relpath = Path(topo["smart_ds_relpath"])
     smart_ds_root = Path(smart_ds_base) / topo_relpath
     if topo.get("circuit_folder"):
@@ -135,6 +144,7 @@ def resolve_case(case_path: Path) -> dict:
         "donor_state": donor["donor_state"],
         "max_feeders": case.get("execution", {}).get("max_feeders", "null"),
         "eulp_download_date": donor.get("eulp_download_date"),
+        "pv_profile_file": pv_profile_file,
         "seasons": defaults.get("seasons", ["summer", "winter"]),
         "phase_order": defaults.get("phase_order", []),
         "base_env": defaults.get("base_env", {}),
@@ -161,6 +171,9 @@ def build_env(resolved: dict, season: str) -> dict:
     env["PIPELINE_EULP_METADATA_ROOT"] = resolved["eulp_metadata_root"]  # EULP metadata CSVs, Phase 1
     env["PIPELINE_EULP_DOWNLOAD_DATE"] = str(resolved["eulp_download_date"])  # donor registry
     env["PIPELINE_MIXES_FILE"] = resolved["mixes_file"]  # mixes_file in defaults.yaml, Phase 7a
+    env["PIPELINE_PV_PROFILE_FILE"] = resolved["pv_profile_file"]  # donor pv_profile, Phase 7c
+    if resolved["local"].get("evwatts_extract_dir"):  # EV WATTS extract, Phase 7 deploy (ev_cars)
+        env["PIPELINE_EVWATTS_EXTRACT_DIR"] = Path(resolved["local"]["evwatts_extract_dir"]).as_posix()
     return env
 
 
@@ -200,22 +213,59 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
             rel_cwd = step.get("cwd", ".")
             emit(f"  run ({rel_cwd}): {cmd}")
             if not dry_run:
-                rc = subprocess.run(cmd, cwd=REPO_ROOT / rel_cwd,
-                                    env=phase_env, shell=True).returncode
+                # shell=True routes through cmd.exe on Windows and /bin/sh on POSIX --
+                # different quoting/escaping rules for the same command string. On
+                # POSIX, run the already-substituted string as an argv list instead
+                # (no shell involved at all); Windows keeps its proven shell=True path.
+                if os.name == "posix":
+                    rc = subprocess.run(shlex.split(cmd), cwd=REPO_ROOT / rel_cwd,
+                                        env=phase_env, shell=False).returncode
+                else:
+                    rc = subprocess.run(cmd, cwd=REPO_ROOT / rel_cwd,
+                                        env=phase_env, shell=True).returncode
                 if rc != 0:
                     emit(f"  !! command failed (exit {rc})")
                     return False
 
-    verify = phase_def.get("verify")
-    if verify:
-        emit(f"  verify --phase {verify}")
-    if verify and not dry_run:
-        rc = subprocess.run(f"{ctx['python']} verify_phase.py --phase {verify}",
-                            cwd=REPO_ROOT, env=env, shell=True).returncode
+    for verify_args in verify_calls(phase_def, resolved):
+        emit(f"  verify {' '.join(verify_args)}")
+        if dry_run:
+            continue
+        if os.name == "posix":
+            rc = subprocess.run([sys.executable, "verify_phase.py", *verify_args],
+                                cwd=REPO_ROOT, env=env, shell=False).returncode
+        else:
+            rc = subprocess.run(f"{ctx['python']} verify_phase.py {' '.join(verify_args)}",
+                                cwd=REPO_ROOT, env=env, shell=True).returncode
         if rc != 0:
             emit(f"  !! verify failed (exit {rc})")
             return False
     return True
+
+
+def verify_calls(phase_def, resolved) -> list:
+    """The verify_phase.py argument lists to run after a phase, in order.
+    - verify: --phase <verify> once per scenario in verify_scenarios (baseline when the
+      key is absent; baseline passes no --scenario).
+    - verify_mix_days, under peak_day_rule per_circuit only: every phase it lists, for
+      baseline, dm and uncontrolled, with --mix <mix> for each mix of the mixes file that
+      is not 100 % baseline (the mixes phase mix_days writes a subtree for)."""
+    def scenario_args(scen):
+        return [] if scen == "baseline" else ["--scenario", scen]
+    calls = []
+    verify = phase_def.get("verify")
+    if verify:
+        for scen in phase_def.get("verify_scenarios", ["baseline"]):
+            calls.append(["--phase", str(verify)] + scenario_args(scen))
+    if phase_def.get("verify_mix_days") and resolved["peak_day_rule"] == "per_circuit":
+        mixes = load_mixes(resolved["mixes_file"])
+        for mix, mix_cfg in mixes.items():
+            if is_baseline_only(mix_cfg["shares"]):
+                continue
+            for verify_phase in phase_def["verify_mix_days"]:
+                for scen in ("baseline", "dm", "uncontrolled"):
+                    calls.append(["--phase", str(verify_phase)] + scenario_args(scen) + ["--mix", mix])
+    return calls
 
 
 def write_manifest(run_dir: Path, resolved: dict, season: str) -> None:
@@ -227,6 +277,7 @@ def write_manifest(run_dir: Path, resolved: dict, season: str) -> None:
                      "circuit_folder": resolved["circuit_folder"]},
         "donor": {"donor_state": resolved["donor_state"],
                   "eulp_download_date": resolved["eulp_download_date"],
+                  "pv_profile_file": resolved["pv_profile_file"],
                   "season": season},
         "git": _git_info(),
         "timestamp": _dt.datetime.now().isoformat(timespec="seconds"),
@@ -253,6 +304,31 @@ def prepare_work_root(work_root: str) -> None:
         os.makedirs(os.path.join(work_root, rel_path), exist_ok=True)
 
 
+def _check_no_spaces_in_posix_paths(resolved: dict) -> None:
+    """On POSIX, phase 'cmd' strings are split with shlex.split() after
+    template substitution (see run_phase()) instead of going through a shell.
+    A substituted value containing a space would be mis-split into two argv
+    tokens with no error, so refuse to proceed rather than run a subtly wrong
+    command line."""
+    if os.name != "posix":
+        return
+    candidates = {
+        "PIPELINE_WORK_ROOT": resolved["work_root"],
+        "PIPELINE_SMART_DS_ROOT": resolved["smart_ds_root"],
+        "PIPELINE_PARQUET_ROOT": resolved["parquet_root"],
+        "python interpreter path": sys.executable,
+    }
+    offenders = {k: v for k, v in candidates.items() if " " in str(v)}
+    if offenders:
+        detail = "\n".join(f"  {k}: {v!r}" for k, v in offenders.items())
+        sys.exit(
+            "Refusing to run: the following path(s) contain a space, which "
+            "breaks the POSIX shlex.split() command path in run_phase():\n"
+            f"{detail}\n"
+            "Move the data / work root / interpreter to a space-free path."
+        )
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Run a topology x donor instantiation case.")
     ap.add_argument("--case", required=True, type=Path)
@@ -264,7 +340,14 @@ def main() -> None:
     args = ap.parse_args()
 
     resolved = resolve_case(args.case)
-    phases = _load_yaml(CONFIG_DIR / "phases.yaml")
+    # The scripts read peak_day_rule through pipeline_utils.load_config; a bad value
+    # stops here before any phase runs.
+    rule = _load_yaml(REPO_ROOT / "pipeline_config.yaml").get("peak_day_rule")
+    if rule not in ("per_group", "per_circuit"):
+        sys.exit(f"[FAIL] peak_day_rule in pipeline_config.yaml is {rule!r}; "
+                 f"expected one of per_group, per_circuit.")
+    resolved["peak_day_rule"] = rule
+    phases =_load_yaml(CONFIG_DIR / "phases.yaml")
     seasons = [args.season] if args.season else resolved["seasons"]
     phase_ids = [args.phase] if args.phase else resolved["phase_order"]
 
@@ -278,6 +361,7 @@ def main() -> None:
     print(f"  PIPELINE_SMART_DS_ROOT={resolved['smart_ds_root']}")
     print(f"  PIPELINE_PARQUET_ROOT={resolved['parquet_root']}")
     print(f"  PIPELINE_EULP_METADATA_ROOT={resolved['eulp_metadata_root']}")
+    print(f"  peak_day_rule={rule}")
 
     workspaces = {season: (runs_root / resolved["case_id"] / season / "workspace").resolve()
                   for season in seasons}
@@ -296,6 +380,7 @@ def main() -> None:
     for season in seasons:
         work_root = workspaces[season]
         resolved["work_root"] = str(work_root)
+        _check_no_spaces_in_posix_paths(resolved)
         print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
         run_dir = runs_root / resolved["case_id"] / season
         env = build_env(resolved, season)

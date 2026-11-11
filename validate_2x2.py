@@ -2,7 +2,7 @@
 """
 Cross-case validation for the 2x2 pipeline consolidation.
 Input : <runs root>/m2_all_cases_all_seasons.csv (written by gather_m2_cases.py)
-Design: 4 cases x 2 seasons x 3 fire mixes x 2 feeders, 96 timesteps each.
+Design: 4 cases x 2 seasons x 3 mixes x 2 feeders, 96 timesteps each.
 
 Sections:
   1. Structural checks
@@ -37,7 +37,7 @@ CSV = sys.argv[1] if len(sys.argv) > 1 else RUNS_ROOT / "m2_all_cases_all_season
 PCOL, QCOL, SCOL = "P_3ph (kW)", "Q_3ph (kVAr)", "S_3ph (kVA)"
 PHASE_P = ["P1 (kW)", "P2 (kW)", "P3 (kW)"]
 KEYS = ["case", "topology", "donor", "season", "scenario", "feeder"]
-SC_ORDER = {"fire_baseline": 0, "fire_mixed": 1, "fire_stress": 2}
+SC_ORDER = {"baseline": 0, "mixed": 1, "stress": 2}
 
 EXPECT = dict(cases=4, seasons=2, scenarios=3, feeders=2, ts=96)
 EXPECT_COMBOS = EXPECT["cases"] * EXPECT["seasons"] * EXPECT["scenarios"] * EXPECT["feeders"]
@@ -115,7 +115,6 @@ def sec1_structural(df, data, summ, peaks):
           f"(columns are redundant)")
     ts_map = df.groupby("topology")["substation"].nunique()
     print(f"topology -> substation is 1:1     : {'OK' if (ts_map==1).all() else 'MISMATCH'}")
-    cf_map = df.groupby("circuit_folder").size()
     n_cf = df['circuit_folder'].nunique()
     print(f"circuit_folder values             : found {n_cf} of {EXPECT_CIRCUIT_FOLDERS} "
           f"(subst x feeder x scenario)  {'OK' if n_cf >= EXPECT_CIRCUIT_FOLDERS else 'MISSING'}")
@@ -204,9 +203,9 @@ def sec5_stress(peaks):
     for key, sub in peaks.groupby(grp):
         sub = sub.sort_values("sc_rank")
         vals = sub.set_index("scenario")["peak_kVA"]
-        b = vals.get("fire_baseline", np.nan)
-        m = vals.get("fire_mixed", np.nan)
-        s = vals.get("fire_stress", np.nan)
+        b = vals.get("baseline", np.nan)
+        m = vals.get("mixed", np.nan)
+        s = vals.get("stress", np.nan)
         mono = (b < m < s)
         rows.append((*key, b, m, s, "OK" if mono else "VIOLATION"))
         if not mono:
@@ -216,7 +215,7 @@ def sec5_stress(peaks):
     print(out.to_string(index=False))
     print(f"\nMonotone groups: {(out['monotone?']=='OK').sum()}/{len(out)}")
     if violations:
-        print("!! STRESS-ORDERING VIOLATIONS (expected in summer — HP efficiency effect):")
+        print("!! STRESS-ORDERING VIOLATIONS (expected in summer, HP efficiency effect):")
         for v in violations:
             print("   ", v)
     else:
@@ -316,7 +315,7 @@ def sec7_anomalies(df, data, summ, peaks):
     xf = summ[["case", "season", "scenario", "feeder", CAP_COL]]
     m = peaks.merge(xf, on=["case", "season", "scenario", "feeder"], how="left")
     m["loading_pct"] = 100 * m["peak_kVA"] / m[CAP_COL]
-    print(f"\n[f] Feeder-head peak_kVA vs feeder_head_kva thermal capacity:")
+    print("\n[f] Feeder-head peak_kVA vs feeder_head_kva thermal capacity:")
     print(m.groupby(["topology", "feeder"])
           .agg(feeder_head_kva=(CAP_COL, "first"),
                peak_kVA_max=("peak_kVA", "max"),

@@ -8,6 +8,7 @@
 :maxdepth: 2
 intro
 install
+LINUX_SETUP
 workflow
 outputs
 examples

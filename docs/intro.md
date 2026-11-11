@@ -19,14 +19,14 @@
 ### Capabilities
 
 - Experimental designs via **Latin Hypercube Sampling (LHS)** and **Sobol sequences**.
-- Seasonal analysis (**summer/winter**) and multiple profile variants (baseline, demand management, uncontrolled).
+- Seasonal analysis (**summer/winter**) and multiple profile variants (baseline; dm, a heat pump that keeps a fuel backup; uncontrolled, a heat pump with electric backup).
 - EV/PV/Storage placement & control, per-feeder time-series simulation (96×15-min timesteps).
 
 ## 1.2 System Architecture
 
 ```{mermaid}
 flowchart TD
-    A[DOE: LHS/Sobol] --> B[Scenario Dictionaries<br/>mixes_lhs.json / mixes_sobol.json]
+    A[Designed experiment<br/>j-uncertainty-grid-modernisation] --> B[Mixes file<br/>mixes_fixed.yaml or a sampled design]
     B --> C[Smart-DS ↔ EULP Matching]
     C --> D[Profile Generation<br/>baseline / DM / uncontrolled]
     D --> E[Reactive Power Prep<br/>kvar ratios]

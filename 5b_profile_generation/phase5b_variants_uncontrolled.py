@@ -1,5 +1,7 @@
 from pathlib import Path
 import runpy
+import sys
 
-
-runpy.run_path(str(Path(__file__).with_name("find_max_day_curve_uncontrolled_impl.py")), run_name="__main__")
+IMPL = Path(__file__).with_name("find_max_day_curve_impl.py")
+sys.argv = [str(IMPL), "--scenario", "uncontrolled"]
+runpy.run_path(str(IMPL), run_name="__main__")

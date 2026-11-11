@@ -9,6 +9,7 @@ Usage:
     python verify_phase.py --phase pre
     python verify_phase.py --phase 5c
     python verify_phase.py --phase 5c --scenario dm
+    python verify_phase.py --phase 5c --scenario dm --mix mixed
     python verify_phase.py --all
     python verify_phase.py --all --scenario dm
 """
@@ -95,7 +96,6 @@ def phase_header(name):
 
 def _run_phase(phase_key, func):
     """Execute a phase function with timing and per-phase result tracking."""
-    global _pass, _fail
     p0, f0 = _pass, _fail
     t0 = time.perf_counter()
     func()
@@ -276,7 +276,7 @@ def verify_phase5a():
 def verify_phase5b():
     phase_header("5b — Profile Scaling + Peak Day Extraction")
 
-    pb = os.path.join("5b_profile_generation", f"{STATE}_parquet_and_bldgs.csv")
+    pb = os.path.join(WORK_ROOT, "5b_profile_generation", f"{STATE}_parquet_and_bldgs.csv")
     exists = os.path.exists(pb)
     check(f"{STATE}_parquet_and_bldgs.csv exists", exists)
     if exists:
@@ -495,15 +495,23 @@ def main():
         choices=["baseline", "dm", "uncontrolled"],
         help="Scenario to verify (default: baseline)",
     )
+    parser.add_argument(
+        "--mix", type=str, default=None,
+        help="Check the day files of <work_root>/mix_days/<mix>/ (phases 5b and 5c only)",
+    )
     args = parser.parse_args()
 
     SCENARIO = args.scenario
+    if args.mix and (args.all or (args.phase or "").lower() not in ("5b", "5c")):
+        print("--mix applies to --phase 5b or --phase 5c only.")
+        sys.exit(1)
 
-    # ── Anchor all relative paths to the workspace root ──
-    os.chdir(WORK_ROOT)
+    # ── Anchor all relative paths to the workspace root, or the mix's subtree ──
+    os.chdir(os.path.join(WORK_ROOT, "mix_days", args.mix) if args.mix else WORK_ROOT)
 
-    print(f"\n  verify_phase.py")
-    print(f"  Config: State={STATE}  Season={SEASON}  Scenario={SCENARIO}")
+    print("\n  verify_phase.py")
+    print(f"  Config: State={STATE}  Season={SEASON}  Scenario={SCENARIO}"
+          f"{'  Mix=' + args.mix if args.mix else ''}")
     print(f"  Parquet root: {PARQUET_ROOT}")
     print(f"  Work root:    {os.getcwd()}")
 

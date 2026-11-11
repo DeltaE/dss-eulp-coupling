@@ -30,11 +30,11 @@ dss-eulp-coupling/
 
 `python run_case.py --case configs/cases/<case>.yaml --all --season <season>` runs the phases below. `phase_order` in `configs/defaults.yaml` sets the order:
 
-`pre`, `1`, `2`, `3`, `4`, `5a`, `5b`, `5d`, `5b_variants`, `5c`, `5c_variants`, `6`, `6_variants`, `7a`, `7b`, `7c`, `8`.
+`pre`, `1`, `2`, `3`, `4`, `5a`, `5b`, `5d`, `5b_variants`, `5c`, `5c_variants`, `6`, `6_variants`, `mix_days`, `7a`, `7b`, `7c`, `8`.
 
 `configs/phases.yaml` defines the steps of each phase. `run_case.py` sets `PIPELINE_WORK_ROOT` to `<runs_root>/<case>/<season>/workspace/`, written `<ws>` below. `runs_root` comes from `configs/local.yaml` and is `runs` by default. Every phase reads and writes under `<ws>`. Before anything runs, `--all` checks the workspace of every requested season and refuses to start when any exists. Delete those folders to rerun the case-seasons. `--phase <id>` reruns one phase in the existing workspace. `--dry-run` prints the resolved variables and every command, and writes nothing.
 
-`--all` does not run `0_experimental_design`. Phase 7a copies the mixes file that `mixes_file` in `configs/defaults.yaml` names, the tracked `0_experimental_design/mixes_fixed.json`, into the workspace. `run_mix_generator.py --out <folder>` writes LHS and Sobol mixes to that folder, by default `<runs_root>/0_experimental_design/`.
+`--all` does not run `0_experimental_design`. The mixes file is an input. Phase 7a copies the mixes file that `mixes_file` in `configs/defaults.yaml` names, the tracked `0_experimental_design/mixes_fixed.yaml`, into the workspace. https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment.
 
 ### Phase pre: SMART-DS staging (0_download_smartds)
 
@@ -54,7 +54,7 @@ Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTH
 
 ### Phase 3: Tolerance matching (3_tolerance_matching)
 
-`run_case.py` copies `review_parquet_matches.csv` from Phase 2 into `<ws>/3_tolerance_matching/`. `phase3_match.py` then runs `match_smartds_parquets_impl.py`.
+`run_case.py` copies `review_parquet_matches.csv` from Phase 2 into `<ws>/3_tolerance_matching/`. `phase3_match.py` then runs `match_smartds_parquets_impl.py`. It matches each SMART-DS loadshape to the donor's buildings by monthly peaks, in tolerance steps of 5 % up to 50 % (commercial) or 95 % (residential). A loadshape that matches no building within the largest step takes the buildings of the next 5 % step that matches; the script prints a `[phase3]` line and the `Tolerance` column records the step reached.
 
 ### Phase 4: Quota assignment (4_quota_assignment)
 
@@ -66,9 +66,9 @@ Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTH
 
 ### Phases 5b, 5d and 5b_variants: profile generation
 
-- `5b` (`5b_profile_generation`): `phase5b_scale.py` runs `scale_feeder_curves_impl.py`. It reads the two Phase 4 final CSVs from `<ws>/4_quota_assignment/`. `phase5b_peak.py` runs `find_max_day_curve_impl.py`. Together they build the baseline profiles.
-- `5d` (`5d_scenario_controls`): `combine_scenarios.py` writes `<ws>/5d_scenario_controls/combine_scenarios/combined_scenarios.csv`. `get_scenario_csv_controls.py` then reads it and selects the controls for the demand management (DM) and uncontrolled variants.
-- `5b_variants` (`5b_profile_generation`): `phase5b_variants_dm.py` and `phase5b_variants_uncontrolled.py` build the DM and uncontrolled profiles.
+- `5b` (`5b_profile_generation`): `phase5b_scale.py` runs `scale_feeder_curves_impl.py`. It reads the two Phase 4 final CSVs from `<ws>/4_quota_assignment/`. `phase5b_peak.py` runs `find_max_day_curve_impl.py --scenario baseline`. Together they build the baseline profiles.
+- `5d` (`5d_scenario_controls`): `combine_scenarios.py` writes `<ws>/5d_scenario_controls/combine_scenarios/combined_scenarios.csv`. `get_scenario_csv_controls.py` then reads it and selects the controls for the dm and uncontrolled variants. dm is a heat pump that keeps a fuel backup: ResStock upgrade 4, ComStock upgrade 2 or 9. A home whose `in.heating_fuel` in the Phase 1 residential metadata is `Electricity` takes ResStock upgrade 1 as its dm profile, because upgrade 4 does not apply to it. uncontrolled (un) is a heat pump with electric backup: ResStock upgrade 1, ComStock upgrade 1 or 8. The upgrade names are in the OEDI lookup files https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/resstock_tmy3_release_2/upgrades_lookup.json and https://oedi-data-lake.s3.amazonaws.com/nrel-pds-building-stock/end-use-load-profiles-for-us-building-stock/2024/comstock_amy2018_release_1/upgrades_lookup.json.
+- `5b_variants` (`5b_profile_generation`): `phase5b_variants_dm.py` and `phase5b_variants_uncontrolled.py` run `find_max_day_curve_impl.py` with `--scenario dm` and `--scenario uncontrolled`. They build the DM and uncontrolled profiles.
 
 ### Phases 5c and 5c_variants: CSV conversion (5c_csv_conversion)
 
@@ -81,16 +81,33 @@ Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTH
 
 Both phases write `_kvar_` CSVs beside the `_kw_` CSVs.
 
+### Phase mix_days and the peak-day rules
+
+`peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each mixed or stress circuit is simulated on. Baseline circuits run on each feeder's baseline seasonal peak day under both values.
+
+- `per_circuit`, the default: all heating groups of a circuit run on one day, the seasonal peak day of the circuit's building load under its mix. `mix_days.py` finds that day and writes `<ws>/mix_days/<STATE>_circuit_days.csv`, `<STATE>_circuit_labels.csv` and `<STATE>_circuit_weights.csv`. For each mix that is not 100 % baseline, it reruns the day-dependent steps of 5c, 5c_variants, 6, 6_variants and 7a into `<ws>/mix_days/<mix>/`. Phases 7b and 7c then read the circuit's day and its profiles from there.
+- `per_group`: each heating group (baseline, dm, uncontrolled) runs on its own seasonal peak day. `mix_days.py` prints one line and writes nothing.
+
+To switch, set `peak_day_rule` to `per_circuit` or `per_group` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on. After `mix_days`, `run_case.py` runs the 5b and 5c checks of `verify_phase.py` for baseline, dm and uncontrolled in each `<ws>/mix_days/<mix>/` subtree, under `per_circuit` only.
+
 ### Phases 7a, 7b and 7c: circuit instantiation and simulation (7_circuit_instantiation)
 
-- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.json`) byte for byte to `<ws>/7_circuit_instantiation/mixes.json`, and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
-- `7b` runs `instantiate_circuits.py`. It reads `<ws>/7_circuit_instantiation/mixes.json`. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
+- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.yaml`) byte for byte to `<ws>/7_circuit_instantiation/mixes.yaml`, keeping the extension of the mixes file (`.yaml`, `.yml` or `.json`), and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
+- `7b` runs `instantiate_circuits.py`. It reads `<ws>/7_circuit_instantiation/mixes.yaml` (`mixes.yml` or `mixes.json` for a mixes file with that extension) with `pipeline_utils.load_mixes`. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
+  - The heating split counts the unit that `heating_label_unit` in `pipeline_config.yaml` names: `building` (the default), each yearly loadshape of the feeder gets one group, with exact counts over loadshapes; `customer`, the counts are over load names and a shared loadshape keeps the group of the last load dealt. Phase `mix_days` uses the same setting.
+  - It classes each load as residential (every loadshape starts `res_`), commercial (every one starts `com_`) or unclassified with `heating_split.load_segment`, prints the counts per circuit, and draws the EV hosts among the residential loads: `ev_perc` of the mix is the share of homes.
+  - A loadshape without a kW or kvar CSV stops the run with `[FAIL]`, the loadshape and the circuit. `<circuit>/missing_files_report.json` is still written and is empty.
+  - It splits each customer's building curve over the customer's Load lines with `heating_split.line_shares`: each line takes as kW its share of the customer's SMART-DS kW and as kvar its share of the customer's SMART-DS kvar, read from the feeder's SMART-DS `Loads.dss` (for example https://oedi-data-lake.s3.amazonaws.com/SMART-DS/v1.0/2018/GSO/urban-suburban/scenarios/base_timeseries/opendss/uhs13_1247/uhs13_1247--udt4819/Loads.dss). A customer on two 120 V legs (`<customer>_1`, `<customer>_2`) draws its building once, half on each leg. A customer whose kvar sum is 0 takes its kW shares; a customer whose kW sum is 0 stops the run with `[FAIL]`. `Loads_original.dss` in the circuit folder keeps the SMART-DS lines.
 - `7c` runs `run_circuits.py --root <ws>/7_circuit_instantiation`. It runs the patched runner in each circuit folder and logs to `<ws>/7_circuit_instantiation/run_log.txt`. No phase runs the runner in the repository folder.
+- In each circuit, the runner builds one car per EV host from the source `ev_cars` names (README, "EV cars") and writes `<circuit>/EVControl/ev_cars.csv`. Under `evwatts_sessions` and `session_rows` it reads the EV WATTS extract in `PIPELINE_EVWATTS_EXTRACT_DIR` and stops when it is missing; under `nhts_days` and `session_rows` it reads `7_circuit_instantiation/data_ev_cars/<STATE>_nhts2017_vehicle_days.csv` in the repository.
+- In each circuit, the runner shapes the controlled EVs with the rule `ev_control` names (README, "EV control"). Under `valley_fill_feeder`, `valley_fill_transformer` and `water_fill_feeder` it first solves the circuit without EVs in `<circuit>/EVControl/base_solve/`, places the controlled cars in order of plug-in time on a forecast of each curve, then solves the circuit with EVs in `ModifiedCircuitData/` as before. Under `offpeak_start` it spreads the schedule times around the start of the cheap period, starts each car at the later of its schedule time and its plug-in, and reads `7_circuit_instantiation/data_tariffs/<STATE>_urdb_rate.json` in the repository and stops when it is missing. It writes `ev_control_cars.csv` and, under the valley rules, `ev_control_curves.csv` to `<circuit>/EVControl/` (see `docs/outputs.md`). Phase 8 reads only `ModifiedCircuitData/`.
+- `fetch_tou_rates.py` is a maintainer step outside `--all`. It saves one URDB time-of-use rate per donor state to `7_circuit_instantiation/data_tariffs/`. It reads the OpenEI API key from the file that `openei_api_key_file` in `configs/local.yaml` names, and never prints or writes the key.
+- `build_nhts_extract.py` and `build_evwatts_extract.py` are maintainer steps outside `--all`. The first writes the tracked 2017 NHTS weekday vehicle-day extracts of NC and TX and `nhts2017_extract.yaml` to `7_circuit_instantiation/data_ev_cars/`, from the folder `nhts2017_csv_dir` names. A vehicle-day with a driver trip faster than `nhts_max_trip_speed_mph` of `ev_inputs.yaml` is class iv, which no draw pool holds. The second writes `evwatts_residential_l2_weekday.csv` and `evwatts_extract.yaml` to the folder `evwatts_extract_dir` names, outside the repository, from the EV WATTS tables in `evwatts_raw_dir`.
 
 ### Phase 8: results analysis
 
-1. `aggregate_m1_m2_with_circuits.py` runs in `7_circuit_instantiation/`. It writes `aggregate_m1.csv`, `aggregate_m2.csv` and `circuit_summary.csv` to `<ws>/7_circuit_instantiation/`.
-2. `append_experiment_results.py` runs in `8_results_analysis/`. It reads `aggregate_m2.csv`, `circuit_summary.csv` and `heating_assignment__FULL.csv` from `<ws>/7_circuit_instantiation/`. It tags every row with the season, and with `design` set to the donor state. It writes `aggregate_m2_combined.csv`, `circuit_summary_combined.csv` and `heating_assignment__FULL_combined.csv` to `<ws>/8_results_analysis/`. It exits with an error when an input file is missing.
+1. `aggregate_m1_m2_with_circuits.py` runs in `8_results_analysis/`. It writes `aggregate_m1.csv`, `aggregate_m2.csv` and `circuit_summary.csv` to `<ws>/7_circuit_instantiation/`.
+2. `append_experiment_results.py` runs in `8_results_analysis/`. It reads `aggregate_m2.csv`, `circuit_summary.csv` and `heating_assignment__FULL.csv` from `<ws>/7_circuit_instantiation/`. It tags every row with the season, and with `design` set to the donor state. It writes `aggregate_m2_combined.csv`, `circuit_summary_combined.csv` and `heating_assignment__FULL_combined.csv` to `<ws>/8_results_analysis/`. It also writes `load_voltage_summary.csv` there, one row per circuit folder from its `load_voltage_loads.csv` (see `docs/outputs.md`). It exits with an error when an input file is missing.
 
 Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combined.csv` from all eight case-seasons into `m2_all_cases_all_seasons.csv` in the runs root (`runs_root` in `configs/local.yaml`, `runs/` by default). `gather_m2_cases.py` reads the workspaces under the runs root. `validate_2x2.py` checks that file. It exits 1 when it finds fewer than 12 `circuit_folder` values, before it writes anything. Otherwise it writes `peaks_per_combo.csv` to the runs root. `--all` runs neither script.
 
@@ -100,22 +117,24 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 - **Topologies:** `NC_GSO_urban_uhs13_1247` and `TX_AUS_urban_p2uhs12_1247` (`configs/topology_registry.yaml`).
 - **Seasons:** summer and winter (`configs/defaults.yaml`).
 - **Circuit filtering:** Phase 7b skips the circuits listed in `skip_circuits` in `pipeline_config.yaml`. The list is empty, so `--all` skips no circuit.
-- **Scenario mixes:** `--all` uses the three fixed mixes in `0_experimental_design/mixes_fixed.json`, the file that `mixes_file` in `configs/defaults.yaml` names. `run_mix_generator.py` in the same folder generates LHS and Sobol mixes outside the repository, but `--all` does not run it.
+- **Scenario mixes:** `--all` uses the three fixed mixes in `0_experimental_design/mixes_fixed.yaml`, the file that `mixes_file` in `configs/defaults.yaml` names. A designed experiment names its own mixes file there; https://github.com/DeltaE/j-uncertainty-grid-modernisation writes it.
 
-| Mix | EV | Storage (3-phase loads) | PV (3-phase loads) | Heat pump shares (baseline / DM / uncontrolled) |
+| Mix | EV (share of homes) | Storage (share of homes and of commercial loads) | PV (share of homes and of commercial loads) | Heat pump shares (baseline / DM / uncontrolled) |
 | --- | --- | --- | --- | --- |
-| `fire_baseline` | 10% | 5% | 5% | 1.0 / 0.0 / 0.0 |
-| `fire_mixed` | 20% | 10% | 10% | 0.5 / 0.3 / 0.2 |
-| `fire_stress` | 30% | 15% | 15% | 0.2 / 0.2 / 0.6 |
+| `baseline` | 10% | 5% | 5% | 1.0 / 0.0 / 0.0 |
+| `mixed` | 20% | 10% | 10% | 0.5 / 0.3 / 0.2 |
+| `stress` | 30% | 15% | 15% | 0.2 / 0.2 / 0.6 |
 
-- **Storage control:** The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes and controls storage. Phase 7b picks the storage hosts and writes them as `storage_targets`.
+- **EV cars:** `ev_cars` in `pipeline_config.yaml` (default `evwatts_sessions`; also `nhts_days`, `session_rows`), `ev_home_window` (default `true`) and `ev_day` (default `typical`; also `stress`, the value set of `ev_inputs.yaml`). Main runs use the defaults. See README, "EV cars".
+- **EV control:** `ev_control` in `pipeline_config.yaml` (default `valley_fill_feeder`; also `uncontrolled`, `valley_fill_transformer`, `offpeak_start`, `water_fill_feeder`) and `ev_valley_base` (default `buildings_only`; also `after_pv`). Main runs use the defaults. See README, "EV control".
+- **PV and storage:** Phase 7b draws the PV and storage hosts per segment (homes and commercial loads) with the mix shares `pv_res_perc`, `pv_com_perc`, `storage_res_perc` and `storage_com_perc`, the `der_sizing` switches and `storage_hosts` (default `with_pv`), and writes them per segment and as `pv_targets` and `storage_targets`. The runner `power_flow_sim_daily_EV_STO_DG_deploy.py` sizes them (`pv_rule_residential` and `pv_rule_commercial`, default `roof_and_use`; `sizing_case`, default `moderate`; `roof_area_source`, default `floor_stories`; `coverage_rule_commercial`, default `lbnl`) and controls storage (`storage_rule`, default `schedule`; `storage_view`, default `feeder`; `storage_order`, default `after_cars`; `storage_measure`, default `all_placed`; `storage_layer`, default `add_kw`). Main runs use the defaults. See README, "PV and storage".
 
 ```{admonition} Tip: Storage Controller Defaults (example)
 :class: tip
-- Sizing vs. peak: 0.75×  
-- Duration: 4 h  
-- Peak target factor: 0.8  
-- Reserve: 20%
+- PV: the lesser of the roof cap and the annual use cap (moderate entries)
+- Storage: 1.0 x PV kW (0.5 above 100 kW commercial), 2 h
+- Rule: `schedule`, each host's start chosen on a grid from the reserve to full (`schedule_start: best`)
+- Start and reserve: 20%
 ```
 
 ## 3.4 Running with `run_case.py`
@@ -124,7 +143,7 @@ This section describes what `python run_case.py --case <case> --all` runs. `conf
 
 ### Setup
 
-Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths: `smart_ds_base` for the SMART-DS data root and `eulp_metadata_root` for the EULP metadata data root. Both are required.
+Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths: `smart_ds_base` for the SMART-DS data root and `eulp_metadata_root` for the EULP metadata data root. Both are required. Under the default `ev_cars: evwatts_sessions` and under `session_rows`, also set `evwatts_extract_dir` (README, "Prerequisites for a cold clone").
 
 ### Configuration
 
@@ -144,12 +163,23 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 | `PIPELINE_EULP_METADATA_ROOT` | Folder of the four EULP baseline metadata CSVs, from `eulp_metadata_root` in `configs/local.yaml`. Phase 1 reads them. |
 | `PIPELINE_EULP_DOWNLOAD_DATE` | Date stamp in the EULP download folder names, from `eulp_download_date` of the donor in `configs/donor_registry.yaml`. |
 | `PIPELINE_MIXES_FILE` | Mixes file that Phase 7a copies, from `mixes_file` in `configs/defaults.yaml`, absolute, with forward slashes. |
+| `PIPELINE_EVWATTS_EXTRACT_DIR` | Folder of the EV WATTS extract, from `evwatts_extract_dir` in `configs/local.yaml`; set only when that key is present. The Phase 7 deploy reads it under `ev_cars` `evwatts_sessions` and `session_rows`. |
 
-`pipeline_config.yaml` holds only the method parameters:
+`pipeline_config.yaml` holds the method parameters, one top-level key each:
 
-- `random_seed` seeds representative building selection in Phase 4 and case `0` of `run_mix_generator.py`.
+- `random_seed` seeds representative building selection in Phase 4.
 - `skip_circuits` lists numeric `circuit_id` values that Phase 7 skips.
 - `quota` sets the Phase 4 quota rules.
+- `eulp_release` names the ResStock and ComStock releases that Phase 5a downloads.
+- `der_sizing` sets the PV and storage hosts (Phase 7b), their sizes, the storage control (with `schedule_start`, default `best`: under `schedule` each host's starting energy is the one of a grid that leaves the lowest forecast maximum) and the battery standby losses (`storage_standby_case`, default `moderate`; `storage_standby_element`, default `load`, a constant-power Load beside each battery, or `idling`, the battery's `%IdlingkW`) (Phase 7 deploy) (README, "PV and storage").
+- `peak_day_rule` sets the day each mixed or stress circuit runs on (section 3.2, "Phase mix_days and the peak-day rules"; README, "Peak-day rules").
+- `heating_label_unit` sets whether the heating split counts buildings or customers (section 3.2, Phase 7b; README, "Heating labels and EV hosts").
+- `voltage_band` sets the band of the load voltage summaries.
+- `ev_control` sets how the Phase 7 deploy shapes controlled EV charging (section 3.3; README, "EV control").
+- `ev_valley_base` sets what the no-EV solve behind the valley rules holds (section 3.3; README, "EV control").
+- `ev_cars` sets where each EV car comes from (section 3.3; README, "EV cars").
+- `ev_home_window` keeps controlled charging inside the time the car is plugged in at home (section 3.3; README, "EV cars").
+- `ev_day` picks the typical or stress value set of `ev_inputs.yaml` (section 3.3; README, "EV cars").
 
 ### Phase outputs
 
@@ -169,8 +199,8 @@ Outputs land in `<runs_root>/<case>/<season>/workspace/`. Phase 5a writes its EU
 | 5c | `parquet_to_csv.py` | Circuit loadshape CSV folders, `folder_timestamps.pkl`, `folder_equiv.pkl`, `folder_list_loadshapes.pkl` |
 | 6 | `save_needed_sd_parquets.py`, `compute_kvar_kw_ratios.py`, `generate_kvar_csvs.py` | `needed_parquets.pkl`, `kvar_ratios.pkl`, `_kvar_` CSVs beside the `_kw_` CSVs |
 | 7b | `instantiate_circuits.py` | Prepared circuit folders, `profiles_use_bench/` |
-| 7c | `run_circuits.py` | OpenDSS monitor CSVs in each circuit folder |
-| 8 | `aggregate_m1_m2_with_circuits.py`, `append_experiment_results.py` | `aggregate_m1.csv`, `aggregate_m2.csv`, `circuit_summary.csv` in `7_circuit_instantiation/`; combined CSVs in `8_results_analysis/` |
+| 7c | `run_circuits.py` | OpenDSS monitor CSVs and the load voltage files (`Monitors_LoadVoltage.dss`, `load_voltages.parquet`, `load_voltage_steps.csv`, `load_voltage_loads.csv`) in each circuit folder |
+| 8 | `aggregate_m1_m2_with_circuits.py`, `append_experiment_results.py` | `aggregate_m1.csv`, `aggregate_m2.csv`, `circuit_summary.csv` in `7_circuit_instantiation/`; combined CSVs and `load_voltage_summary.csv` in `8_results_analysis/` |
 
 ### Wrappers
 
@@ -184,9 +214,9 @@ The `phase*.py` scripts are thin wrappers around the implementation scripts.
 | `phase5a_download_residential.py` | `download_parquets_residential_impl.py` |
 | `phase5a_download_commercial.py` | `download_parquets_commercial_impl.py` |
 | `phase5b_scale.py` | `scale_feeder_curves_impl.py` |
-| `phase5b_peak.py` | `find_max_day_curve_impl.py` |
-| `phase5b_variants_dm.py` | `find_max_day_curve_dm_impl.py` |
-| `phase5b_variants_uncontrolled.py` | `find_max_day_curve_uncontrolled_impl.py` |
+| `phase5b_peak.py` | `find_max_day_curve_impl.py --scenario baseline` |
+| `phase5b_variants_dm.py` | `find_max_day_curve_impl.py --scenario dm` |
+| `phase5b_variants_uncontrolled.py` | `find_max_day_curve_impl.py --scenario uncontrolled` |
 
 ### Script notes
 
@@ -204,6 +234,6 @@ The `phase*.py` scripts are thin wrappers around the implementation scripts.
 - Phase 5b_variants and Phase 5c read the Phase 5d controls from `5d_scenario_controls/get_scenario_csv_controls/`.
 - Phase 5c reads the daily parquets from `5b_profile_generation/daily_parquets/`.
 - Phase 6 reads the Phase 5b mapping CSV, the Phase 5c CSV folders and `folder_timestamps.pkl`.
-- Phase 7a copies `0_experimental_design/mixes_fixed.json` to `7_circuit_instantiation/mixes.json` in the workspace. Phase 7b reads that copy.
+- Phase 7a copies `0_experimental_design/mixes_fixed.yaml` to `7_circuit_instantiation/mixes.yaml` in the workspace. Phase 7b reads that copy.
 - Phase 7 reads the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un`. It indexes the CSVs under their `daily_csvs/` subfolders. Phase 7a builds these roots from the Phase 5c CSVs.
 - Phase 8 reads the Phase 7 outputs from `7_circuit_instantiation/`.

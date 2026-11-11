@@ -13,14 +13,14 @@ import sys
 import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import load_config, resolve_work_path
+from pipeline_utils import load_config, resolve_day_path
 
 cfg = load_config()
 
 START_PROCESS = time.time()
 
 # --- PATCHED: --scenario CLI flag ---
-SCENARIO = cfg.get("scenario", "")
+SCENARIO = ""  # baseline unless --scenario is given
 for _i, _arg in enumerate(sys.argv):
     if _arg == "--scenario" and _i + 1 < len(sys.argv):
         SCENARIO = sys.argv[_i + 1]
@@ -30,10 +30,11 @@ print(f"\n  Scenario: '{SCENARIO or 'baseline'}'  (suffix: '{_scen_suffix}')")
 # --- END PATCH ---
 
 # Folder where the kW CSVs are
-base_csv_folder = resolve_work_path("5c_csv_conversion")
+# (resolve_day_path: the mix subtree when PIPELINE_MIX is set, phase mix_days)
+base_csv_folder = resolve_day_path("5c_csv_conversion")
 
 # Load the pickle of ratios (from Script 2b)
-_ratios_pkl = resolve_work_path("6_kvar_preparation", f"kvar_ratios{_scen_suffix}.pkl")
+_ratios_pkl = resolve_day_path("6_kvar_preparation", f"kvar_ratios{_scen_suffix}.pkl")
 print(f"Reading ratios from: {_ratios_pkl}")
 with open(_ratios_pkl, "rb") as f:
     kvar_ratios = pickle.load(f)
