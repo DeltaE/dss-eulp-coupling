@@ -15,6 +15,13 @@ the source:
 - session_rows: each charging car charges the daily energy of the Team-Nando check
   curve as one block, started where the fleet is furthest below the curve.
 
+Under evwatts_sessions and nhts_days, work_cars moves a share (work_share of
+ev_inputs.yaml, the case ev_work_share_case of pipeline_config.yaml) of each group's
+charging cars to a workplace: a commercial load of the same circuit, where the car
+charges its whole day's energy with a Business Office session of the EV WATTS office
+extract or an NHTS weekday with a stop at work. session_rows keeps every car at home:
+the work share is not applied under that source.
+
 Values come from 7_circuit_instantiation/data_ev_cars/ev_inputs.yaml (load_inputs), the
 value set that ev_day in pipeline_config.yaml names (typical or stress).
 Intervals are 0 to 95 here and 1 to 96 in output files.
@@ -23,6 +30,7 @@ Every random draw has its own generator, seeded by seed(name, effective_seed) fr
 mix's ev.effective_seed of scenario_assignments.json and the draw's name.
 """
 import math
+import re
 
 import numpy as np
 import pandas as pd
@@ -32,6 +40,7 @@ from heating_split import _stable_seed_offset
 
 N_INTERVALS = 96
 EVWATTS_EXTRACT_FILE = "evwatts_residential_l2_weekday.csv"
+EVWATTS_OFFICE_EXTRACT_FILE = "evwatts_office_l2_weekday.csv"
 NHTS_EXTRACT_FILE = "{state}_nhts2017_vehicle_days.csv"
 EPS = 1e-9
 
@@ -41,8 +50,9 @@ def load_inputs(path, value_set="typical"):
     level2_kw, level1_kw, kwh_per_mile (= kwh_per_gallon_equivalent / mpge_bev),
     charging_share, months, season_months ({season: list of months}),
     check_curve_folder, check_curve_file, census_division ({state: division}),
-    forecast_error (the model name), forecast_models ({model: coefficients}) and
-    start_spread_min."""
+    forecast_error (the model name), forecast_models ({model: coefficients}),
+    start_spread_min and work_share ({low, moderate, high: share of the charging cars
+    that charge at a workplace})."""
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     v = {k: raw[k][value_set] for k in raw}
@@ -59,6 +69,7 @@ def load_inputs(path, value_set="typical"):
         "forecast_error": v["forecast_error"],
         "forecast_models": dict(raw["forecast_error"]["models"]),
         "start_spread_min": float(v["start_spread_min"]),
+        "work_share": {k: float(s) for k, s in v["work_share"].items()},
     }
 
 
@@ -138,11 +149,67 @@ def charge_shape(a, p, e_kwh, n_w):
     return out
 
 
-def read_evwatts_pool(extract_dir, division, months=None):
-    """The EV WATTS draw pool: rows of the extract in extract_dir whose division is
-    division and, when months is given, whose month is in months (every month when
-    None), in the extract's order (session_id)."""
-    ex = pd.read_csv(f"{extract_dir}/{EVWATTS_EXTRACT_FILE}",
+def charge_window(window, p, e_kwh):
+    """96 kW values of one car that charges e_kwh at power p (kW) through the intervals
+    of window (a list, in plug order; its pieces need not be contiguous). E = 4 x e_kwh
+    kW-intervals; n_full = floor(E / p + 1e-9); rem = E - n_full x p (0 below 1e-9). The
+    first min(n_full, len(window)) intervals of the list get p; if n_full < len(window)
+    and rem > 0, interval window[n_full] gets rem. For a window of window_intervals(a,
+    n_w) this equals charge_shape(a, p, e_kwh, n_w)."""
+    out = np.zeros(N_INTERVALS)
+    if e_kwh <= 0 or p <= 0:
+        return out
+    energy = 4.0 * e_kwh
+    n_full = int(math.floor(energy / p + EPS))
+    rem = energy - n_full * p
+    if rem < EPS:
+        rem = 0.0
+    for k in range(min(n_full, len(window))):
+        out[window[k]] = p
+    if n_full < len(window) and rem > 0:
+        out[window[n_full]] = rem
+    return out
+
+
+def work_window(pieces):
+    """The window of a work_pieces text of the NHTS extract (arrival:minutes pieces joined
+    by |): for each piece in order, window_intervals(*plug_window(arrival, minutes)),
+    joined, an interval already in the window not repeated. Returns (first plug-in
+    interval, window, first arrival minute). The ASSUMPTIONs of plug_window apply to
+    each piece."""
+    window, first_a, first_minute = [], None, None
+    for piece in str(pieces).split("|"):
+        arrival, minutes = (float(x) for x in piece.split(":"))
+        a, n_w = plug_window(arrival, minutes)
+        if first_a is None:
+            first_a, first_minute = a, arrival
+        for i in window_intervals(a, n_w):
+            if i not in window:
+                window.append(i)
+    return first_a, window, first_minute
+
+
+def read_bus_coords(path):
+    """{bus name in lower case: (longitude, latitude)} from a Buscoords.dss file, fields
+    split on commas or spaces; lines that do not parse are skipped."""
+    coords = {}
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            fields = re.split(r"[,\s]+", line.strip())
+            if len(fields) < 3:
+                continue
+            try:
+                coords[fields[0].lower()] = (float(fields[1]), float(fields[2]))
+            except ValueError:
+                continue
+    return coords
+
+
+def read_evwatts_pool(extract_dir, division, months=None, file=EVWATTS_EXTRACT_FILE):
+    """The EV WATTS draw pool: rows of the extract file in extract_dir (the residential
+    extract by default) whose division is division and, when months is given, whose
+    month is in months (every month when None), in the extract's order (session_id)."""
+    ex = pd.read_csv(f"{extract_dir}/{file}",
                      dtype={"session_id": "int64", "evse_id": "int64", "division": str, "venue": str,
                             "start_date": str})
     keep = ex["division"] == division
@@ -208,10 +275,12 @@ def nhts_window(day):
 
 
 def _car(group, k, host, source, level, power, charges, row, energy, window=None, plug=None,
-         source_id="", day_class="", window_source_id="", share=None, start=None, plug_minute=None):
+         source_id="", day_class="", window_source_id="", share=None, start=None, plug_minute=None,
+         place="home", place_load=None):
     """One car record: the columns of ev_cars.csv plus row (uncontrolled kW), window
     (list of intervals or None) and plug_minute (the clock minute of a charging car's
-    plug-in, or None)."""
+    plug-in, or None). place is home or work; place_load the load base whose bus carries
+    the car's EV loads (the host when None is given)."""
     delivered = row.sum() / 4.0
     return {
         "car": f"{'EVu' if group == 'uncontrolled' else 'EVc'}_{k}", "host": host, "group": group,
@@ -225,6 +294,7 @@ def _car(group, k, host, source, level, power, charges, row, energy, window=None
         "n_intervals": int(np.count_nonzero(row)),
         "delivered_kwh": delivered, "leftover_kwh": energy - delivered,
         "charging_share": share, "row": row, "window": window, "plug_minute": plug_minute,
+        "place": place, "place_load": place_load if place_load is not None else host,
     }
 
 
@@ -341,9 +411,81 @@ def session_rows_cars(group, hosts, curve, share, l2_share, inputs, effective_se
     return cars
 
 
+def work_cars(group, cars, share, offices, inputs, effective_seed, source, office_pool=None,
+              work_day_pool=None):
+    """The group's car list with its work cars replaced. The charging cars of the group
+    are those with charges_today, in host order; chosen = pick(n_charging, share,
+    rng(work_<group>)) over them. With share 0, or no charging car, cars is returned
+    unchanged and nothing is drawn. Each chosen car draws an office, offices[i] for i
+    from rng(office_<group>).integers(0, len(offices), size=n_chosen), in host order;
+    offices is the sorted list of the circuit's commercial load bases, drawn with
+    replacement, so several cars can share one office. Under evwatts_sessions each
+    chosen car draws one row of office_pool with rng(evwatts_work_<group>).integers(0,
+    len(office_pool), size=n_chosen): it plugs in at start_min for plug_min minutes
+    (plug_window) and charges energy_kwh at the session's mean power energy_kwh /
+    charge_h (charge_shape); level L2; source_id the session_id. Under nhts_days each
+    chosen car draws one row of work_day_pool with draw_nhts(work_day_pool, n_chosen,
+    rng(nhts_work_<group>)): its window is work_window(work_pieces), its energy
+    driver_miles x kwh_per_mile, its power level2_kw, its row charge_window; level L2;
+    day_class i; source_id HOUSEID-VEHID; plug_minute its first arrival at work. The
+    replaced record keeps its car name, host, group and charging_share, with place work
+    and place_load the office. Under session_rows the work share is not applied.
+
+    ASSUMPTION: each car charges at one place on the simulated weekday, so a work car
+    charges its whole day's energy at work and nothing at home; a car that charged at
+    both would split its energy, with less in the evening at home.
+    ASSUMPTION: a work car charges at a commercial load of its own circuit, drawn at
+    random with replacement, and cars leaving the feeder for work are taken to balance
+    cars arriving from other feeders; a circuit with few commercial loads puts several
+    cars on one office.
+    ASSUMPTION: under evwatts_sessions a work car's energy and times are one Business
+    Office session, one plug-in at a shared charger (median plugged 256 min in the South
+    Atlantic against a median 510 min parked at work in NHTS), so a car's whole stay is
+    not covered; a longer session would spread the same energy over more intervals.
+    ASSUMPTION: under nhts_days a work charger delivers level2_kw (7.2 kW), while
+    Business Office sessions in EV WATTS have median mean powers of 5.26 kW (South
+    Atlantic) and 5.65 kW (West South Central), so a lower charger power would lengthen
+    work charging. EV WATTS: https://doi.org/10.15483/1970735; NHTS:
+    https://nhts.ornl.gov/assets/2016/download/Csv.zip."""
+    charging = [k for k, c in enumerate(cars) if c["charges_today"]]
+    if share <= 0 or not charging or source == "session_rows":
+        return cars
+    chosen = pick(len(charging), share, rng(f"work_{group}", effective_seed))
+    chosen = [k for k, c in zip(charging, chosen) if c]
+    n_chosen = len(chosen)
+    office_idx = rng(f"office_{group}", effective_seed).integers(0, len(offices), size=n_chosen)
+    if source == "evwatts_sessions":
+        idx = rng(f"evwatts_work_{group}", effective_seed).integers(0, len(office_pool), size=n_chosen)
+    else:
+        idx = draw_nhts(work_day_pool, n_chosen, rng(f"nhts_work_{group}", effective_seed))
+    out = list(cars)
+    for j, k in enumerate(chosen):
+        car = cars[k]
+        office = offices[int(office_idx[j])]
+        if source == "evwatts_sessions":
+            s = office_pool.iloc[int(idx[j])]
+            e = float(s["energy_kwh"])
+            power = e / float(s["charge_h"])
+            a, n_w = plug_window(float(s["start_min"]), float(s["plug_min"]))
+            out[k] = _car(group, k, car["host"], source, True, power, True, charge_shape(a, power, e, n_w), e,
+                          window=window_intervals(a, n_w), plug=a, source_id=str(int(s["session_id"])),
+                          share=car["charging_share"], start=a, plug_minute=float(s["start_min"]),
+                          place="work", place_load=office)
+        else:
+            d = work_day_pool.iloc[int(idx[j])]
+            a, window, minute = work_window(d["work_pieces"])
+            e = float(d["driver_miles"]) * inputs["kwh_per_mile"]
+            power = inputs["level2_kw"]
+            out[k] = _car(group, k, car["host"], source, True, power, True, charge_window(window, power, e), e,
+                          window=window, plug=a, source_id=f"{d['HOUSEID']}-{int(d['VEHID'])}", day_class="i",
+                          share=car["charging_share"], start=a, plug_minute=minute,
+                          place="work", place_load=office)
+    return out
+
+
 def cars_frame(cars):
     """The ev_cars.csv table of a list of car records (row, window and plug_minute left
-    out)."""
+    out); place and place_load are its last two columns."""
     df = pd.DataFrame([{k: v for k, v in c.items() if k not in ("row", "window", "plug_minute")} for c in cars])
     for col in ("plug_in_interval", "window_intervals", "first_interval"):
         df[col] = df[col].astype("Int64")

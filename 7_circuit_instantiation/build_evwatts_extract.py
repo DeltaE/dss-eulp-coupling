@@ -3,9 +3,14 @@
 build_evwatts_extract.py
 ------------------------
 Maintainer step outside --all: the residential Level 2 weekday sessions of EV WATTS
-that ev_cars: evwatts_sessions and session_rows draw from (deployer_modules/ev_cars.py).
+that ev_cars: evwatts_sessions and session_rows draw from, and the Business Office
+sessions that the work cars of evwatts_sessions draw from (deployer_modules/ev_cars.py).
 
-Run once from the repository root:  python 7_circuit_instantiation/build_evwatts_extract.py
+Run twice from the repository root:
+  python 7_circuit_instantiation/build_evwatts_extract.py
+  python 7_circuit_instantiation/build_evwatts_extract.py --venue office
+--venue residential (the default) builds the residential extract; --venue office the
+office extract. Both go to evwatts_extract_dir.
 
 Inputs
 - configs/local.yaml: evwatts_raw_dir (the folder that holds evwatts.public.session.csv
@@ -19,7 +24,8 @@ Inputs
 Rules, in this order (each filter's dropped rows are counted):
 1. sessions joined to the evse table on evse_id; sessions without a match are left out;
 2. charge_level L2;
-3. venue Single Family Residential or Multi-Unit Dwelling;
+3. venue Single Family Residential or Multi-Unit Dwelling (--venue residential), or
+   venue Business Office (--venue office);
 4. region in the divisions of census_division;
 5. start_datetime on Monday to Friday;
 6. end_datetime - start_datetime present, not below 0 and at most 24 h;
@@ -32,17 +38,20 @@ Timestamps are read as the local clock time of the charger: the database gives n
 zone (ASSUMPTION in ev_cars.py).
 
 Outputs (in evwatts_extract_dir)
-- evwatts_residential_l2_weekday.csv, sorted by session_id, columns session_id,
-  evse_id, division, venue, start_date (YYYY-MM-DD), weekday (0 Monday to 4 Friday),
-  month, start_min (clock minute of start_datetime with seconds as decimals), plug_min
-  (end_datetime - start_datetime in minutes), charge_h (charge_duration, hours),
-  energy_kwh.
-- evwatts_extract.yaml: sources, input file names and bytes, build time UTC,
-  level2_max_kw, filters, rows dropped by each filter, rows kept per division and venue.
+- evwatts_residential_l2_weekday.csv (--venue residential) or
+  evwatts_office_l2_weekday.csv (--venue office), sorted by session_id, columns
+  session_id, evse_id, division, venue, start_date (YYYY-MM-DD), weekday (0 Monday to 4
+  Friday), month, start_min (clock minute of start_datetime with seconds as decimals),
+  plug_min (end_datetime - start_datetime in minutes), charge_h (charge_duration,
+  hours), energy_kwh.
+- evwatts_extract.yaml (residential) or evwatts_office_extract.yaml (office): sources,
+  input file names and bytes, build time UTC, level2_max_kw, filters, rows dropped by
+  each filter, rows kept per division and venue.
 
 Stops (exit 1): a key missing from configs/local.yaml, an input file missing, or the
 extract folder inside the repository.
 """
+import argparse
 import os
 import sys
 from datetime import datetime, timezone
@@ -54,14 +63,19 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INPUTS = os.path.join(REPO_ROOT, "7_circuit_instantiation", "data_ev_cars", "ev_inputs.yaml")
 SESSION_FILE = "evwatts.public.session.csv"
 EVSE_FILE = "evwatts.public.evse.csv"
-OUT_CSV = "evwatts_residential_l2_weekday.csv"
-OUT_YAML = "evwatts_extract.yaml"
 VENUES = ["Single Family Residential", "Multi-Unit Dwelling"]
+# --venue: the venues kept, the output files and the text of filter 3
+VENUE_OPTIONS = {
+    "residential": (VENUES, "evwatts_residential_l2_weekday.csv", "evwatts_extract.yaml",
+                    "venue Single Family Residential or Multi-Unit Dwelling"),
+    "office": (["Business Office"], "evwatts_office_l2_weekday.csv", "evwatts_office_extract.yaml",
+               "venue Business Office"),
+}
 CHUNK = 2_000_000
 FILTERS = [
     "evse_id in the evse table",
     "charge_level L2",
-    "venue Single Family Residential or Multi-Unit Dwelling",
+    VENUE_OPTIONS["residential"][3],
     "region in the census divisions",
     "start_datetime on Monday to Friday",
     "end_datetime - start_datetime present, not below 0 and at most 24 h",
@@ -84,10 +98,11 @@ def local_value(local, key):
     return local[key]
 
 
-def apply_filters(s, evse, divisions, level2_max_kw):
+def apply_filters(s, evse, divisions, level2_max_kw, venues=VENUES):
     """Apply the eleven rules to one session table s (columns of the session file) and the
-    evse table (indexed by evse_id). Returns (kept rows with the extract columns, list
-    of rows dropped by each rule)."""
+    evse table (indexed by evse_id), keeping the venues in venues (the residential venues
+    by default). Returns (kept rows with the extract columns, list of rows dropped by
+    each rule)."""
     dropped = []
 
     def keep(df, mask):
@@ -97,7 +112,7 @@ def apply_filters(s, evse, divisions, level2_max_kw):
     s = keep(s, s["evse_id"].isin(evse.index))
     s = s.join(evse[["charge_level", "venue", "region"]], on="evse_id")
     s = keep(s, s["charge_level"] == "L2")
-    s = keep(s, s["venue"].isin(VENUES))
+    s = keep(s, s["venue"].isin(venues))
     s = keep(s, s["region"].isin(divisions))
     t0 = pd.to_datetime(s["start_datetime"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
     t1 = pd.to_datetime(s["end_datetime"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
@@ -131,6 +146,12 @@ def apply_filters(s, evse, divisions, level2_max_kw):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Build the EV WATTS Level 2 weekday extract.")
+    parser.add_argument("--venue", choices=sorted(VENUE_OPTIONS), default="residential",
+                        help="residential (default): Single Family Residential and Multi-Unit "
+                             "Dwelling; office: Business Office")
+    venues, out_csv, out_yaml, venue_text = VENUE_OPTIONS[parser.parse_args().venue]
+    filters = [venue_text if f == VENUE_OPTIONS["residential"][3] else f for f in FILTERS]
     with open(os.path.join(REPO_ROOT, "configs", "local.yaml"), encoding="utf-8") as f:
         local = yaml.safe_load(f) or {}
     raw_dir = local_value(local, "evwatts_raw_dir")
@@ -151,7 +172,7 @@ def main():
                           usecols=["session_id", "evse_id", "start_datetime", "end_datetime",
                                    "charge_duration", "energy_kwh", "flag_id"]):
         n_read += len(ch)
-        kept, d, bf = apply_filters(ch, evse, divisions, level2_max_kw)
+        kept, d, bf = apply_filters(ch, evse, divisions, level2_max_kw, venues)
         dropped = [a + b for a, b in zip(dropped, d)]
         for k, v in bf.items():
             before_flag[k] = before_flag.get(k, 0) + int(v)
@@ -159,10 +180,10 @@ def main():
         print(f"  read {n_read:,} session rows, kept {sum(len(p) for p in parts):,}")
     out = pd.concat(parts, ignore_index=True).sort_values("session_id", kind="mergesort")
     os.makedirs(out_dir, exist_ok=True)
-    out.to_csv(os.path.join(out_dir, OUT_CSV), index=False)
+    out.to_csv(os.path.join(out_dir, out_csv), index=False)
     kept_by = {f"{d} | {v}": int(n) for (d, v), n in out.groupby(["division", "venue"]).size().items()}
     remaining, rows_after = n_read, []
-    for name, n in zip(FILTERS, dropped):
+    for name, n in zip(filters, dropped):
         remaining -= n
         rows_after.append({"filter": name, "dropped": n, "rows_after": remaining})
     record = {
@@ -179,9 +200,9 @@ def main():
         "rows_kept": len(out),
         "rows_kept_by_division_and_venue": kept_by,
     }
-    with open(os.path.join(out_dir, OUT_YAML), "w", encoding="utf-8") as f:
+    with open(os.path.join(out_dir, out_yaml), "w", encoding="utf-8") as f:
         yaml.safe_dump(record, f, sort_keys=False, allow_unicode=True)
-    print(f"[OK] {len(out):,} sessions -> {os.path.join(out_dir, OUT_CSV)}")
+    print(f"[OK] {len(out):,} sessions -> {os.path.join(out_dir, out_csv)}")
 
 
 if __name__ == "__main__":

@@ -378,3 +378,10 @@ ev_home_window: true
 # only, the 75th percentile check curve, day-ahead forecast error, a narrow start spread).
 # Main runs use the default, typical.
 ev_day: typical
+
+# Share of the EV cars charging on the simulated weekday that charge at a workplace,
+# a commercial load of the same circuit, and not at home: work_share in
+# 7_circuit_instantiation/data_ev_cars/ev_inputs.yaml.
+# low: 0, every car charges at home. moderate: 0.10. high: 0.20.
+# Main runs use the default, moderate.
+ev_work_share_case: moderate
