@@ -62,7 +62,7 @@ Place the four EULP baseline metadata CSVs at these paths under `eulp_metadata_r
 
 Keep the file names exactly as downloaded, because Phase 1 writes them into its outputs.
 
-The EV cars of the default `ev_cars: evwatts_sessions`, and of `session_rows`, need the EV WATTS public database (https://doi.org/10.15483/1970735). Create a free account at https://livewire.energy.gov/ds/evwatts/evwatts.public and download its session and evse tables (`evwatts.public.session.csv`, `evwatts.public.evse.csv`). Set `evwatts_raw_dir` to their folder and `evwatts_extract_dir` to a folder outside the repository, then run `python 7_circuit_instantiation/build_evwatts_extract.py` from the repository root, once as is for the residential extract and a second time with `--venue office` for the Business Office extract that the work cars draw from. The EV WATTS data stays outside the repository. The 2017 NHTS extract in `7_circuit_instantiation/data_ev_cars/` is tracked; `python 7_circuit_instantiation/build_nhts_extract.py` rebuilds it from https://nhts.ornl.gov/assets/2016/download/Csv.zip, unpacked into the folder that `nhts2017_csv_dir` names.
+The EV cars of the default `ev_cars: evwatts_sessions`, and of `session_rows`, need the EV WATTS public database (https://doi.org/10.15483/1970735). Create a free account at https://livewire.energy.gov/ds/evwatts/evwatts.public and download its session and evse tables (`evwatts.public.session.csv`, `evwatts.public.evse.csv`). Set `evwatts_raw_dir` to their folder and `evwatts_extract_dir` to a folder outside the repository, then run `python 7_circuit_instantiation/build_evwatts_extract.py` from the repository root, once as is for the residential extract and a second time with `--venue office` for the Business Office extract that the work cars draw from. The EV WATTS data stays outside the repository. The 2017 NHTS extract in `7_circuit_instantiation/data_ev_cars/` is tracked; `python 7_circuit_instantiation/build_nhts_extract.py` rebuilds it from https://nhts.ornl.gov/assets/2016/download/Csv.zip, unpacked into the folder that `nhts2017_csv_dir` names. A run with `horizon_days` above 1, the default, also needs the weekend residential extract: run `python 7_circuit_instantiation/build_evwatts_extract.py --day-type weekend` once (see "The multi-day window"). `--venue office --day-type weekend` builds the office weekend extract, which no run reads; it backs the weekend shares in `ev_inputs.yaml`. The NHTS weekend extract is tracked; `build_nhts_extract.py --day-type weekend` rebuilds it.
 
 Each CSV downloads directly from OEDI. Each URL returns the exact bytes the pipeline uses:
 
@@ -184,6 +184,27 @@ Without `--settings` a run is as before.
 
 To switch, set `peak_day_rule` to `per_circuit`, `per_group` or `given` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on.
 
+## The multi-day window
+
+`horizon_days` in `pipeline_config.yaml` sets how many days each circuit is simulated on. OpenDSS solves them as one continuous run of 96 x `horizon_days` steps. The documented values are 1, 7 and 14, and the default is 7. With `horizon_days: 1` a run is the one-day run on the peak day and every output is as before.
+
+- The window holds `horizon_days` consecutive days around the simulated peak day, day X, with day X at position ceil(`horizon_days` / 2): X-3 to X+3 for 7 days, X-6 to X+7 for 14 days.
+- The window stays inside the season and inside one stretch of the data year: summer 1 June to 31 August; winter 1 January to 28 February, or 1 to 31 December. A window that would leave its stretch is shifted back into it, so it never crosses 31 December. The season months are those of Phase 5b (`WINTER_MONTHS` and `SUMMER_MONTHS` in `find_max_day_curve_impl.py`).
+- Day X is picked as before, under every value of `peak_day_rule`. Under `given` the caller's day is day X. Under `per_group` each heating group has its own window around its own day X, and the circuit's window, PV and day types follow the baseline group.
+- The dates are those of 2018, the calendar of the building curves, so each window day is a weekday or a weekend day. A federal holiday keeps the day type of its weekday. Day X always runs as in the one-day run, with weekday sessions, whatever its date.
+- `run_case.py` stops with `[FAIL]` on a value that is not a whole number of days, 1 or above. A window longer than its stretch stops with `[FAIL]` in Phase 5b.
+
+ASSUMPTION: the multi-day window is 7 days, three days either side of the simulated peak day, kept inside the season. It covers Winter Storm Elliott (21 to 26 December 2022, 6 days, with load shed in the Carolinas) and the average recent heat wave in large U.S. cities (about 4 days) with lead-in days; Winter Storm Uri in Texas lasted 13 days (8 to 20 February 2021), so `horizon_days` 14 is the longer option, and a shorter window gives batteries fewer days to run down. The building curves use typical-year and 2018 weather, so the window holds no historical storm.
+
+What each phase does with a window:
+
+1. Phase 5b, and phase `mix_days` for each mix, cut every building profile on each window day as they cut day X, and join the days in date order.
+2. Phases 5c, 6 and 7b carry 96 x `horizon_days` values per loadshape. Phase 6 takes the kvar to kW ratio of each step from its own timestamp.
+3. In Phase 7c each PV array takes each day's shape from that day's own month and day of the solar file. The EV cars charge day after day (see "EV cars"), the controlled cars are placed on each day (see "EV control"), and the batteries carry their energy from one day to the next (see "PV and storage"). Under `pv_rule_<segment>: peak_ratio` a host's peak is that of day X, so the window changes no size.
+4. Each circuit folder gets `window_days.csv`: one row per window day with its date, weekday, day type, day index, a flag on day X and the holiday name, if any. The per-step tables get `date`, `day_index` and `day_type`. Phase 8 adds the same columns to `aggregate_m1.csv` and `aggregate_m2.csv` and writes the steps of day X as `day_x_first_step` and `day_x_last_step` in `circuit_summary.csv` and in the summary rows (see `docs/outputs.md`).
+
+A caller that wants the one-day run sets `horizon_days: 1` in the `pipeline_config.yaml` of its `--settings` folder.
+
 ## Heating labels and EV hosts
 
 Phase 7b and phase `mix_days` deal the heating groups (baseline, dm, uncontrolled) of each feeder and mix with `7_circuit_instantiation/heating_split.py`. `heating_label_unit` in `pipeline_config.yaml` sets what is counted:
@@ -231,6 +252,23 @@ Under `session_rows` every car charges at home: the work share is not applied. A
 
 The seeds and draw names are the same under both values, so a stress run differs from a typical run only by the values. The deploy prints the size of each draw pool.
 
+Over a window of more than one day (`horizon_days` above 1) the cars charge day after day. The cars of day X stay those of the one-day run. One car goes through these stages:
+
+1. It keeps its charger and its drawn weekday session or vehicle-day for every weekday of the window. Under `evwatts_sessions` and `nhts_days` it also draws one weekend session or vehicle-day, from the weekend extracts (`build_evwatts_extract.py --day-type weekend`, `build_nhts_extract.py --day-type weekend`), and keeps it for every Saturday and Sunday. `session_rows` has one curve and uses it on every day.
+2. On day X it charges or not as in the one-day run. On every other day, under `evwatts_sessions` and `session_rows`, a seeded draw with the measured share of that day's type decides whether it charges. The weekend share is measured on the weekend extract with the formula of the weekday share. Under `ev_day: stress` every car charges on every day. Under `nhts_days` a car charges on every day whose vehicle-day drove.
+3. Its plug-in window runs on the window's own timeline: charging past midnight lands on the next day. The first day of the window receives the part after midnight of the session of the day before it, which is drawn as any other day. A window ends when the car plugs in again.
+4. Energy that does not fit inside its plug-in window on a charging day is charged on the next evening without a drawn session, from its own plug-in time, at its own power, inside its own window. Energy still owed when the window ends is reported and not charged.
+5. A work car charges at its office on weekdays and at home, with its weekend session, on weekend days. For this it has two more EV loads at home, `EVu_<host>_1` and `_2` (or `EVc_`), with the shape `EVu_<i>h`. Work cars are the work cars of day X, plus the work share of the cars that do not charge on day X, so the work share holds on every weekday.
+6. `<circuit>/EVControl/ev_car_days.csv` records each car and day: whether it charges, the session, the place, and the energy needed, delivered, topped up and owed.
+
+ASSUMPTION: over a horizon of more than one day each car keeps its one drawn session and charger, and on every day other than the simulated peak day it charges with probability equal to the measured share of days of that type with a session at home chargers of its census division (for example 0.403 South Atlantic and 0.454 West South Central on weekdays, 0.384 and 0.435 on Saturdays and Sundays), drawn independently each day. Real drivers keep habits such as fixed charging days, so drawn days spread more evenly than real ones, while the expected sessions per car and the fleet energy per day equal the measured values.
+
+ASSUMPTION: energy a car cannot charge inside its plug-in window on a charging day is charged on the next evening the car has no drawn session, from its own plug-in time, at its own power, inside its own window; energy still owed when the horizon ends is reported and not charged. A Level 1 car at 1.0 kW needs 10 h for a 10 kWh session, so without this rule it would receive less energy over the horizon than its sessions record; when every car charges every day (stress) no top-up occurs.
+
+ASSUMPTION: workplace charging happens on weekdays only. EV WATTS Business Office Level 2 chargers record a session on 11 to 14 percent of Saturdays and Sundays in service against 30 to 32 percent of weekdays, and a weekend charger-day takes about a third of a weekday's energy (`weekend_files` in `ev_inputs.yaml`, EV WATTS, https://doi.org/10.15483/1970735).
+
+A worked example of the top-up, from the 2017 NHTS vehicle-day of household 30022175, vehicle 1, in NC: a Level 1 car at 1.0 kW is plugged in from 18:30 to 07:00, 50 intervals, and needs 15.25 kWh a day (45.2 miles at 33.7 / 99.9 kWh per mile). Each charging night 12.50 kWh fit and 2.75 kWh are left over. With charging days 1, 4, 5 and 6 of a 7-day window, the car tops up 2.75 kWh on day 2 and the 8.25 kWh of days 4, 5 and 6 on day 7. Its windows then hold 61.0 kWh, against 50.0 kWh if the leftovers were dropped. The day 7 top-up starts at 18:30, so the 2.75 kWh that fall after the window's last midnight are reported as owed. When every car charges every day (stress) the car has no free evening and nothing is topped up.
+
 The inputs and their sources are in `7_circuit_instantiation/data_ev_cars/ev_inputs.yaml`. The deploy writes one row per car to `<circuit>/EVControl/ev_cars.csv` (see `docs/outputs.md`).
 
 ## EV control
@@ -251,6 +289,11 @@ The valley rules and `offpeak_start` keep each car inside its window when `ev_ho
 
 `ev_valley_base` sets what the no-EV solve of the valley rules holds: `buildings_only` (the default) or `after_pv` (also PV). It never holds storage, except under `storage_order: before_cars` (see "PV and storage"), when it holds PV and storage. The feeder and transformer rules compare a feeder view with a local view of where charging lands.
 
+`ev_valley_day` sets the curve the controlled cars see on each day of a window of more than one day. Both values give the one-day run at `horizon_days: 1`.
+
+- `own_day`, the default: the no-EV solve covers the whole window, and each day's charging and top-up cars are placed, in order of plug-in time on the window's timeline, on that day's own forecast. Each day has its own forecast error: day X keeps the draw of the one-day run and every other day has a draw of its own. `offpeak_start` reads the tariff row of each day's month and day type, the weekday schedule on weekdays and the weekend schedule on Saturdays and Sundays.
+- `peak_day`: every day's cars are placed on day X's forecast, repeated on each day. `offpeak_start` reads the tariff row of day X's month and of each day's own day type.
+
 The rates are dated copies of OpenEI U.S. Utility Rate Database records in `7_circuit_instantiation/data_tariffs/<ST>_urdb_rate.json`, with their source URL. `fetch_tou_rates.py` chooses them from the queries in `data_tariffs/rate_queries.yaml`. Each file records whether its rate was current when it was fetched.
 
 ## PV and storage
@@ -269,6 +312,16 @@ PV size (DC) under `pv_rule_<segment>: roof_and_use` (the default) is the lesser
 4. Under `schedule_start: best` (the default), stages 2 and 3 run for every s from `storage_reserve_pct` to full in steps of `schedule_start_step_pct` (10 %), and the plan that leaves the lowest forecast maximum of the view is kept; a tie goes to the larger x, then to the lower s. Under `fixed`, s is `storage_start_pct`.
 5. The host's plan joins the curve and the next host plans on it. OpenDSS follows each plan (`DispMode=FOLLOW`), each battery starting at s (`%stored`).
 
+Over a window of more than one day each host's plan is one loadshape of 96 x `horizon_days` points, and each day is planned in turn:
+
+1. The day is planned on its own forecast, with its own forecast error, from the energy the day before left. The first day starts at s.
+2. The battery discharges above the level that holds the discharge budget x, and charges below a level that is never above the discharge level, with the grid energy that brings the stored energy back to s at the end of the day.
+3. x is the largest budget for which the stored energy stays between `storage_reserve_pct` and full at every step of the day. A day whose valleys cannot hold the charge ends below s; the next day starts there and aims at s again.
+4. s comes from `schedule_start`: `best` (the default) takes the s of the one-day rule on day X's forecast; `best_window` runs every s through the whole window and keeps the one that leaves the lowest forecast maximum of the window, with the ties of `best`; `fixed` is `storage_start_pct`. At `horizon_days: 1` `best` and `best_window` give the same plan.
+5. `StorageControl/storage_midnights.csv` records, per battery and day, the planned and the monitored stored energy at midnight.
+
+Under `simple` and `tuned` the controller keeps one pair of targets for the whole window, set on the window's forecast, and the batteries carry their energy through the continuous solve.
+
 `simple` and `tuned` write one OpenDSS `StorageController` per view, discharging above `kWTarget` (PeakShave) and charging below `kWTargetLow` (PeakShaveLow). `simple` sets them from the view's daily peak and mean (`simple_peak_fraction`, `simple_mean_fraction`); `tuned` at the level above which the curve holds the batteries' usable energy and the level below which filling the curve recharges them. Under these rules every battery starts at `storage_start_pct`, and the targets use the same forecast of the measured curve.
 
 - `storage_view`: `feeder` (the default, the feeder-head line), `transformer` (each host's service transformer) or `building` (the line that feeds the host's bus).
@@ -280,7 +333,7 @@ Every battery draws standby power. Under `storage_standby_element: load` (the de
 
 ## Known limitations
 
-- The simulation horizon is one day of 96 fifteen-minute steps. The deploy script, `pfs_ev_base_profiles.py` and the max-day script keep their names until the horizon becomes configurable.
+- The simulation horizon is `horizon_days` days of 96 fifteen-minute steps each, one day at `horizon_days: 1`. Day X is the peak day of the building curves; OpenDSS solves the window around it and no other day. The deploy script, `pfs_ev_base_profiles.py` and the max-day script keep their names.
 - Homes use EULP ResStock profiles on TMY3 weather. Commercial buildings use EULP ComStock profiles on 2018 weather, and SMART-DS solar data is for 2018.
 - PV and storage sizes follow sourced shares of roof area and annual use, applied to every host of a segment alike. Real systems vary around those shares, and the commercial median PV size of the default cases is below the LBNL median for non-residential systems. See `der_sizing` in `pipeline_config.yaml`.
 - PV is sized on the baseline building's annual use, before any heat pump or EV, so a home in the dm or un group keeps the PV of its baseline building.
@@ -290,8 +343,8 @@ Every battery draws standby power. Under `storage_standby_element: load` (the de
 - A `StorageController` shares the kW it needs over every battery of its view and holds the watched power within a band around its target (`storage_kw_band_pct`, wider than the OpenDSS default) and asks for part of the kW it needs in each iteration (`storage_disp_factor`), so that fleets of many small batteries settle. A view where most batteries are full or empty approaches its target in many small steps; `storage_max_control_iter` sets how many a time step may take.
 - Storage shaves the forecast peak of its view with a plan computed from the day's curve. Optimised or co-optimised dispatch of batteries is outside this tool.
 - Batteries serve their view of the grid. Household self-consumption control, which most behind-the-meter batteries follow, is not modelled.
-- Under `schedule_start: best` each battery starts the day with the energy that best serves that day and returns to it at midnight, as if every day had the same curve. A one-day run therefore assumes the day before left that energy.
-- Each case takes its PV daily shape from one SMART-DS solar site of the donor's region, on the day the circuit runs on: the feeder's baseline peak day under `per_group`, the circuit's day under `per_circuit`. See `pv_profile` in `configs/donor_registry.yaml`.
+- Under `schedule_start: best` each battery starts with the energy that best serves day X and aims to return to it at every midnight. A one-day run (`horizon_days: 1`) returns to it exactly, as if every day had the same curve, and so assumes the day before left that energy. A longer window plans each day on its own curve from the energy the day before left, and assumes only that the day before the window left the starting energy.
+- Each case takes its PV shape from one SMART-DS solar site of the donor's region, on the day the circuit runs on: the feeder's baseline peak day under `per_group`, the circuit's day under `per_circuit`. With `horizon_days` above 1 each day of the window takes the shape of its own month and day. See `pv_profile` in `configs/donor_registry.yaml`.
 - The docs are Markdown read on GitHub. The Sphinx build needs `myst_parser`.
 - `gather_m2_cases.py`, `validate_2x2.py` and `gen_results_table.py` read `configs/local.yaml` only and ignore `--settings` (`gen_results_table.py` takes `--runs-root`).
 - Heating labels are dealt per building profile, and buildings serve different numbers of customers, so the realized customer shares can differ from the mix. Under `heating_label_unit: customer` both the building shares and the customer shares can differ, because a building shared by several customers takes the group of the last customer dealt.
@@ -301,7 +354,7 @@ Every battery draws standby power. Under `storage_standby_element: load` (the de
 - The start spread of `offpeak_start` is an assumed normal spread, 60 minutes on a typical day and 15 on a stress day.
 - Battery standby comes from lab tests of 26 German residential systems and is applied to every battery, commercial ones included. A commercial battery takes the home values per kW of a 5 kW system, as a percent of its kW. Each battery draws its discharged-state standby at every step of the day. Under `storage_standby_element: load` the grid supplies the standby also while a battery discharges, where OpenDSS `%IdlingkW` would take it from the battery.
 - The stress day changes behaviour (the share of cars charging, the months drawn, the check curve, the forecast horizon, the start spread), never hardware.
-- The tariff is the weekday schedule of one utility per donor state. The saved file records whether the rate was current when it was fetched, and `offpeak_start` uses a rate that is no longer current as it is.
+- The tariff is one utility's rate per donor state: its weekday schedule, and with `horizon_days` above 1 its weekend schedule on Saturdays and Sundays. The saved file records whether the rate was current when it was fetched, and `offpeak_start` uses a rate that is no longer current as it is.
 - Public EV charging is not modelled.
 - Several work cars can share one office load, because the office is drawn with replacement among the circuit's commercial loads (the TX circuits hold 20 and 22 commercial loads).
 - An EV WATTS office session is one plug-in at a shared charger, so it can cover less than a car's whole stay at work.
@@ -315,7 +368,7 @@ Every battery draws standby power. Under `storage_standby_element: load` (the de
 - The share of cars charging counts one car per residential charger.
 - EV WATTS timestamps are read as the charger's local clock time.
 - NHTS vehicle-days that drive but neither end nor start at home are left out of the draw, and so are vehicle-days with a driver trip faster than 85 mph, taken as recording errors.
-- A plug-in window that runs past midnight wraps onto the first intervals of the same day.
+- At `horizon_days: 1` a plug-in window that runs past midnight wraps onto the first intervals of the same day. With `horizon_days` above 1 it runs on to the next day; only the part after the window's last midnight is left out, and its energy is reported as owed.
 - The check curves in `7_circuit_instantiation/data_ev/`, used by `session_rows`, are UK home charging from the Electric Nation trial, processed by the University of Melbourne for an Australian project (Team-Nando EV-Demand-Profiles).
 - An EV WATTS Level 2 car charges at its session's mean power, which can differ from 7.2 kW.
 - Under `per_circuit`, a case-season takes about twice as long and needs more disk than under `per_group`.
