@@ -7,6 +7,8 @@ ev_cars: nhts_days draws from, and the windows of the controlled cars under
 ev_cars: session_rows (deployer_modules/ev_cars.py).
 
 Run once from the repository root:  python 7_circuit_instantiation/build_nhts_extract.py
+and once more with --day-type weekend for the Saturday and Sunday vehicle-days (the
+weekend days of a horizon of more than one day draw from them).
 
 Inputs
 - configs/local.yaml: nhts2017_csv_dir, the unpacked
@@ -15,8 +17,9 @@ Inputs
 
 Rules
 1. Vehicle-days: vehpub.csv rows with HHSTATE NC or TX, VEHTYPE 01 to 04 (car, van,
-   SUV, pickup) and TRAVDAY 02 to 06 (Monday to Friday). TDAYDATE comes from hhpub.csv
-   by HOUSEID; WTHHFIN from vehpub.csv.
+   SUV, pickup) and TRAVDAY 02 to 06 (Monday to Friday), or with --day-type weekend
+   TRAVDAY 07 (Saturday) and 01 (Sunday). TDAYDATE comes from hhpub.csv by HOUSEID;
+   WTHHFIN from vehpub.csv.
 2. Driver trips: trippub.csv rows with DRVR_FLG 01, joined to the vehicle-days on
    HOUSEID and VEHID. A duplicate driver trip (same vehicle, STRTTIME, ENDTIME, WHYFROM
    and WHYTO) is kept once. Clock minutes from HHMM; a negative time is missing.
@@ -60,10 +63,16 @@ Outputs (in 7_circuit_instantiation/data_ev_cars/)
 - nhts2017_extract.yaml: source URLs, build time UTC, filters, window rule, speed rule,
   work rule, rows per state and class (i to iv), days with a work stop per state and
   class.
+- With --day-type weekend: <ST>_nhts2017_vehicle_days_weekend.csv for NC and TX, with
+  the same columns and rules (TRAVDAY is the day column: 07 Saturday, 01 Sunday), and
+  the block weekend of nhts2017_extract.yaml: its files, build time UTC, the TRAVDAY
+  filter, rows per state, day and class, and days with a work stop per state and class.
+  The rest of the record is kept as it is; a weekday build keeps the weekend block.
 
 Stops (exit 1): nhts2017_csv_dir missing from configs/local.yaml, or an input file
 missing.
 """
+import argparse
 import os
 import sys
 from datetime import datetime, timezone
@@ -77,6 +86,12 @@ OUT_DIR = os.path.join(REPO_ROOT, "7_circuit_instantiation", "data_ev_cars")
 STATES = ["NC", "TX"]
 CAR_TYPES = {1, 2, 3, 4}
 WEEKDAYS = {2, 3, 4, 5, 6}
+# --day-type: the TRAVDAY values kept, the end of the output file names and the filter text
+DAY_TYPES = {
+    "weekday": (WEEKDAYS, "", "TRAVDAY 02 to 06"),
+    "weekend": ({7, 1}, "_weekend", "TRAVDAY 07 (Saturday) or 01 (Sunday)"),
+}
+WEEKEND_DAY_NAMES = {7: "Saturday", 1: "Sunday"}
 HOME = {1, 2}
 WORK = 3
 DAY_START_MIN = 240
@@ -169,6 +184,12 @@ def vehicle_days(veh, trips, max_speed_mph):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Build the NHTS 2017 vehicle-day extract.")
+    parser.add_argument("--day-type", choices=sorted(DAY_TYPES), default="weekday",
+                        help="weekday (default): TRAVDAY 02 to 06; weekend: TRAVDAY 07 and 01, "
+                             "written to <ST>_nhts2017_vehicle_days_weekend.csv")
+    day_type = parser.parse_args().day_type
+    travdays, file_end, travday_text = DAY_TYPES[day_type]
     with open(os.path.join(REPO_ROOT, "configs", "local.yaml"), encoding="utf-8") as f:
         local = yaml.safe_load(f) or {}
     src = local.get("nhts2017_csv_dir")
@@ -188,21 +209,43 @@ def main():
                               "DRVR_FLG", "TRPMILES"])
     vh = vh[vh["HHSTATE"].isin(STATES)
             & pd.to_numeric(vh["VEHTYPE"], errors="coerce").isin(CAR_TYPES)
-            & pd.to_numeric(vh["TRAVDAY"], errors="coerce").isin(WEEKDAYS)]
+            & pd.to_numeric(vh["TRAVDAY"], errors="coerce").isin(travdays)]
     vh = vh.merge(hh, on="HOUSEID", how="left")
     vh["WTHHFIN"] = pd.to_numeric(vh["WTHHFIN"])
     with open(os.path.join(OUT_DIR, "ev_inputs.yaml"), encoding="utf-8") as f:
         max_speed_mph = yaml.safe_load(f)["nhts_max_trip_speed_mph"]["typical"]
-    counts, work_counts = {}, {}
+    counts, work_counts, day_counts = {}, {}, {}
     for st in STATES:
         days = vehicle_days(vh[vh["HHSTATE"] == st][["HOUSEID", "VEHID", "TDAYDATE", "TRAVDAY", "WTHHFIN"]],
                             tr[tr["HOUSEID"].isin(set(vh.loc[vh["HHSTATE"] == st, "HOUSEID"]))],
                             max_speed_mph)
-        days.to_csv(os.path.join(OUT_DIR, f"{st}_nhts2017_vehicle_days.csv"), index=False)
+        days.to_csv(os.path.join(OUT_DIR, f"{st}_nhts2017_vehicle_days{file_end}.csv"), index=False)
+        travday = pd.to_numeric(days["TRAVDAY"], errors="coerce")
+        day_counts[st] = {name: {c: int(((travday == code) & (days["day_class"] == c)).sum())
+                                 for c in ("i", "ii", "iii", "iv")}
+                          for code, name in WEEKEND_DAY_NAMES.items()}
         counts[st] = {c: int((days["day_class"] == c).sum()) for c in ("i", "ii", "iii", "iv")}
         work_counts[st] = {c: int(((days["day_class"] == c) & (days["n_work_pieces"] > 0)).sum())
                            for c in ("i", "ii", "iii", "iv")}
         print(f"[OK] {st}: {len(days):,} vehicle-days {counts[st]}, with a work stop {work_counts[st]}")
+    record_path = os.path.join(OUT_DIR, "nhts2017_extract.yaml")
+    old_record = {}
+    if os.path.exists(record_path):
+        with open(record_path, encoding="utf-8") as f:
+            old_record = yaml.safe_load(f) or {}
+    if day_type == "weekend":
+        # The weekend block; the rest of the record stays as the weekday build wrote it.
+        old_record["weekend"] = {
+            "files": [f"{st}_nhts2017_vehicle_days{file_end}.csv" for st in STATES],
+            "built_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "travday_filter": travday_text,
+            "rows_per_state_day_and_class": day_counts,
+            "rows_per_state_and_class": counts,
+            "work_days_per_state_and_class": work_counts,
+        }
+        with open(record_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(old_record, f, sort_keys=False)
+        return
     record = {
         "source": "2017 National Household Travel Survey, U.S. Department of Transportation, Federal Highway Administration",
         "data_url": "https://nhts.ornl.gov/assets/2016/download/Csv.zip",
@@ -223,7 +266,9 @@ def main():
         "rows_per_state_and_class": counts,
         "work_days_per_state_and_class": work_counts,
     }
-    with open(os.path.join(OUT_DIR, "nhts2017_extract.yaml"), "w", encoding="utf-8") as f:
+    if "weekend" in old_record:
+        record["weekend"] = old_record["weekend"]
+    with open(record_path, "w", encoding="utf-8") as f:
         yaml.safe_dump(record, f, sort_keys=False)
 
 

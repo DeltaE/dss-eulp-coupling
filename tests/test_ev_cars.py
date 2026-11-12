@@ -6,7 +6,8 @@ ev_cars.py (Phase 7 deploy, the EV cars) and the two extract scripts on small
 hand-made data: the seeds, the level and charging draws, charge_shape and the plug-in
 window, the share of cars charging, the NHTS day classes and windows, the NHTS speed
 check (class iv), the NHTS work pieces, the EV WATTS
-extract filters (residential and office venues), the repaired 2024 generator, the work
+extract filters (residential and office venues, weekday and weekend day types), the
+weekend NHTS files, the repaired 2024 generator, the work
 cars (charge_window, work_window, work_cars, read_bus_coords, work_share), and the
 ev_cars, ev_home_window, ev_day and ev_work_share_case settings.
 
@@ -27,8 +28,8 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation", "deployer_
 from ev_cars import (charge_shape, charge_window, charging_share, evwatts_cars, load_inputs,  # noqa: E402
                      nhts_cars, pick, plug_window, read_bus_coords, rng, seed, session_rows_cars,
                      window_intervals, work_cars, work_window)
-from build_nhts_extract import vehicle_days  # noqa: E402
-from build_evwatts_extract import apply_filters  # noqa: E402
+from build_nhts_extract import COLUMNS as NHTS_COLUMNS, DAY_TYPES as NHTS_DAY_TYPES, vehicle_days  # noqa: E402
+from build_evwatts_extract import DAY_TYPES as EVWATTS_DAY_TYPES, apply_filters  # noqa: E402
 from pipeline_utils import ev_cars, ev_day, ev_home_window, ev_work_share_case  # noqa: E402
 
 INPUTS = {"level2_kw": 7.2, "level1_kw": 1.0, "kwh_per_mile": 33.7 / 99.9}
@@ -234,6 +235,70 @@ def test_evwatts_extract_filters():
     assert dropped_o[2] == 9
     again, dropped_r, _ = apply_filters(s, evse, ["South Atlantic", "West South Central"], 19.2)
     assert list(again["session_id"]) == [12] and dropped_r == [1] * 11
+
+
+def test_evwatts_extract_day_type():
+    """--day-type weekend keeps Saturday and Sunday at rule 5 and every other rule; weekday,
+    the default, keeps Monday to Friday; the columns are the same."""
+    evse = pd.DataFrame({"evse_id": [1], "charge_level": ["L2"], "venue": ["Single Family Residential"],
+                         "region": ["South Atlantic"]}).set_index("evse_id")
+    good = {"evse_id": 1, "start_datetime": "2024-01-06 18:00:00", "end_datetime": "2024-01-06 20:00:00",
+            "charge_duration": 1.0, "energy_kwh": 5.0, "flag_id": 0}
+    rows = [
+        good,                                                                                   # Saturday
+        dict(good, start_datetime="2024-01-07 09:30:00", end_datetime="2024-01-07 11:00:00"),   # Sunday
+        dict(good, start_datetime="2024-01-03 18:00:00", end_datetime="2024-01-03 20:00:00"),   # Wednesday
+        dict(good, flag_id=64),                                                                 # Saturday, flagged
+        dict(good, start_datetime="2024-01-07 09:30:00", end_datetime="2024-01-07 11:00:00", energy_kwh=0.0),
+    ]
+    s = pd.DataFrame(rows)
+    s.insert(0, "session_id", range(1, len(rows) + 1))
+    divisions = ["South Atlantic", "West South Central"]
+    weekend, dropped, _ = apply_filters(s, evse, divisions, 19.2, day_type="weekend")
+    assert list(weekend["session_id"]) == [1, 2] and list(weekend["weekday"]) == [5, 6]
+    assert list(weekend["start_min"]) == [1080.0, 570.0]
+    assert dropped == [0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0]    # the Wednesday, the flag, the empty session
+    weekday, dropped_w, _ = apply_filters(s, evse, divisions, 19.2)
+    assert list(weekday["session_id"]) == [3] and dropped_w[4] == 4
+    assert list(weekday.columns) == list(weekend.columns)
+    by_name, _, _ = apply_filters(s, evse, divisions, 19.2, day_type="weekday")
+    assert by_name.equals(weekday)
+    assert EVWATTS_DAY_TYPES["weekday"][1] == (0, 1, 2, 3, 4) and EVWATTS_DAY_TYPES["weekend"][1] == (5, 6)
+
+
+def test_nhts_extract_day_type():
+    """--day-type weekend keeps TRAVDAY 07 and 01 and writes the _weekend files; the rules
+    and columns of a vehicle-day are those of a weekday."""
+    assert NHTS_DAY_TYPES["weekday"][:2] == ({2, 3, 4, 5, 6}, "")
+    assert NHTS_DAY_TYPES["weekend"][:2] == ({7, 1}, "_weekend")
+    veh = pd.DataFrame({"HOUSEID": ["1", "2"], "VEHID": ["01", "01"], "TDAYDATE": ["201608"] * 2,
+                        "TRAVDAY": ["07", "01"], "WTHHFIN": [1.0, 2.0]})
+    trips = pd.DataFrame([_trip("1", "01", "0900", "0930", "01", "04", 3.0),
+                          _trip("1", "01", "1100", "1130", "04", "01", 3.0)])
+    days = vehicle_days(veh, trips, 85)
+    assert list(days.columns) == NHTS_COLUMNS
+    assert list(days["TRAVDAY"]) == ["07", "01"] and list(days["day_class"]) == ["i", "ii"]
+    assert days.loc[0, "window_min"] == 1290            # home 11:30, leaves 09:00: 21.5 h
+
+
+def test_weekend_nhts_files():
+    """The tracked weekend files hold Saturday and Sunday vehicle-days only, with the
+    columns of the weekday files, and nhts2017_extract.yaml records their counts."""
+    import yaml
+    folder = os.path.join(REPO_ROOT, "7_circuit_instantiation", "data_ev_cars")
+    with open(os.path.join(folder, "nhts2017_extract.yaml"), encoding="utf-8") as f:
+        record = yaml.safe_load(f)["weekend"]
+    for state in ("NC", "TX"):
+        name = f"{state}_nhts2017_vehicle_days_weekend.csv"
+        assert name in record["files"]
+        days = pd.read_csv(os.path.join(folder, name), dtype={"TRAVDAY": str, "day_class": str})
+        weekday = pd.read_csv(os.path.join(folder, f"{state}_nhts2017_vehicle_days.csv"), nrows=5)
+        assert list(days.columns) == list(weekday.columns) == NHTS_COLUMNS
+        assert set(days["TRAVDAY"]) == {"07", "01"}
+        for day, code in (("Saturday", "07"), ("Sunday", "01")):
+            for cls in ("i", "ii", "iii", "iv"):
+                assert record["rows_per_state_day_and_class"][state][day][cls] == \
+                    int(((days["TRAVDAY"] == code) & (days["day_class"] == cls)).sum())
 
 
 def test_repaired_generator():
