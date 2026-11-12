@@ -13,6 +13,9 @@ the functions hold the rules only.
   at least one when perc > 0 and the segment has bases.
 - pick(seed, offset, items, k) and pick_hosts(...): the seeded draws of PV and storage
   hosts per segment, with the storage_hosts rule.
+- loadshape_building(name): the building type and number of a daily loadshape name.
+- day_peak(values, day): the peak of a profile, on one day of a window when day is
+  given.
 - annual_yield(values_kw_per_1000): kWh per kW of array per year of a SMART-DS solar
   file.
 - roof_area_m2(...), pv_kw_roof_and_use(...), storage_size(...): the size rules.
@@ -20,6 +23,7 @@ the functions hold the rules only.
 """
 import math
 import random
+import re
 import sys
 
 FT2_TO_M2 = 0.09290304
@@ -39,7 +43,7 @@ CHOICES = {
     "storage_layer": ("add_kw", "solve"),
     "storage_standby_case": SIZING_CASES,
     "storage_standby_element": ("load", "idling"),
-    "schedule_start": ("best", "fixed"),
+    "schedule_start": ("best", "best_window", "fixed"),
 }
 
 
@@ -136,6 +140,28 @@ def pick_hosts(bases, n_pv, n_sto, pv_seed, storage_seed, offset, storage_hosts)
         pool = [b for b in bases if b not in pv]
         sto = pick(storage_seed, offset, pool if pool else list(bases), n_sto)
     return pv, sto
+
+
+_LOADSHAPE_RE = re.compile(r"^(res|com)_kw_(.+)_pu$")
+
+
+def loadshape_building(name):
+    """(Yearly_Type, Yearly_Number) of the building of a daily loadshape name
+    <res|com>_kw_<number>_pu, the number as text: the whole part between _kw_ and _pu,
+    as Phase 5b links a loadshape to its building. SMART-DS v1.0 numbers are all digits
+    (res_kw_9312_pu gives 9312); v0.9 Full Texas numbers carry text (res_kw_9312-North_pu
+    gives 9312-North). None for any other name."""
+    m = _LOADSHAPE_RE.match(str(name))
+    return (m.group(1), m.group(2)) if m else None
+
+
+def day_peak(values, day=None, steps_per_day=96):
+    """The peak of a profile: the maximum of values. With day (a position from 0), the
+    maximum of that day's steps_per_day values only, so a profile of several days gives
+    the peak of the simulated peak day and not of the window."""
+    if day is None:
+        return float(max(values))
+    return float(max(values[day * steps_per_day:(day + 1) * steps_per_day]))
 
 
 def annual_yield(values, step_h):

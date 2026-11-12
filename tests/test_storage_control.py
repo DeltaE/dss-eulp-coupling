@@ -138,6 +138,20 @@ New Line.drop_c bus1=c.1.2 bus2=sec.1.2 phases=2
     assert out["h_sec"] is None and out["h_none"] is None
 
 
+
+def test_window_rule_on_one_day_is_the_one_day_rule():
+    """schedule_days and best_window_start on a curve of one day are schedule and best_start
+    (horizon_days 1); tests/test_multi_day.py holds the window of several days."""
+    from storage_control import best_window_start, schedule_days
+    kw, kwh, reserve, eff = 150.0, 300.0, 0.2, 0.95
+    one = schedule(CURVE, kw, kwh, 0.2, reserve, eff, eff, DT)
+    days = schedule_days(CURVE, kw, kwh, 0.2, reserve, eff, eff, DT)
+    assert np.array_equal(one[0], days[0]) and np.array_equal(one[1], days[1]) and one[2] == days[2]
+    a = best_start(CURVE, kw, kwh, reserve, eff, eff, DT, [0.2, 0.5, 0.8])
+    b = best_window_start(CURVE, kw, kwh, reserve, eff, eff, DT, [0.2, 0.5, 0.8])
+    assert a[0] == b[0] and np.array_equal(a[1], b[1]) and a[3] == b[3]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

@@ -53,6 +53,7 @@ from pipeline_utils import load_mixes
 from pipeline_utils import (SETTINGS_ENV, check_settings_dir, merge_settings, read_settings_file,
                             settings_key_paths)
 from pipeline_utils import GIVEN_DAYS_FILE, read_given_days, uses_mix_days
+from pipeline_utils import horizon_days
 
 
 def _load_yaml(path: Path) -> dict:
@@ -385,8 +386,9 @@ def main() -> None:
                                       for name in settings_names}
     # The scripts read peak_day_rule through pipeline_utils.load_config; a bad value
     # stops here before any phase runs.
-    rule = _with_settings(_load_yaml(REPO_ROOT / "pipeline_config.yaml"), settings,
-                          "pipeline_config.yaml").get("peak_day_rule")
+    pipeline_config = _with_settings(_load_yaml(REPO_ROOT / "pipeline_config.yaml"), settings,
+                                     "pipeline_config.yaml")
+    rule = pipeline_config.get("peak_day_rule")
     if rule not in ("per_group", "per_circuit", "given"):
         sys.exit(f"[FAIL] peak_day_rule in pipeline_config.yaml is {rule!r}; "
                  f"expected one of per_group, per_circuit, given.")
@@ -409,6 +411,9 @@ def main() -> None:
             f"{feeder} {season} {month:02d}-{day:02d}"
             for (feeder, season), (month, day) in given_days.items())
     resolved["peak_day_rule"] = rule
+    # horizon_days (the window of days around the peak day): a value that is not a whole
+    # number of days, 1 or above, stops here before any phase runs.
+    horizon_days(pipeline_config)
     phases =_load_yaml(CONFIG_DIR / "phases.yaml")
     seasons = [args.season] if args.season else resolved["seasons"]
     phase_ids = [args.phase] if args.phase else resolved["phase_order"]

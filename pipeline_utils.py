@@ -1,6 +1,9 @@
+import ast
+import calendar
 import csv
 import datetime
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -168,6 +171,140 @@ def uses_mix_days(rule, baseline_only):
     return rule == "given" or (rule == "per_circuit" and not baseline_only)
 
 
+# The multi-day window (horizon_days in pipeline_config.yaml): horizon_days consecutive
+# days around the simulated peak day, day X, solved as one run of STEPS_PER_DAY x
+# horizon_days steps. horizon_days 1 is day X alone.
+STEPS_PER_DAY = 96  # 15-minute steps in one day
+
+
+def horizon_days(cfg):
+    """Return horizon_days from the loaded pipeline_config.yaml as an int. A missing
+    value, a value that is not a whole number or a value below 1 prints [FAIL] and
+    exits 1."""
+    days = cfg.get("horizon_days")
+    if isinstance(days, float) and days.is_integer():
+        days = int(days)
+    if isinstance(days, bool) or not isinstance(days, int) or days < 1:
+        print(f"[FAIL] horizon_days in pipeline_config.yaml is {days!r}; "
+              f"expected a whole number of days, 1 or above.")
+        sys.exit(1)
+    return days
+
+
+# The script whose constants WINTER_MONTHS and SUMMER_MONTHS are the season months of
+# the pipeline. It runs on import, so season_months reads the constants from its text.
+PHASE5B_SCRIPT = REPO_ROOT / "5b_profile_generation" / "find_max_day_curve_impl.py"
+
+
+def season_months(path=None):
+    """{"winter": [months], "summer": [months]}: the Phase 5b constants WINTER_MONTHS and
+    SUMMER_MONTHS, read from the text of find_max_day_curve_impl.py (path, when given,
+    names another script that assigns the two constants). A script without both
+    constants prints [FAIL] and exits 1."""
+    path = Path(path) if path else PHASE5B_SCRIPT
+    found = {}
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                and isinstance(node.targets[0], ast.Name)
+                and node.targets[0].id in ("WINTER_MONTHS", "SUMMER_MONTHS")):
+            found[node.targets[0].id] = [int(m) for m in ast.literal_eval(node.value)]
+    if set(found) != {"WINTER_MONTHS", "SUMMER_MONTHS"}:
+        print(f"[FAIL] WINTER_MONTHS and SUMMER_MONTHS are not both assigned in {path.as_posix()}.")
+        sys.exit(1)
+    return {"winter": found["WINTER_MONTHS"], "summer": found["SUMMER_MONTHS"]}
+
+
+# The calendar year of the building curves: the timestamps of the EULP releases of
+# eulp_release (ComStock AMY 2018, and ResStock TMY3 stamped on the same year) and of
+# the SMART-DS load and solar files are those of 2018. Window days take their weekday
+# from this calendar; Phase 5b stops when the rows it cuts carry another year.
+WINDOW_YEAR = 2018
+# The U.S. federal holidays of WINDOW_YEAR, (month, day): name. U.S. Office of Personnel
+# Management, Federal Holidays, 2018:
+# https://opm.gov/policy-data-oversight/snow-dismissal-procedures/federal-holidays
+# A holiday keeps the day type of its weekday; window_days.csv names it.
+FEDERAL_HOLIDAYS = {
+    (1, 1): "New Year's Day",
+    (1, 15): "Birthday of Martin Luther King, Jr.",
+    (2, 19): "Washington's Birthday",
+    (5, 28): "Memorial Day",
+    (7, 4): "Independence Day",
+    (9, 3): "Labor Day",
+    (10, 8): "Columbus Day",
+    (11, 12): "Veterans Day (observed)",
+    (11, 22): "Thanksgiving Day",
+    (12, 25): "Christmas Day",
+}
+
+
+def season_stretches(months):
+    """The stretches of WINDOW_YEAR that hold months: each run of consecutive months, as
+    (first date, last date). December and January are never joined, so a window never
+    crosses 31 December."""
+    runs = []
+    for month in sorted(set(int(m) for m in months)):
+        if runs and month == runs[-1][-1] + 1:
+            runs[-1].append(month)
+        else:
+            runs.append([month])
+    return [(datetime.date(WINDOW_YEAR, run[0], 1),
+             datetime.date(WINDOW_YEAR, run[-1], calendar.monthrange(WINDOW_YEAR, run[-1])[1]))
+            for run in runs]
+
+
+def window_dates(month, day, season, days):
+    """(dates, x): the days consecutive dates of WINDOW_YEAR of the window around day X
+    (month, day) of season, and the position x of day X in the list (0 for the first
+    date). Day X sits at position ceil(days / 2) counted from 1: X-3 to X+3 for 7 days,
+    X-6 to X+7 for 14 days. The window is shifted to stay inside the stretch of the
+    season that holds day X (season_stretches of the Phase 5b season months): summer 1
+    June to 31 August; winter 1 January to 28 February, or 1 to 31 December. days 1
+    returns day X alone. A season without months, a day X outside the season's months
+    or a window longer than its stretch prints [FAIL] and exits 1."""
+    x_date = datetime.date(WINDOW_YEAR, int(month), int(day))
+    if days == 1:
+        return [x_date], 0
+    months = season_months().get(season)
+    if not months:
+        print(f"[FAIL] window_dates: no season months for season {season!r}.")
+        sys.exit(1)
+    stretch = next((s for s in season_stretches(months) if s[0] <= x_date <= s[1]), None)
+    if stretch is None:
+        print(f"[FAIL] window_dates: day X {int(month):02d}-{int(day):02d} is not in a {season} month "
+              f"({', '.join(str(m) for m in months)}).")
+        sys.exit(1)
+    length = (stretch[1] - stretch[0]).days + 1
+    if days > length:
+        print(f"[FAIL] window_dates: a window of {days} days does not fit the {length} days from "
+              f"{stretch[0].isoformat()} to {stretch[1].isoformat()} that hold day X "
+              f"{int(month):02d}-{int(day):02d}.")
+        sys.exit(1)
+    start = x_date - datetime.timedelta(days=math.ceil(days / 2) - 1)
+    start = min(max(start, stretch[0]), stretch[1] - datetime.timedelta(days=days - 1))
+    dates = [start + datetime.timedelta(days=i) for i in range(days)]
+    return dates, (x_date - start).days
+
+
+def day_type(date):
+    """weekend for a Saturday or Sunday, else weekday."""
+    return "weekend" if date.weekday() >= 5 else "weekday"
+
+
+WINDOW_DAYS_FILE = "window_days.csv"
+WINDOW_DAYS_COLUMNS = ["date", "weekday", "day_type", "day_index", "day_x", "holiday"]
+
+
+def window_day_rows(dates, x):
+    """The rows of window_days.csv for the window dates and the position x of day X: date
+    (YYYY-MM-DD), weekday (Monday to Sunday), day_type (weekday or weekend, from the date
+    on the WINDOW_YEAR calendar), day_index (1 for the first day), day_x (1 on day X,
+    else 0) and holiday (the FEDERAL_HOLIDAYS name, else empty)."""
+    return [{"date": d.isoformat(), "weekday": calendar.day_name[d.weekday()], "day_type": day_type(d),
+             "day_index": i + 1, "day_x": 1 if i == x else 0,
+             "holiday": FEDERAL_HOLIDAYS.get((d.month, d.day), "")}
+            for i, d in enumerate(dates)]
+
+
 EV_CONTROL_RULES = ("uncontrolled", "valley_fill_feeder", "valley_fill_transformer", "offpeak_start",
                     "water_fill_feeder")
 EV_VALLEY_BASES = ("buildings_only", "after_pv")
@@ -193,6 +330,20 @@ def ev_valley_base(cfg):
               f"expected one of {', '.join(EV_VALLEY_BASES)}.")
         sys.exit(1)
     return base
+
+
+EV_VALLEY_DAYS = ("own_day", "peak_day")
+
+
+def ev_valley_day(cfg):
+    """Return ev_valley_day from the loaded pipeline_config.yaml. A missing or unknown
+    value prints [FAIL] and exits 1."""
+    day = cfg.get("ev_valley_day")
+    if day not in EV_VALLEY_DAYS:
+        print(f"[FAIL] ev_valley_day in pipeline_config.yaml is {day!r}; "
+              f"expected one of {', '.join(EV_VALLEY_DAYS)}.")
+        sys.exit(1)
+    return day
 
 
 EV_CARS_SOURCES = ("evwatts_sessions", "nhts_days", "session_rows")

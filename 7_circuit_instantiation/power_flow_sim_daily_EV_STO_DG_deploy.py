@@ -2,7 +2,10 @@
 """
 power_flow_sim_daily_EV_STO_DG_deploy.py
 ----------------------------------------
-Build and solve one DER scenario of one prepared circuit as a 96-step daily run.
+Build and solve one DER scenario of one prepared circuit as a 96-step daily run, or,
+with horizon_days above 1 in pipeline_config.yaml, as one continuous run of 96 x
+horizon_days steps over the window of days around the simulated day (section "Window
+of more than one day" below). The steps below describe horizon_days 1.
 
 Run from inside a prepared circuit folder <circuit>/ (run_circuits.py starts it with
 cwd set to that folder). instantiate_circuits.py copies this script there and rewrites
@@ -170,6 +173,42 @@ Steps
    writes the load voltage tables (per unit of the load's bus base kV), and reads each
    battery's state monitor for StorageControl/storage_targets.csv.
 
+Window of more than one day (horizon_days above 1)
+- The window: pipeline_utils.window_dates on the simulated day (day X) of the circuit,
+  horizon_days consecutive dates of the 2018 calendar of the building curves, kept
+  inside the season. <circuit>/window_days.csv records it (date, weekday, day_type,
+  day_index, day_x, holiday). Every loadshape and every solve has 96 x horizon_days
+  steps; the building profiles already hold the window (Phases 5b to 7b).
+- PV: each day's shape comes from its own month and day of the solar file.
+- Sizes under peak_ratio: a host's peak is that of day X's 96 values.
+- EV cars (ev_cars.window_group, plan_car): the records of step 1 stay the cars of day
+  X (EVControl/ev_cars.csv, ev_places.csv). Each car keeps its drawn session and
+  charger; under evwatts_sessions and nhts_days it also draws one weekend session or
+  vehicle-day for the Saturdays and Sundays of the window. Under charging_share
+  measured a seeded draw with the measured share of the day's type decides whether the
+  car charges on each day other than day X; under all every car charges every day;
+  under nhts_days a car charges on every day whose vehicle-day is class (i). Day X
+  keeps the draw of the one-day run, a weekday session, whatever its date. A car's
+  window runs on the window's timeline: charging past midnight lands on the next day,
+  and day 1 receives the part after midnight of the session of the day before the
+  window. Energy that does not fit in a window is charged on the next evening without
+  a drawn session; energy still owed at the end is reported in
+  EVControl/ev_car_days.csv. Work cars charge at their office on weekdays and at home
+  on weekend days, where they have two more loads, EVu_<host>_1 and _2 (or EVc_), with
+  the shape EVu_<i>h (or EVc_<j>h).
+- EV control (window_ev_control): one base solve over the window; ev_valley_day
+  own_day or peak_day picks the forecast each day's cars see, and the tariff rows of
+  offpeak_start follow each day's month and day type.
+- Storage: simple and tuned take their targets from the whole window's forecast.
+  schedule writes one loadshape of 96 x horizon_days points per host
+  (storage_control.schedule_days), from the start of schedule_start: best (the start
+  of the one-day rule on day X's forecast), best_window (the start that leaves the
+  lowest maximum of the window) or fixed. StorageControl/storage_midnights.csv holds,
+  per battery and day, the planned and the monitored stored energy at midnight.
+- The per-step tables (ev_control_curves.csv, storage_curves.csv, storage_schedule.csv,
+  load_voltage_steps.csv, load_voltages.parquet) get date, day_index and day_type
+  after their step column; ev_control_curves.csv also gets forecast_kw.
+
 Outputs
 - ModifiedCircuitData/: copied and edited .dss files, LoadShapes_EV.dss, Storage.dss,
   PVSystems.dss, LoadShapes_PV.dss and the monitor CSVs OpenDSS exports.
@@ -258,7 +297,7 @@ Stops (exit 1 unless noted)
 - exit 0 otherwise.
 """
 
-import os, re, sys, csv, time, json, shutil
+import os, re, sys, csv, time, json, shutil, datetime
 import numpy as np, pandas as pd
 
 # -----------------------
@@ -338,7 +377,17 @@ from ev_cars import (load_inputs, read_evwatts_pool, charging_share, read_nhts_p
                      nhts_cars, session_rows_cars, cars_frame, EVWATTS_EXTRACT_FILE, NHTS_EXTRACT_FILE)
 from ev_cars import draw_months, rng as ev_rng
 from ev_cars import work_cars, read_bus_coords, EVWATTS_OFFICE_EXTRACT_FILE
+# The window of horizon_days days (pipeline_config.yaml): the pieces used above one day only
+from pipeline_utils import (WINDOW_DAYS_COLUMNS, WINDOW_DAYS_FILE, day_type, ev_valley_day, horizon_days,
+                            window_dates, window_day_rows)
+from ev_cars import draw_name, event_row, fail_empty_pool, plan_car, window_group
+from ev_control import forecast_days
+from storage_control import best_window_start, schedule_days
+from der_sizing import day_peak, loadshape_building
 CFG = load_config()
+HORIZON_DAYS = horizon_days(CFG)
+NPTS = IRRADIANCE_NPTS * HORIZON_DAYS   # steps of the solve and of every loadshape
+EV_VALLEY_DAY = ev_valley_day(CFG)
 PEAK_DAY_RULE = peak_day_rule(CFG)
 EV_CONTROL = ev_control(CFG)
 EV_VALLEY_BASE = ev_valley_base(CFG)
@@ -696,6 +745,8 @@ def peak_kw_for_load(full_name):
     1. For each daily loadshape of the load's base name (full_name without its _<n>
        suffix), in sorted order: if <circuit>/../profiles_use_bench/<circuit>/<shape>.csv
        exists, return the maximum of its first column (read with header=None). Read errors are ignored and the next shape is tried.
+       With horizon_days above 1 the maximum is that of day X's 96 values
+       (der_sizing.day_peak), so the window does not change a size.
     2. Else, the kW= value of the first line of <feeder>/Loads_original.dss that
        contains "New Load.<full_name>" followed by white space; the name is added to
        PEAK_FROM_ORIGINAL_KW, which the script counts.
@@ -707,6 +758,8 @@ def peak_kw_for_load(full_name):
         if os.path.exists(csv_path):
             try:
                 df = pd.read_csv(csv_path, header=None)
+                if HORIZON_DAYS > 1:  # the peak of day X, not of the window
+                    return day_peak(df[0].to_numpy(), X_INDEX, IRRADIANCE_NPTS)
                 return float(df[0].max())
             except Exception:
                 pass
@@ -776,10 +829,16 @@ def pv_daily_shape(feeder, season):
     Return the PV daily shape of feeder for season: the IRRADIANCE_NPTS values of
     PV_KW_COLUMN divided by 1000 (rounded to 9 decimals) in the donor's SMART-DS solar file
     (PIPELINE_PV_PROFILE_FILE), on the month and day of simulated_day(feeder, season).
+    With horizon_days above 1, the same for every date of the window (WINDOW_DATES),
+    each day from its own month and day of the file, joined in date order.
     The file's year is ignored. Stops as simulated_day does, or if the file, the
     column or the IRRADIANCE_NPTS rows of that date are missing.
     """
-    month, day = simulated_day(feeder, season)
+    if HORIZON_DAYS == 1:
+        month, day = simulated_day(feeder, season)
+        dates = [(month, day)]
+    else:
+        dates = [(d.month, d.day) for d in WINDOW_DATES]
     pv_file = CFG["pv_profile_file"]
     if not os.path.exists(pv_file):
         print(f"[FAIL] PV profile file not found: {pv_file}")
@@ -789,14 +848,68 @@ def pv_daily_shape(feeder, season):
         if PV_KW_COLUMN not in (reader.fieldnames or []):
             print(f"[FAIL] Column {PV_KW_COLUMN!r} not in {pv_file}")
             sys.exit(1)
-        values = [round(float(r[PV_KW_COLUMN]) / 1000, 9) for r in reader
-                  if int(r["Month"]) == month and int(r["Day"]) == day]
-    if len(values) != IRRADIANCE_NPTS:
-        print(f"[FAIL] {len(values)} rows for month {month} day {day} in {pv_file}; "
-              f"expected {IRRADIANCE_NPTS}.")
-        sys.exit(1)
-    print(f"PV shape -> {season} peak day {month:02d}-{day:02d} of {feeder} from {pv_file}")
+        pv_rows = list(reader)
+    values = []
+    for month, day in dates:
+        day_values = [round(float(r[PV_KW_COLUMN]) / 1000, 9) for r in pv_rows
+                      if int(r["Month"]) == month and int(r["Day"]) == day]
+        if len(day_values) != IRRADIANCE_NPTS:
+            print(f"[FAIL] {len(day_values)} rows for month {month} day {day} in {pv_file}; "
+                  f"expected {IRRADIANCE_NPTS}.")
+            sys.exit(1)
+        values.extend(day_values)
+    if HORIZON_DAYS == 1:
+        print(f"PV shape -> {season} peak day {month:02d}-{day:02d} of {feeder} from {pv_file}")
+    else:
+        print(f"PV shape -> {season} window of {HORIZON_DAYS} days, {dates[0][0]:02d}-{dates[0][1]:02d} to "
+              f"{dates[-1][0]:02d}-{dates[-1][1]:02d}, of {feeder} from {pv_file}")
     return values
+
+# ---------------- The window (horizon_days in pipeline_config.yaml above 1) ----------------
+# WINDOW_DATES: the dates of the window on the calendar of the building curves, around
+# the simulated day (day X) of this circuit; X_INDEX: the position of day X, from 0.
+# <circuit>/window_days.csv records them (pipeline_utils.window_day_rows).
+WINDOW_DATES, X_INDEX = None, 0
+if HORIZON_DAYS > 1:
+    _window_season = (ASSIGN.get("season") or "").lower()
+    WINDOW_DATES, X_INDEX = window_dates(*simulated_day(CIRCUIT_NAME, _window_season), _window_season,
+                                         HORIZON_DAYS)
+    with open(os.path.join(CURRENT_DIR, WINDOW_DAYS_FILE), "w", newline="", encoding="utf-8") as f:
+        _writer = csv.DictWriter(f, fieldnames=WINDOW_DAYS_COLUMNS)
+        _writer.writeheader()
+        _writer.writerows(window_day_rows(WINDOW_DATES, X_INDEX))
+    print(f"Window -> {HORIZON_DAYS} days {WINDOW_DATES[0].isoformat()} to {WINDOW_DATES[-1].isoformat()}, "
+          f"day X {WINDOW_DATES[X_INDEX].isoformat()} at position {X_INDEX + 1}")
+
+def window_columns(df, step_col="step"):
+    """df with date, day_index and day_type added after step_col (steps from 1), from the
+    window day of each step, when horizon_days is above 1; df itself at horizon_days 1,
+    so a one-day output keeps its columns."""
+    if HORIZON_DAYS == 1:
+        return df
+    day = (df[step_col].to_numpy(dtype=int) - 1) // IRRADIANCE_NPTS
+    at = list(df.columns).index(step_col) + 1
+    df = df.copy()
+    df.insert(at, "date", np.array([d.isoformat() for d in WINDOW_DATES])[day])
+    df.insert(at + 1, "day_index", day + 1)
+    df.insert(at + 2, "day_type", np.array([day_type(d) for d in WINDOW_DATES])[day])
+    return df
+
+def window_forecast(curve, draw, seed, peak_day=False):
+    """The forecast of a curve over the window: (forecast, error, [W per day], [CV per
+    day]). Each day has its own 24 draws, rng(draw) on day X as in the one-day run and
+    rng(draw_d<offset>) on every other day (ev_cars.draw_name), and its own error from
+    its own mean load (ev_control.forecast_days). With peak_day (ev_valley_day
+    peak_day), day X's forecast and error are repeated on every day."""
+    fc_model = EV_INPUTS["forecast_error"]
+    coefficients = EV_INPUTS["forecast_models"][fc_model]
+    if peak_day:
+        x0 = X_INDEX * IRRADIANCE_NPTS
+        fc, err, w, cv = forecast_curve(np.asarray(curve, dtype=float)[x0:x0 + IRRADIANCE_NPTS], fc_model,
+                                        coefficients, ev_rng(draw, seed).standard_normal(24))
+        return np.tile(fc, HORIZON_DAYS), np.tile(err, HORIZON_DAYS), [w] * HORIZON_DAYS, [cv] * HORIZON_DAYS
+    z_days = [ev_rng(draw_name(draw, d - X_INDEX), seed).standard_normal(24) for d in range(HORIZON_DAYS)]
+    return forecast_days(curve, fc_model, coefficients, z_days)
 
 def get_circuit_name(master_path):
     """Parse the 'New Circuit.<name>' line from Master.dss."""
@@ -928,19 +1041,74 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
                                            ev_effective_seed, ev_nhts_pool if group == "controlled" else None)
         if ev_work_on:
             group_cars = work_cars(group, group_cars, ev_work_share, OFFICES, EV_INPUTS, ev_effective_seed, EV_CARS,
-                                   office_pool=ev_office_pool, work_day_pool=ev_work_day_pool)
+                                   office_pool=ev_office_pool, work_day_pool=ev_work_day_pool,
+                                   where=EV_INPUTS["census_division"].get(ev_state, ev_state)
+                                   if EV_CARS == "evwatts_sessions" else ev_state)
         print(f"EV cars -> {EV_CARS}, {group}: {len(group_cars)} cars, Level 2 "
               f"{sum(c['level'] == 'L2' for c in group_cars)}, charging today {sum(c['charges_today'] for c in group_cars)}, "
               f"at work {sum(c['place'] == 'work' for c in group_cars)}")
         cars += group_cars
+    # A window of more than one day (ev_cars.window_group): the records above stay the
+    # cars of day X; each car also gets its session of each day type and its charging days.
+    if HORIZON_DAYS > 1:
+        # The day type of p = 0 (the day before the window) to horizon_days; day X keeps
+        # the draw of the one-day run, a weekday session, whatever its date.
+        EV_DAY_TYPES = [day_type(WINDOW_DATES[0] - datetime.timedelta(days=1))] + [day_type(d) for d in WINDOW_DATES]
+        if EV_DAY_TYPES[X_INDEX + 1] != "weekday":
+            print(f"EV cars -> day X {WINDOW_DATES[X_INDEX].isoformat()} is a {WINDOW_DATES[X_INDEX]:%A}: it keeps "
+                  f"the weekday draw of the one-day run")
+        EV_DAY_TYPES[X_INDEX + 1] = "weekday"
+        ev_where = ev_state if EV_CARS == "nhts_days" else EV_INPUTS["census_division"][ev_state]
+        ev_window_share = ev_window_pool = ev_window_work = None
+        if EV_CARS in ("evwatts_sessions", "session_rows"):
+            ev_weekend_file = EV_INPUTS["weekend_files"]["evwatts_residential"]
+            if not os.path.exists(os.path.join(ev_extract_dir, ev_weekend_file)):
+                print(f"[FAIL] horizon_days {HORIZON_DAYS} needs {ev_weekend_file} in evwatts_extract_dir "
+                      f"{ev_extract_dir!r} (build_evwatts_extract.py --day-type weekend).")
+                sys.exit(1)
+            ev_pool_weekend = read_evwatts_pool(ev_extract_dir, ev_where, ev_months, file=ev_weekend_file)
+            fail_empty_pool(ev_pool_weekend, "EV WATTS residential sessions", ev_where, "weekend")
+            ev_share_weekend_measured = charging_share(ev_pool_weekend, ev_months, day_type="weekend")
+            ev_window_share = {"weekday": ev_share,
+                               "weekend": ev_share_weekend_measured if EV_INPUTS["charging_share"] == "measured" else 1.0}
+            ev_window_pool = {"weekday": ev_pool, "weekend": ev_pool_weekend}
+            print(f"EV cars -> EV WATTS weekend pool: {len(ev_pool_weekend)} sessions of {ev_where}, {ev_months_text}, "
+                  f"measured share of cars charging {ev_share_weekend_measured:.6f}, "
+                  f"share used {ev_window_share['weekend']:.6f}")
+        if EV_CARS == "nhts_days":
+            ev_nhts_weekend_path = os.path.join(ROOT, "data_ev_cars",
+                                                EV_INPUTS["weekend_files"]["nhts"].format(state=ev_state))
+            if not os.path.exists(ev_nhts_weekend_path):
+                print(f"[FAIL] horizon_days {HORIZON_DAYS} needs {ev_nhts_weekend_path} "
+                      f"(build_nhts_extract.py --day-type weekend).")
+                sys.exit(1)
+            ev_nhts_pool_weekend = read_nhts_pool(ev_nhts_weekend_path, ev_months, ev_nhts_classes)
+            fail_empty_pool(ev_nhts_pool_weekend, "NHTS vehicle-days", ev_where, "weekend")
+            ev_window_pool = {"weekday": ev_nhts_pool, "weekend": ev_nhts_pool_weekend}
+            print(f"EV cars -> NHTS weekend pool: {len(ev_nhts_pool_weekend)} vehicle-days of {ev_state}, "
+                  f"{ev_months_text}, classes {', '.join(ev_nhts_classes)}")
+        if ev_work_on:
+            ev_window_work = {"share": ev_work_share, "offices": OFFICES, "office_pool": ev_office_pool,
+                              "work_day_pool": ev_work_day_pool}
+        WINDOW_CARS = {}
+        for group in ("uncontrolled", "controlled"):
+            WINDOW_CARS[group] = window_group(
+                group, [c for c in cars if c["group"] == group], EV_CARS, EV_DAY_TYPES, X_INDEX, EV_INPUTS,
+                ev_effective_seed, lvl2_charger_perc, share=ev_window_share, pool=ev_window_pool,
+                work=ev_window_work, curve=ev_check_curve if EV_CARS == "session_rows" else None, where=ev_where)
+            print(f"EV cars -> window, {group}: {len(WINDOW_CARS[group])} cars, work cars "
+                  f"{sum(w['work'] for w in WINDOW_CARS[group])}, charging days "
+                  f"{[sum(w['charges'][p] for w in WINDOW_CARS[group]) for p in range(HORIZON_DAYS + 1)]} "
+                  f"(the day before the window, then each day)")
 cars_u = [c for c in cars if c["group"] == "uncontrolled"]
 cars_c = [c for c in cars if c["group"] == "controlled"]
-arr_u = np.zeros((N_u, IRRADIANCE_NPTS))
-arr_c_sessions = np.zeros((N_c, IRRADIANCE_NPTS))  # controlled cars' own uncontrolled rows
-for j, c in enumerate(cars_u):
-    arr_u[j, :] = c["row"]
-for j, c in enumerate(cars_c):
-    arr_c_sessions[j, :] = c["row"]
+arr_u = np.zeros((N_u, NPTS))
+arr_c_sessions = np.zeros((N_c, NPTS))  # controlled cars' own uncontrolled rows
+if HORIZON_DAYS == 1:
+    for j, c in enumerate(cars_u):
+        arr_u[j, :] = c["row"]
+    for j, c in enumerate(cars_c):
+        arr_c_sessions[j, :] = c["row"]
 arr_c = arr_c_sessions                               # replaced by the ev_control rule before LoadShapes_EV.dss is written
 # Controlled cars' windows (None: every interval) and charging power for the ev_control rules
 windows_c = [c["window"] if EV_HOME_WINDOW else None for c in cars_c]
@@ -948,6 +1116,40 @@ power_c = [c["power_kw"] for c in cars_c]
 # Where each car charges: its host, or its office for a work car
 place_u = [c["place_load"] or c["host"] for c in cars_u]
 place_c = [c["place_load"] or c["host"] for c in cars_c]
+# Work cars over a window of more than one day charge at home on weekend days: the row of
+# each such car at its home (home_u, home_c: the positions of those cars; empty at
+# horizon_days 1). arr_u and arr_c_sessions then hold the rows at the cars' main place.
+home_u, home_c = [], []
+arr_uh = np.zeros((0, NPTS))
+arr_ch_sessions = np.zeros((0, NPTS))
+EV_EVENTS = {"uncontrolled": [], "controlled": []}   # the charging events of every car (ev_cars.plan_car)
+EV_CAR_DAYS = {"uncontrolled": [], "controlled": []}  # per car, its rows of the days p = 0 to horizon_days
+if HORIZON_DAYS > 1 and cars:
+    for group, group_cars, rows, place in (("uncontrolled", cars_u, arr_u, place_u),
+                                           ("controlled", cars_c, arr_c_sessions, place_c)):
+        home, home_rows = [], []
+        for j, (c, w) in enumerate(zip(group_cars, WINDOW_CARS[group])):
+            events, days = plan_car([w["sessions"][EV_DAY_TYPES[p]] for p in range(HORIZON_DAYS + 1)],
+                                    w["charges"], HORIZON_DAYS)
+            if w["work"]:
+                place[j] = w["sessions"]["weekday"]["place_load"]
+                home.append(j)
+                home_rows.append(np.zeros(NPTS))
+            for e in events:
+                e["car"] = j
+                e["row"] = event_row(e, NPTS)
+                e["home_part"] = bool(w["work"]) and e["place"] == "home"
+                if e["home_part"]:
+                    home_rows[-1] += e["row"]
+                else:
+                    rows[j, :] += e["row"]
+            EV_EVENTS[group] += events
+            EV_CAR_DAYS[group].append(days)
+        if group == "uncontrolled":
+            home_u, arr_uh = home, np.array(home_rows).reshape(len(home), NPTS)
+        else:
+            home_c, arr_ch_sessions = home, np.array(home_rows).reshape(len(home), NPTS)
+arr_ch = arr_ch_sessions                             # replaced with arr_c by the ev_control rule
 
 EV_HOSTS_OWN_BUS = []  # EV hosts without _1/_2 legs (three-phase loads): EV on the host's own bus
 
@@ -1027,6 +1229,14 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
                     f"Vminpu=0.8 Vmaxpu=1.2 model=1 phases={info['ph']} "
                     f"kW=0.5 pf=1 daily=EVu_{i}\n"
                 )
+        # horizon_days above 1: a work car's home loads EVu_<host>_1/_2 (weekend days), shape EVu_<i>h
+        for i in home_u:
+            for suff, info in zip(("_1","_2"), ev_leg_infos(json_ev_un[i])):
+                f_ld.write(
+                    f"New Load.EVu_{json_ev_un[i]}{suff} conn={info['conn']} bus1={info['bus1']} kV={info['kV']} "
+                    f"Vminpu=0.8 Vmaxpu=1.2 model=1 phases={info['ph']} "
+                    f"kW=0.5 pf=1 daily=EVu_{i}h\n"
+                )
         # controlled
         for i, base in enumerate(json_ev_ct):
             place = place_c[i]
@@ -1036,6 +1246,14 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
                     f"New Load.{ev_load_name} conn={info['conn']} bus1={info['bus1']} kV={info['kV']} "
                     f"Vminpu=0.8 Vmaxpu=1.2 model=1 phases={info['ph']} "
                     f"kW=0.5 pf=1 daily=EVc_{i}\n"
+                )
+        # horizon_days above 1: a work car's home loads EVc_<host>_1/_2 (weekend days), shape EVc_<i>h
+        for i in home_c:
+            for suff, info in zip(("_1","_2"), ev_leg_infos(json_ev_ct[i])):
+                f_ld.write(
+                    f"New Load.EVc_{json_ev_ct[i]}{suff} conn={info['conn']} bus1={info['bus1']} kV={info['kV']} "
+                    f"Vminpu=0.8 Vmaxpu=1.2 model=1 phases={info['ph']} "
+                    f"kW=0.5 pf=1 daily=EVc_{i}h\n"
                 )
 
     # Ensure Master redirects EV shapes
@@ -1081,15 +1299,18 @@ BLDG_COLUMNS = {
 }
 
 def building_of(base, seg, bldg_map):
-    """The building of host base: its first daily loadshape (sorted), <res|com>_kw_<n>...,
+    """The building of host base: its first daily loadshape (sorted), <res|com>_kw_<n>_pu,
     and the row of bldg_map with Feeder = this feeder, Yearly_Type res or com and
-    Yearly_Number n. Returns loadshape, bldg_id, floor area (ft2), stories, building
-    type, annual electricity use (kWh) and the roof column (ft2 for homes, m2 for
-    commercial). Stops if the loadshape, the row, a column or a value is missing."""
+    Yearly_Number n, both read as text (der_sizing.loadshape_building: n is the whole
+    part between _kw_ and _pu, all digits in SMART-DS v1.0, with text in v0.9 Full
+    Texas names such as res_kw_9312-North_pu). Returns loadshape, bldg_id, floor area
+    (ft2), stories, building type, annual electricity use (kWh) and the roof column
+    (ft2 for homes, m2 for commercial). Stops if the loadshape, the row, a column or a
+    value is missing."""
     shapes = sorted(base_to_daily.get(base, set()))
-    m = re.match(r"^(res|com)_kw_(\d+)", shapes[0]) if shapes else None
-    rows = bldg_map[(bldg_map["Feeder"] == CIRCUIT_NAME) & (bldg_map["Yearly_Type"] == m.group(1))
-                    & (bldg_map["Yearly_Number"] == int(m.group(2)))] if m else bldg_map.iloc[0:0]
+    m = loadshape_building(shapes[0]) if shapes else None
+    rows = bldg_map[(bldg_map["Feeder"] == CIRCUIT_NAME) & (bldg_map["Yearly_Type"] == m[0])
+                    & (bldg_map["Yearly_Number"] == m[1])] if m else bldg_map.iloc[0:0]
     if len(rows) != 1:
         print(f"[FAIL] {len(rows)} building rows for host {base} (loadshape {shapes[:1]}) in {BLDG_MAP_PATH}; expected 1.")
         sys.exit(1)
@@ -1180,7 +1401,7 @@ def der_units(base):
 
 DER_ROWS = {}
 if DER_HOST_LIST:
-    bldg_map = pd.read_csv(BLDG_MAP_PATH, low_memory=False)
+    bldg_map = pd.read_csv(BLDG_MAP_PATH, low_memory=False, dtype={"Yearly_Number": str})
     annual_yield_kwh_per_kw = pv_annual_yield()
     print(f"Sizing -> annual yield {annual_yield_kwh_per_kw:.4f} kWh per kW from {CFG['pv_profile_file']}")
     for b in DER_HOST_LIST:
@@ -1281,7 +1502,7 @@ if pv_host_list:
             for suffix, info, share in der_units(base):
                 ls_name = f"PVShape_{n_pv}"
                 pv_name = f"pv_{base}{suffix}"
-                f_ls.write(f"New Loadshape.{ls_name} npts={IRRADIANCE_NPTS} interval={IRR_INTERVAL_H} mult=({prof_str})\n")
+                f_ls.write(f"New Loadshape.{ls_name} npts={NPTS} interval={IRR_INTERVAL_H} mult=({prof_str})\n")
                 f_pv.write(
                     f"New PVSystem.{pv_name} phases={info['ph']} bus1={info['bus1']} kV={info['kV']} "
                     f"kVA={row['pv_kva'] * share:.4f} pmpp={row['pv_kw'] * share:.4f} pf=1 "
@@ -1311,8 +1532,8 @@ n_ev_own_bus_com = sum(1 for b in EV_HOSTS_OWN_BUS
 print(f"EV hosts without _1/_2 legs, EV on the host's own bus: {len(EV_HOSTS_OWN_BUS)} "
       f"(commercial profile: {n_ev_own_bus_com})")
 
-# Finally, force Master to a DAILY run (96x15m), and (optionally) comment plot lines
-if not retarget_master_to_daily(master_dss_path, npts=96, stepsize="15m"):
+# Finally, force Master to a DAILY run (96x15m per day of the window), and (optionally) comment plot lines
+if not retarget_master_to_daily(master_dss_path, npts=NPTS, stepsize="15m"):
     print(f"[FAIL] No 'Solve mode=yearly stepsize=15m number=35040' line to retarget in {master_dss_path}.")
     sys.exit(1)
 
@@ -1395,7 +1616,7 @@ def run_base_solve(transformer_names):
         for fn in ("PVSystems.dss", "LoadShapes_PV.dss") + (("Storage.dss",) if STORAGE_ORDER == "before_cars" else ()):
             if os.path.exists(os.path.join(OUT_DIR, fn)):
                 shutil.copy2(os.path.join(OUT_DIR, fn), os.path.join(base_dir, fn))
-    if not base_master or not retarget_master_to_daily(base_master, npts=96, stepsize="15m"):
+    if not base_master or not retarget_master_to_daily(base_master, npts=NPTS, stepsize="15m"):
         print(f"[FAIL] No 'Solve mode=yearly stepsize=15m number=35040' line to retarget in the base solve Master.dss of {base_dir}.")
         sys.exit(1)
     if not re.search(r'(?im)^\s*new\s+monitor\.m2\b', read_text(base_master)):
@@ -1421,8 +1642,8 @@ def run_base_solve(transformer_names):
         mon = circuit.Monitors
         mon.Name = name
         p = monitor_p_kw(list(mon.Header), mon.Channel)
-        if len(p) != IRRADIANCE_NPTS:
-            print(f"[FAIL] Monitor {name} of the EV base solve holds {len(p)} steps; expected {IRRADIANCE_NPTS}.")
+        if len(p) != NPTS:
+            print(f"[FAIL] Monitor {name} of the EV base solve holds {len(p)} steps; expected {NPTS}.")
             sys.exit(1)
         return p
     feeder_p = read_p("m2")
@@ -1435,6 +1656,8 @@ STC_DIR = os.path.join(CURRENT_DIR, "StorageControl")
 EV_BASE_FEEDER_P = None    # feeder-head P of the EV base solve, when it runs
 STORAGE_TARGET_ROWS = []   # one per Storage object, completed after the solve
 STORAGE_FORECAST_DRAWS = []
+STORAGE_PLANS = {}         # under schedule: host -> (planned stored kWh per step and at the end, host kWh)
+STORAGE_MIDNIGHT_ROWS = [] # horizon_days above 1: one per Storage object and day, after the solve
 
 def view_solve(name, layers, monitors):
     """Solve the circuit in StorageControl/<name>/ and return {key: P (96 kW)} of one
@@ -1453,7 +1676,7 @@ def view_solve(name, layers, monitors):
     for fn in files:
         if os.path.exists(os.path.join(OUT_DIR, fn)):
             shutil.copy2(os.path.join(OUT_DIR, fn), os.path.join(sdir, fn))
-    if not smaster or not retarget_master_to_daily(smaster, npts=96, stepsize="15m"):
+    if not smaster or not retarget_master_to_daily(smaster, npts=NPTS, stepsize="15m"):
         print(f"[FAIL] No 'Solve mode=yearly stepsize=15m number=35040' line to retarget in {sdir}.")
         sys.exit(1)
     ensure_redirects_before_solve(smaster)
@@ -1474,8 +1697,8 @@ def view_solve(name, layers, monitors):
         mon = circuit.Monitors
         mon.Name = f"ms_{n}"
         p = monitor_p_kw(list(mon.Header), mon.Channel)
-        if len(p) != IRRADIANCE_NPTS:
-            print(f"[FAIL] Monitor ms_{n} of the storage {name} holds {len(p)} steps; expected {IRRADIANCE_NPTS}.")
+        if len(p) != NPTS:
+            print(f"[FAIL] Monitor ms_{n} of the storage {name} holds {len(p)} steps; expected {NPTS}.")
             sys.exit(1)
         out[key] = np.asarray(p, dtype=float)
     return out
@@ -1502,7 +1725,8 @@ def storage_views():
         dss_texts = [read_text(os.path.join(OUT_DIR, fn)) for fn in dss_files]
         tr_map, _ = service_transformers(dss_texts, {n: i["bus1"] for n, i in parsed_loads_map.items()})
         if STORAGE_VIEW == "building":
-            layer_hosts = set(host_view) | set(pv_host_list) | set(place_u) | set(place_c)
+            layer_hosts = set(host_view) | set(pv_host_list) | set(place_u) | set(place_c) \
+                | {json_ev_un[i] for i in home_u} | {json_ev_ct[i] for i in home_c}  # work cars' homes (window)
             line_of = feeding_lines(dss_texts, {h: (parsed_loads_map[ev_host_leg(h)]["bus1"],
                                                     tr_map.get(ev_host_leg(h))) for h in layer_hosts})
         for h in host_view:
@@ -1547,7 +1771,9 @@ def measured_curves(views, host_keys, with_cars):
             for k in host_keys(b):
                 curves[k] = curves[k] - kw
     if cars_on:
-        for rows, hosts in ((arr_u, place_u), (arr_c, place_c)):
+        # with the home rows of the work cars of a window (no row at horizon_days 1)
+        for rows, hosts in ((arr_u, place_u), (arr_c, place_c),
+                            (arr_uh, [json_ev_un[i] for i in home_u]), (arr_ch, [json_ev_ct[i] for i in home_c])):
             for j, b in enumerate(hosts):
                 for k in host_keys(b):
                     curves[k] = curves[k] + rows[j, :]
@@ -1578,11 +1804,14 @@ def storage_control_step(with_cars):
         if not units:
             continue
         draw = f"forecast_storage_{key}"
-        z = ev_rng(draw, seed).standard_normal(24)
-        fc, err, fc_w, fc_cv = forecast_curve(curves[key], fc_model, EV_INPUTS["forecast_models"][fc_model], z)
+        if HORIZON_DAYS == 1:
+            z = ev_rng(draw, seed).standard_normal(24)
+            fc, err, fc_w, fc_cv = forecast_curve(curves[key], fc_model, EV_INPUTS["forecast_models"][fc_model], z)
+        else:  # each day of the window has its own draws and its own error
+            fc, err, _, _ = window_forecast(curves[key], draw, seed)
         STORAGE_FORECAST_DRAWS.append(draw)
         element, terminal = views[key]
-        for i in range(IRRADIANCE_NPTS):
+        for i in range(NPTS):
             curve_rows.append({"view": key, "element": element, "terminal": terminal, "step": i + 1,
                                "measured_kw": curves[key][i], "forecast_error_kw": err[i], "forecast_kw": fc[i]})
         kw_view, kwh_view = sum(u["kw"] for u in units), sum(u["kwh"] for u in units)
@@ -1594,7 +1823,25 @@ def storage_control_step(with_cars):
             for host in dict.fromkeys(u["host"] for u in units):
                 h_units = [u for u in units if u["host"] == host]
                 h_kw, h_kwh = sum(u["kw"] for u in h_units), sum(u["kwh"] for u in h_units)
-                if SCHEDULE_START == "best":
+                if HORIZON_DAYS > 1 and SCHEDULE_START == "fixed":
+                    # The window rule (storage_control.schedule_days): each day on its own
+                    # forecast, from the energy the day before left
+                    net, energy, x = schedule_days(cur, h_kw, h_kwh, start, reserve, eff_c, eff_d, dt,
+                                                   IRRADIANCE_NPTS)
+                    h_pct, stored = STORAGE_START_PCT, ""
+                elif HORIZON_DAYS > 1:
+                    if SCHEDULE_START == "best":  # the start of the one-day rule on day X's forecast
+                        x0 = X_INDEX * IRRADIANCE_NPTS
+                        h_start = best_start(cur[x0:x0 + IRRADIANCE_NPTS], h_kw, h_kwh, reserve, eff_c, eff_d, dt,
+                                             SCHEDULE_STARTS)[0]
+                        net, energy, x = schedule_days(cur, h_kw, h_kwh, h_start, reserve, eff_c, eff_d, dt,
+                                                       IRRADIANCE_NPTS)
+                    else:  # best_window: the start that leaves the lowest maximum of the window
+                        h_start, net, energy, x = best_window_start(cur, h_kw, h_kwh, reserve, eff_c, eff_d, dt,
+                                                                    SCHEDULE_STARTS, IRRADIANCE_NPTS)
+                    h_pct = SCHEDULE_START_PCTS[SCHEDULE_STARTS.index(h_start)]
+                    stored = f" %stored={format(h_pct, '.6g')}"
+                elif SCHEDULE_START in ("best", "best_window"):
                     h_start, net, energy, x = best_start(cur, h_kw, h_kwh, reserve, eff_c, eff_d, dt, SCHEDULE_STARTS)
                     h_pct = SCHEDULE_START_PCTS[SCHEDULE_STARTS.index(h_start)]
                     stored = f" %stored={format(h_pct, '.6g')}"
@@ -1602,16 +1849,17 @@ def storage_control_step(with_cars):
                     net, energy, x = schedule(cur, h_kw, h_kwh, start, reserve, eff_c, eff_d, dt)
                     h_pct, stored = STORAGE_START_PCT, ""
                 cur = cur - net
+                STORAGE_PLANS[host] = (energy, h_kwh)
                 shape = f"StoSched_{n_sched}"
                 n_sched += 1
-                text.append(f"New Loadshape.{shape} npts={IRRADIANCE_NPTS} interval={IRR_INTERVAL_H} "
+                text.append(f"New Loadshape.{shape} npts={NPTS} interval={IRR_INTERVAL_H} "
                             f"mult=({' '.join(f'{v / h_kw:.6f}' for v in net)})\n")
                 for u in h_units:
                     text.append(f"Edit Storage.{u['name']} DispMode=FOLLOW daily={shape}{stored}\n")
                     STORAGE_TARGET_ROWS.append({**base_row, "battery": u["name"], "host": host,
                                                 "segment": u["segment"], "kw_rated": u["kw"], "kwh_rated": u["kwh"],
                                                 "start_pct": h_pct, "schedule_discharge_kwh": x * u["kw"] / h_kw})
-                for i in range(IRRADIANCE_NPTS):
+                for i in range(NPTS):
                     sched_rows.append({"view": key, "host": host, "loadshape": shape, "step": i + 1,
                                        "net_kw": net[i], "stored_kwh_start": energy[i], "stored_kwh_end": energy[i + 1]})
             text.append("\n")
@@ -1633,9 +1881,9 @@ def storage_control_step(with_cars):
                                         "kw_target": float(f"{target:.4f}"), "kw_target_low": float(f"{low:.4f}")})
     with open(storage_path, "a", encoding="utf-8") as f_st:
         f_st.writelines(text)
-    pd.DataFrame(curve_rows).to_csv(os.path.join(STC_DIR, "storage_curves.csv"), index=False)
+    window_columns(pd.DataFrame(curve_rows)).to_csv(os.path.join(STC_DIR, "storage_curves.csv"), index=False)
     if STORAGE_RULE == "schedule":
-        pd.DataFrame(sched_rows).to_csv(os.path.join(STC_DIR, "storage_schedule.csv"), index=False)
+        window_columns(pd.DataFrame(sched_rows)).to_csv(os.path.join(STC_DIR, "storage_schedule.csv"), index=False)
     print(f"Storage control -> {STORAGE_RULE}, view {STORAGE_VIEW}, order {STORAGE_ORDER}, measure "
           f"{STORAGE_MEASURE}, layer {STORAGE_LAYER}: {len(STORAGE_TARGET_ROWS)} batteries, "
           f"{len(STORAGE_FORECAST_DRAWS)} views with storage")
@@ -1643,13 +1891,148 @@ def storage_control_step(with_cars):
 if n_storage > 0 and STORAGE_ORDER == "before_cars":
     storage_control_step(with_cars=False)
 
+def window_ev_control():
+    """The ev_control rule over a window of more than one day (horizon_days above 1).
+    Returns (controlled rows at the cars' main place, controlled home rows of the work
+    cars, car_curve, placement_rank, shifts), the last three one value per controlled
+    car as in the one-day run.
+
+    Every charging event of a controlled car (EV_EVENTS, ev_cars.plan_car: a drawn
+    session, a top-up, or the part after midnight of the session of the day before the
+    window) is one row of 96 x horizon_days kW with its own window on the timeline, and
+    the rules of ev_control.py place the events as the one-day run places the cars.
+    With ev_home_window false an event may use the 96 steps of the day of its first
+    charging step, from that step and wrapping inside the day.
+    - Valley rules: one base solve over the window (run_base_solve); the uncontrolled
+      cars' kW is added; the events are placed in order of plug-in time on the timeline
+      (an event without a plug-in time at the end of its day), each placed event joining
+      the forecast. Under ev_valley_day own_day the forecast has a new error for each
+      day (window_forecast); under peak_day it is day X's forecast, repeated on each
+      day. EVControl/ev_control_curves.csv holds one row per curve and step, with
+      forecast_kw, the curve the first event saw.
+    - offpeak_start: the cheap steps of each day come from the tariff row of the day's
+      own month (day X's month under peak_day) and of the day's type, weekday or
+      weekend; each car keeps one start offset for all its events."""
+    global EV_BASE_FEEDER_P
+    events = EV_EVENTS["controlled"]
+    n_e = len(events)
+    rows_e = np.array([e["row"] for e in events]).reshape(n_e, NPTS)
+    powers_e = [e["power"] for e in events]
+
+    def day_steps(e):
+        nz = np.flatnonzero(e["row"])
+        first = int(nz[0]) if nz.size else (e["window"][0] if e["window"] else 0)
+        d0 = (first // IRRADIANCE_NPTS) * IRRADIANCE_NPTS
+        return [d0 + (first - d0 + k) % IRRADIANCE_NPTS for k in range(IRRADIANCE_NPTS)]
+
+    windows_e = [e["window"] if EV_HOME_WINDOW else day_steps(e) for e in events]
+    order = sorted(range(n_e), key=lambda i: (events[i]["plug_abs"], i))
+    placement_rank, shifts = [None] * N_c, [None] * N_c
+    for rank, i in enumerate(order, start=1):
+        if placement_rank[events[i]["car"]] is None:
+            placement_rank[events[i]["car"]] = rank
+    car_curve = [""] * N_c
+    if EV_CONTROL in EV_VALLEY_RULES:
+        # ASSUMPTION: as in the one-day run, uncontrolled cars are added to the base curve
+        # as their own kW, without the line losses they cause.
+        unc_total = arr_u.sum(axis=0) + arr_uh.sum(axis=0)
+        tr_names, tr_monitor, unc_on = [], {}, {}
+        event_curve = ["feeder"] * n_e
+        car_curve = ["feeder"] * N_c
+        if EV_CONTROL == "valley_fill_transformer":
+            dss_texts = [read_text(os.path.join(OUT_DIR, fn)) for fn in dss_files]
+            skipped_lines = []
+            tr_map, tr_status = service_transformers(dss_texts, {n: i["bus1"] for n, i in parsed_loads_map.items()},
+                                                     skipped_lines)
+            print(f"Service transformers -> switched-out lines (enabled=n) left out of the map: {len(skipped_lines)}")
+            n_status = {s: sum(1 for v in tr_status.values() if v == s) for s in ("one", "none", "several")}
+            print(f"Service transformers -> loads with one: {n_status['one']}, none: {n_status['none']}, "
+                  f"several: {n_status['several']}")
+            ctl_tr = [tr_map.get(ev_host_leg(b)) for b in place_c]
+            car_curve = [t if t else "feeder_fallback" for t in ctl_tr]
+            event_tr = [tr_map.get(ev_host_leg(e["place_load"])) for e in events]
+            event_curve = [t if t else "feeder" for t in event_tr]
+            tr_names = sorted({t for t in ctl_tr + event_tr if t})
+            tr_monitor = {t: f"mt_{n}" for n, t in enumerate(tr_names, start=1)}
+            unc_places = [(arr_u[i, :], place_u[i]) for i in range(N_u)] + \
+                         [(arr_uh[k, :], json_ev_un[i]) for k, i in enumerate(home_u)]
+            for t in tr_names:
+                unc_on[t] = sum((row for row, b in unc_places if tr_map.get(ev_host_leg(b)) == t), np.zeros(NPTS))
+            print(f"Controlled cars on the feeder curve (host without one service transformer): "
+                  f"{car_curve.count('feeder_fallback')} of {N_c}")
+        feeder_p, trans_p = run_base_solve(tr_names)
+        if EV_VALLEY_BASE == "buildings_only" and STORAGE_ORDER != "before_cars":
+            EV_BASE_FEEDER_P = feeder_p
+        start_curves = {"feeder": feeder_p + unc_total}
+        start_curves.update({t: trans_p[t] + unc_on[t] for t in tr_names})
+        fc_curves, fc_error, n_no_error = {}, {}, 0
+        for name, curve in start_curves.items():
+            fc_curves[name], fc_error[name], fc_w, fc_cv = window_forecast(
+                curve, f"forecast_{name}", ev_effective_seed, peak_day=EV_VALLEY_DAY == "peak_day")
+            n_no_error += sum(cv is None for cv in fc_cv)
+            print(f"Forecast -> {name}: {EV_INPUTS['forecast_error']}, ev_valley_day {EV_VALLEY_DAY}, W per day "
+                  f"{[round(w, 4) for w in fc_w]} kW, CV per day {[None if cv is None else round(cv, 4) for cv in fc_cv]} %")
+        print(f"Forecast -> curve-days with W <= 0 (no error): {n_no_error} of {len(start_curves) * HORIZON_DAYS}")
+        fc_first = {name: curve.copy() for name, curve in fc_curves.items()}
+        if EV_CONTROL == "valley_fill_feeder":
+            placed, _ = valley_fill(rows_e, fc_curves["feeder"], windows_e, order)
+        elif EV_CONTROL == "water_fill_feeder":
+            placed, _ = water_fill(rows_e, fc_curves["feeder"], powers_e, windows_e, order)
+        else:
+            placed, _ = valley_fill_curves(rows_e, fc_curves, event_curve, "feeder", windows_e, order)
+        curve_rows = []
+        for name in ["feeder"] + tr_names:
+            on = [i for i in range(n_e) if name == "feeder" or event_curve[i] == name]
+            base_kw = feeder_p if name == "feeder" else trans_p[name]
+            unc_kw = unc_total if name == "feeder" else unc_on[name]
+            ctl_kw = placed[on, :].sum(axis=0)
+            for i in range(NPTS):
+                curve_rows.append({"curve": name, "monitor": "m2" if name == "feeder" else tr_monitor[name],
+                                   "step": i + 1, "base_kw": base_kw[i], "uncontrolled_ev_kw": unc_kw[i],
+                                   "controlled_ev_kw": ctl_kw[i], "forecast_error_kw": fc_error[name][i],
+                                   "forecast_kw": fc_first[name][i]})
+        window_columns(pd.DataFrame(curve_rows)).to_csv(os.path.join(EVC_DIR, "ev_control_curves.csv"), index=False)
+    else:  # offpeak_start
+        tariff_path = os.path.join(ROOT, "data_tariffs", f"{CFG['state']}_urdb_rate.json")
+        if not os.path.exists(tariff_path):
+            print(f"[FAIL] Tariff file not found: {tariff_path}. Run fetch_tou_rates.py first.")
+            sys.exit(1)
+        tariff = json.loads(read_text(tariff_path))
+        cheap = []
+        for d, date in enumerate(WINDOW_DATES):
+            month = date.month if EV_VALLEY_DAY == "own_day" else WINDOW_DATES[X_INDEX].month
+            cheap_period, cheap_day = cheap_intervals(tariff["rate"], month, EV_DAY_TYPES[d + 1])
+            cheap += [d * IRRADIANCE_NPTS + i for i in cheap_day]
+            print(f"Off-peak start -> {tariff['rate'].get('label')} day {d + 1} ({date.isoformat()}), month {month}, "
+                  f"{EV_DAY_TYPES[d + 1]} schedule: period {cheap_period}, {len(cheap_day)} cheap intervals")
+        z_spread = ev_rng("start_spread_controlled", ev_effective_seed).standard_normal(N_c)
+        shifts_e = start_offsets(rows_e, cheap, windows_e, [z_spread[e["car"]] for e in events],
+                                 EV_INPUTS["start_spread_min"])
+        for e, d in zip(events, shifts_e):
+            if d is not None and shifts[e["car"]] is None:
+                shifts[e["car"]] = d
+        print(f"Off-peak start -> start spread {EV_INPUTS['start_spread_min']} min: "
+              f"{sum(d is not None for d in shifts)} of {N_c} cars with a start offset")
+        placed, _ = offpeak_start(rows_e, cheap, powers_e, windows_e, shifts_e)
+    rows_c, rows_ch = np.zeros((N_c, NPTS)), np.zeros((len(home_c), NPTS))
+    for i, e in enumerate(events):
+        e["controlled_kwh"] = float(placed[i, :].sum()) / 4.0
+        if e["home_part"]:
+            rows_ch[home_c.index(e["car"]), :] += placed[i, :]
+        else:
+            rows_c[e["car"], :] += placed[i, :]
+    return rows_c, rows_ch, car_curve, placement_rank, shifts
+
+
 if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
     os.makedirs(EVC_DIR, exist_ok=True)
     car_curve = [""] * N_c
     starts = None
     placement_rank = [None] * N_c
     shifts = [None] * N_c
-    if EV_CONTROL in EV_VALLEY_RULES:
+    if HORIZON_DAYS > 1:
+        arr_c, arr_ch, car_curve, placement_rank, shifts = window_ev_control()
+    elif EV_CONTROL in EV_VALLEY_RULES:
         # Controlled cars are placed in order of plug-in time from 04:00 (plugin_order)
         order = plugin_order([c["plug_minute"] if c["charges_today"] else None for c in cars_c])
         for rank, j in enumerate(order, start=1):
@@ -1734,6 +2117,8 @@ if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
     car_rows = []
     for j, host in enumerate(json_ev_ct):
         s_row, c_row = arr_c_sessions[j, :], arr_c[j, :]
+        if j in home_c:  # a work car of a window: its office rows plus its home rows
+            s_row, c_row = s_row + arr_ch_sessions[home_c.index(j), :], c_row + arr_ch[home_c.index(j), :]
         # Under offpeak_start a car's charging can wrap past midnight, so its first
         # charging interval is its start, not its lowest non-zero interval.
         if starts is not None:
@@ -1757,6 +2142,36 @@ if ACTIVATE_EV and N_c > 0 and EV_CONTROL != "uncontrolled":
     cars_df.to_csv(os.path.join(EVC_DIR, "ev_control_cars.csv"), index=False)
     print(f"EV control -> {EV_CONTROL}: {N_c} controlled cars")
 
+if HORIZON_DAYS > 1 and cars:
+    # EVControl/ev_car_days.csv: one row per car and day, the day before the window
+    # (day_index 0) and each day of the window. planned_kwh is the car's charging on the
+    # run's steps before any control; delivered_kwh is what its loadshape holds (the
+    # controlled result for a controlled car); owed_kwh is needed less delivered, summed
+    # from day 0, so the last day's value is the energy still owed at the end.
+    day_rows = []
+    for group, group_cars in (("uncontrolled", cars_u), ("controlled", cars_c)):
+        controlled_kwh = {(e["car"], e["p"]): e["controlled_kwh"] for e in EV_EVENTS[group] if "controlled_kwh" in e}
+        for j, c in enumerate(group_cars):
+            needed_sum = delivered_sum = 0.0
+            for p, day in enumerate(EV_CAR_DAYS[group][j]):
+                date = WINDOW_DATES[0] + datetime.timedelta(days=p - 1)
+                delivered = controlled_kwh.get((j, p), day["delivered_kwh"])
+                needed_sum += day["needed_kwh"]
+                delivered_sum += delivered
+                day_rows.append({
+                    "car": c["car"], "group": group, "host": c["host"], "day_index": p, "date": date.isoformat(),
+                    "day_type": EV_DAY_TYPES[p], "day_x": 1 if p == X_INDEX + 1 else 0, "charges": day["charges"],
+                    "event": day["kind"], "session_id": day["source_id"], "place": day["place"],
+                    "place_load": day["place_load"], "needed_kwh": day["needed_kwh"],
+                    "planned_kwh": day["delivered_kwh"], "delivered_kwh": delivered,
+                    "topup_kwh": delivered if day["kind"] == "top_up" else 0.0, "tail_kwh": day["tail_kwh"],
+                    "backlog_kwh": day["backlog_kwh"], "owed_kwh": needed_sum - delivered_sum})
+    pd.DataFrame(day_rows).to_csv(os.path.join(EVC_DIR, "ev_car_days.csv"), index=False)
+    print(f"EV car days -> {len(day_rows)} rows: needed {sum(r['needed_kwh'] for r in day_rows):.4f} kWh, "
+          f"delivered {sum(r['delivered_kwh'] for r in day_rows):.4f} kWh, top-up "
+          f"{sum(r['topup_kwh'] for r in day_rows):.4f} kWh, owed at the end "
+          f"{sum(r['owed_kwh'] for r in day_rows if r['day_index'] == HORIZON_DAYS):.4f} kWh")
+
 if ACTIVATE_EV and (N_u + N_c) > 0:
     # EV loadshapes: uncontrolled -> EVu_i, controlled -> EVc_i
     with open(loadshapes_ev_path, "w", encoding="utf-8") as f_ls:
@@ -1764,9 +2179,15 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
         for i in range(N_u):
             row = arr_u[i, :]
             f_ls.write(f"New Loadshape.EVu_{i} npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
+        for k, i in enumerate(home_u):  # horizon_days above 1: the home rows of the work cars
+            row = arr_uh[k, :]
+            f_ls.write(f"New Loadshape.EVu_{i}h npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
         for i in range(N_c):
             row = arr_c[i, :]
             f_ls.write(f"New Loadshape.EVc_{i} npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
+        for k, i in enumerate(home_c):
+            row = arr_ch[k, :]
+            f_ls.write(f"New Loadshape.EVc_{i}h npts={row.size} interval=0.25 mult=({' '.join(f'{v:.4f}' for v in row)})\n")
 
 if n_storage > 0 and STORAGE_ORDER != "before_cars":
     storage_control_step(with_cars=(STORAGE_ORDER == "after_cars"))
@@ -1813,8 +2234,9 @@ if COMPILE_CIRCUIT and master_dss_path:
             raise RuntimeError(f"Loads in the compiled circuit ({len(engine_loads)}) differ from "
                                f"the loads with a voltage monitor ({len(LV_LOADS)}).")
         lv_frame, lv_no_base = load_voltage_frame(read_load_monitors(DSScircuit, LV_LOADS))
-        lv_frame.to_parquet(os.path.join(OUT_DIR, "load_voltages.parquet"), index=False)
-        step_table(lv_frame, V_LOW_PU, V_HIGH_PU).to_csv(
+        # window_columns: date, day_index and day_type per step when horizon_days is above 1
+        window_columns(lv_frame).to_parquet(os.path.join(OUT_DIR, "load_voltages.parquet"), index=False)
+        window_columns(step_table(lv_frame, V_LOW_PU, V_HIGH_PU)).to_csv(
             os.path.join(OUT_DIR, "load_voltage_steps.csv"), index=False)
         load_table(lv_frame, V_LOW_PU, V_HIGH_PU).to_csv(
             os.path.join(OUT_DIR, "load_voltage_loads.csv"), index=False)
@@ -1844,8 +2266,22 @@ if COMPILE_CIRCUIT and master_dss_path:
                         "stored_kwh_start": row["kwh_rated"] * row["start_pct"] / 100.0,
                         "stored_kwh_end": e_after, "stored_kwh_min": min(float(kwh.min()), e_after),
                         "stored_kwh_max": max(float(kwh.max()), e_after)})
+            # horizon_days above 1: the stored energy at each midnight, from the state monitor
+            # and, under schedule, from the host's plan (the battery's share of its kWh)
+            plan = STORAGE_PLANS.get(row["host"])
+            for d in range(HORIZON_DAYS if HORIZON_DAYS > 1 else 0):
+                end = (d + 1) * IRRADIANCE_NPTS
+                monitor_end = float(kwh[end]) if end < len(kwh) else e_after
+                planned_end = float(plan[0][end]) * row["kwh_rated"] / plan[1] if plan else None
+                STORAGE_MIDNIGHT_ROWS.append({
+                    "battery": row["battery"], "host": row["host"], "view": row["view"], "rule": row["rule"],
+                    "day_index": d + 1, "date": WINDOW_DATES[d].isoformat(), "day_type": day_type(WINDOW_DATES[d]),
+                    "kwh_rated": row["kwh_rated"], "planned_kwh_end": planned_end, "monitor_kwh_end": monitor_end,
+                    "drift_kwh": None if planned_end is None else monitor_end - planned_end})
     if n_storage > 0:
         pd.DataFrame(STORAGE_TARGET_ROWS).to_csv(os.path.join(STC_DIR, "storage_targets.csv"), index=False)
+    if STORAGE_MIDNIGHT_ROWS:
+        pd.DataFrame(STORAGE_MIDNIGHT_ROWS).to_csv(os.path.join(STC_DIR, "storage_midnights.csv"), index=False)
 else:
     converged = None  # circuit was never compiled/solved
 

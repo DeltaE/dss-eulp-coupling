@@ -16,7 +16,9 @@ intervals of the day (its session row).
   limit in each interval, filling the lowest intervals toward one level.
 - plugin_order(plug_minutes): the order of placement, by plug-in time from 04:00.
 - forecast_cv(w, model, coefficients) and forecast_curve(curve, model, coefficients, z):
-  the aggregator's forecast of a curve, with an hourly normal error.
+  the aggregator's forecast of a curve, with an hourly normal error;
+  forecast_days(curve, model, coefficients, z_days): the same day by day over a window
+  of more than one day.
 - monitor_p_kw(header, channels): real power per step of a mode=1 Monitor.
 - read_dss_elements(texts), service_transformers(texts, load_buses): the service
   transformer of each load.
@@ -26,6 +28,9 @@ intervals of the day (its session row).
   it; a car starts at the later of its schedule time and its plug-in.
 A window is the list of intervals a car is plugged in at home, in plug order (ev_cars.py);
 None means every interval of the day.
+With horizon_days above 1 the deploy passes rows, curves, windows and cheap intervals of
+96 x horizon_days steps, one row per charging event of a car (ev_cars.plan_car); the
+rules work on any row length.
 """
 import re
 
@@ -171,6 +176,18 @@ def forecast_curve(curve, model, coefficients, z):
     cv = forecast_cv(w, model, coefficients)
     error = np.asarray(z, dtype=float)[np.arange(curve.size) // 4] * cv / 100.0 * w
     return curve + error, error, w, cv
+
+
+def forecast_days(curve, model, coefficients, z_days):
+    """forecast_curve on each day of a curve of whole days (N_INTERVALS steps each), day
+    d with its own 24 draws z_days[d]: each day's error uses that day's mean load.
+    Returns (forecast, error, [w per day], [cv per day]) over the whole curve. One day
+    gives forecast_curve."""
+    curve = np.asarray(curve, dtype=float)
+    parts = [forecast_curve(curve[d * N_INTERVALS:(d + 1) * N_INTERVALS], model, coefficients, z)
+             for d, z in enumerate(z_days)]
+    return (np.concatenate([p[0] for p in parts]), np.concatenate([p[1] for p in parts]),
+            [p[2] for p in parts], [p[3] for p in parts])
 
 
 _S_RE = re.compile(r"^S(\d+)\s*\(kVA\)$", re.IGNORECASE)
@@ -325,13 +342,15 @@ def first_tier_price(tiers):
     return float(t.get("rate", 0.0)) + float(t.get("adj", 0.0) or 0.0)
 
 
-def cheap_intervals(rate, month):
+def cheap_intervals(rate, month, day_type="weekday"):
     """Return (cheap period, sorted cheap intervals) of a URDB rate record for month
     (1 to 12). The schedule is energyweekdayschedule[month - 1], because the EV session
-    curve is the weekday curve. The cheap period is the period of that row with the
-    lowest first-tier price (equal prices go to the lower period number). Cheap
-    intervals are the 15-minute intervals i (0 to 95) whose hour i // 4 is in it."""
-    row = [int(p) for p in rate["energyweekdayschedule"][month - 1]]
+    curve is the weekday curve; with day_type weekend (a Saturday or Sunday of a window
+    of more than one day) it is energyweekendschedule[month - 1]. The cheap period is
+    the period of that row with the lowest first-tier price (equal prices go to the
+    lower period number). Cheap intervals are the 15-minute intervals i (0 to 95) whose
+    hour i // 4 is in it."""
+    row = [int(p) for p in rate[f"energy{day_type}schedule"][month - 1]]
     structure = rate["energyratestructure"]
     period = min(sorted(set(row)), key=lambda p: (first_tier_price(structure[p]), p))
     return period, [i for i in range(N_INTERVALS) if row[i // 4] == period]

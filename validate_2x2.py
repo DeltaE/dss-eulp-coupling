@@ -2,7 +2,8 @@
 """
 Cross-case validation for the 2x2 pipeline consolidation.
 Input : <runs root>/m2_all_cases_all_seasons.csv (written by gather_m2_cases.py)
-Design: 4 cases x 2 seasons x 3 mixes x 2 feeders, 96 timesteps each.
+Design: 4 cases x 2 seasons x 3 mixes x 2 feeders, 96 timesteps per day of the window
+each (horizon_days in pipeline_config.yaml; 96 at horizon_days 1).
 
 Sections:
   1. Structural checks
@@ -18,6 +19,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import yaml
+
+from pipeline_utils import STEPS_PER_DAY, horizon_days, load_config
 
 pd.set_option("display.width", 200)
 pd.set_option("display.max_columns", 40)
@@ -39,7 +42,7 @@ PHASE_P = ["P1 (kW)", "P2 (kW)", "P3 (kW)"]
 KEYS = ["case", "topology", "donor", "season", "scenario", "feeder"]
 SC_ORDER = {"baseline": 0, "mixed": 1, "stress": 2}
 
-EXPECT = dict(cases=4, seasons=2, scenarios=3, feeders=2, ts=96)
+EXPECT = dict(cases=4, seasons=2, scenarios=3, feeders=2, ts=STEPS_PER_DAY * horizon_days(load_config()))
 EXPECT_COMBOS = EXPECT["cases"] * EXPECT["seasons"] * EXPECT["scenarios"] * EXPECT["feeders"]
 # circuit_folder keys are folder names (<substation>_circuit_<n>_<mix>) that carry neither
 # donor nor season. Four cases and two seasons give 48 combos, which collapse to
@@ -78,7 +81,7 @@ def build_peaks(data):
 # ---------------------------------------------------------------------------
 def sec1_structural(df, data, summ, peaks):
     rule("1. STRUCTURAL CHECKS")
-    print(f"Total rows        : {len(df):,}  (expected 4,656)")
+    print(f"Total rows        : {len(df):,}  (expected {EXPECT_COMBOS * EXPECT['ts'] + EXPECT_COMBOS:,})")
     print(f"  data rows       : {len(data):,}  (expected {EXPECT_COMBOS*EXPECT['ts']:,})")
     print(f"  summary rows    : {len(summ):,}  (expected {EXPECT_COMBOS})")
 
@@ -98,11 +101,11 @@ def sec1_structural(df, data, summ, peaks):
     if not bad_ts.empty:
         print(bad_ts[KEYS + ["n_ts"]].to_string(index=False))
 
-    # timestep continuity inside each combo (must be 1..96, unique)
+    # timestep continuity inside each combo (must be 1..ts, unique)
     def ts_ok(s):
         return sorted(s.tolist()) == list(range(1, EXPECT["ts"] + 1))
     cont = data.groupby(KEYS)["timestep"].apply(ts_ok)
-    print(f"Combos w/ clean 1..96 timestep set: {cont.sum()}/{len(cont)}  "
+    print(f"Combos w/ clean 1..{EXPECT['ts']} timestep set: {cont.sum()}/{len(cont)}  "
           f"{'OK' if cont.all() else 'GAPS/DUPES'}")
 
     # duplicate (combo,timestep)

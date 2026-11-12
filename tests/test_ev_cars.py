@@ -457,6 +457,26 @@ def test_settings():
     assert _stops(ev_work_share_case, {})
 
 
+
+def test_empty_office_pool_stops():
+    """An empty office pool stops work_cars with [FAIL], not with a numpy error."""
+    pool = pd.DataFrame({"session_id": [1], "energy_kwh": [8.0], "charge_h": [2.0], "start_min": [1080.0],
+                         "plug_min": [600.0]})
+    cars = evwatts_cars("uncontrolled", ["a", "b", "c", "d"], pool, 1.0, 1.0, INPUTS, 7)
+    try:
+        work_cars("uncontrolled", cars, 0.5, ["office_a"], INPUTS, 7, "evwatts_sessions",
+                  office_pool=pool.iloc[0:0], where="South Atlantic")
+    except SystemExit as e:
+        assert e.code == 1
+    else:
+        raise AssertionError("expected a stop")
+
+
+def test_weekend_charging_share():
+    pool = pd.DataFrame({"evse_id": [1, 1, 2], "start_date": ["2024-01-06", "2024-01-14", "2024-01-07"]})
+    assert np.isclose(charging_share(pool, day_type="weekend"), 3.0 / 5.0)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
