@@ -94,6 +94,17 @@ With peak_day_rule: given, steps 1 to 4 run as above, and:
   printed and left out.
 - Step 6 cuts every mix on day X, 100 % baseline included; the baseline check runs
   under per_circuit only.
+With load growth on (growth_years above 0 in growth.yaml), steps 1 to 4 run on the grown
+curve of each feeder, the sum of the grown curves of its customers, existing and new,
+from the plan of phase growth (<work_root>/growth/growth_plan.json):
+- Weight of building b in group g: REAL_LOAD_COUNT of b x (the sum of the factors of
+  b's existing loads labelled g / b's loads) + the factors of the new loads of b
+  labelled g. A loadshape new to the feeder (REAL_LOAD_COUNT 0, no existing load) is
+  labelled in a draw of its own (growth.label_new_shapes).
+- A customer of load_factors with peak_factor enters with its a in place of a factor,
+  and its b is added to every step of the feeder curve (growth.stretch on the whole
+  year of its building's curve in its group).
+- Step 6 cuts every mix on day X under per_circuit too; the baseline check does not run.
 """
 
 import argparse
@@ -111,8 +122,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
                             peak_day_rule, read_given_days, resolve_config_path, resolve_work_path)
 from pipeline_utils import WINDOW_YEAR, horizon_days, window_dates
+from pipeline_utils import growth_on, growth_settings, load_growth, read_growth_plan
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation'))
-from heating_split import is_baseline_only, read_loads, split_heating
+from heating_split import is_baseline_only, load_segment, read_loads, split_heating
 
 START_PROCESS = time.time()
 
@@ -306,6 +318,21 @@ def run_mix(mix_name):
     shares = mix_cfg['shares']
     heating_seed = int(mix_cfg.get('heating_seed', 123))  # same default as Phase 7b
     label_unit = heating_label_unit(cfg)
+    # Load growth (growth.yaml): with growth on, the plan of phase growth
+    growth_cfg = growth_settings(load_growth())
+    plan = read_growth_plan(growth_cfg, "mix_days") if growth_on(growth_cfg) else None
+    if plan is not None:
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation',
+                                        'deployer_modules'))
+        import growth as growth_rules
+
+    def stretch_of(base, entry, parquet_path):
+        """(a, b) of a stretched customer from the whole year of its building's curve."""
+        values = (pq.read_table(parquet_path, columns=[ENERGY_COL])[ENERGY_COL].to_numpy() * 4).tolist()
+        try:
+            return growth_rules.stretch(values, entry["factor"], entry["peak_factor"])
+        except growth_rules.GrowthError as e:
+            _fail(f"load_factors, load {base}: {e}.")
 
     # Feeders as Phase 7b finds them
     registry = load_feeder_registry()
@@ -372,13 +399,29 @@ def run_mix(mix_name):
             for ls in sorted(base_to_daily[base]):
                 loads_of.setdefault(ls, []).append(base)
 
+        # Load growth: the factor of every existing load, the factors of the new loads of
+        # each loadshape, and the labels of the loadshapes new to the feeder
+        new_factors, stretched, curve_offset = {}, {}, 0.0
+        if plan is not None:
+            if feeder_name not in plan["feeders"]:
+                _fail(f"feeder {feeder_name} is not in the growth plan; run phase growth again.")
+            grown = plan["feeders"][feeder_name]
+            factor_of = growth_rules.customer_factors(grown, sorted(unique_bases),
+                                                      lambda b: load_segment(b, base_to_daily))
+            for unit in grown["units"]:
+                for c in unit["customers"]:
+                    new_factors.setdefault(c["shape"], []).append(c["factor"])
+            daily_to_scen = dict(daily_to_scen, **growth_rules.label_new_shapes(
+                grown["new_shapes"], shares, int(heating_seed) + heat["mix_seed_offset"]))
+            stretched = {b: e for b, e in grown["load_factors"].items() if e.get("peak_factor") is not None}
+
         # 2) and 3) Buildings and weights per group and parquet file
         weights = {label: {} for label, _, _ in MIX_GROUPS}
         no_building = []
-        for ls in sorted(loads_of):
-            loads = loads_of[ls]
+        for ls in sorted(set(loads_of) | set(new_factors)):
+            loads = loads_of.get(ls, [])
             # Phase 7b takes a loadshape's CSV from daily_to_scen, baseline when absent
-            load_labels = [daily_to_scen.get(ls, 'baseline') for _ in loads]
+            load_labels = [daily_to_scen.get(ls, 'baseline') for _ in loads] or [daily_to_scen.get(ls, 'baseline')]
             m = re.match(r"^(.+)_kw_(.+)_pu$", ls)
             building = f"{m.group(1)}_{m.group(2)}" if m else None
             found = {}
@@ -397,7 +440,7 @@ def run_mix(mix_name):
             n_buildings += 1
             for label in sorted(set(load_labels)):
                 if label not in found:
-                    _fail(f"load {loads[0]} (loadshape {ls}) is labelled {label}, but building "
+                    _fail(f"load {(loads or [ls])[0]} (loadshape {ls}) is labelled {label}, but building "
                           f"{building} is not in the {label} mapping for feeder {feeder_name}.")
             first = found[load_labels[0]]
             rlc = int(first["REAL_LOAD_COUNT"])
@@ -415,7 +458,23 @@ def run_mix(mix_name):
                 if not ((rq["Feeder"] == feeder_name) & (rq["Parquet_File"] == pfile)).any():
                     _fail(f"{pfile} of building {building} is not in the {label} required-parquet "
                           f"list for feeder {feeder_name}.")
-                w = int(row["REAL_LOAD_COUNT"]) * (n_g / len(loads))
+                if plan is None:
+                    w = int(row["REAL_LOAD_COUNT"]) * (n_g / len(loads))
+                else:
+                    # the grown curve: every existing load with its factor (a stretched
+                    # customer with its a), every new load with its own factor
+                    scale = []
+                    for base in loads:
+                        if base in stretched:
+                            folder = rq.loc[(rq["Feeder"] == feeder_name) & (rq["Parquet_File"] == pfile),
+                                            "Parquet_Folder"].iloc[0]
+                            a, b = stretch_of(base, stretched[base], PARQUET_DATA_ROOT / folder / pfile)
+                            curve_offset += b
+                            scale.append(a)
+                        else:
+                            scale.append(factor_of[base])
+                    w = (int(row["REAL_LOAD_COUNT"]) * sum(scale) / len(loads) if loads else 0.0) \
+                        + sum(new_factors.get(ls, []))
                 weights[label][pfile] = weights[label].get(pfile, 0.0) + w
         if no_building:
             print(f"[mix_days] {feeder_name}: {len(no_building)} loadshape(s) with no building in "
@@ -442,6 +501,8 @@ def run_mix(mix_name):
                     total_curve = scaled_demand
                 else:
                     total_curve += scaled_demand
+        if total_curve is not None and curve_offset:
+            total_curve = total_curve + curve_offset
         if total_curve is not None:
             mix_peak_curves[feeder_name], mix_curves[feeder_name] = monthly_peak_curves(feeder_name, total_curve)
 
@@ -494,8 +555,9 @@ def run_mix(mix_name):
     print(f"[mix_days] {mix_name}: {n_buildings} buildings, {n_count_diff} with a load count "
           f"different from REAL_LOAD_COUNT. Written: {days_path}")
 
-    # 6) Baseline check, or the cut on day X (every mix under peak_day_rule given)
-    if rule == "per_circuit" and is_baseline_only(shares):
+    # 6) Baseline check, or the cut on day X (every mix under peak_day_rule given, and
+    # with load growth on)
+    if rule == "per_circuit" and is_baseline_only(shares) and plan is None:
         peak_days_path = resolve_work_path("5b_profile_generation", STR_STATE + "_peak_days.csv")
         ref = pd.read_csv(peak_days_path, dtype=str, keep_default_na=False)
         ref_keys = {(r.Feeder, r.Season): (r.Month, r.Day, r.Peak_kW) for r in ref.itertuples()}

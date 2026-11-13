@@ -164,11 +164,13 @@ def read_given_days(folder):
     return days
 
 
-def uses_mix_days(rule, baseline_only):
+def uses_mix_days(rule, baseline_only, growth=False):
     """Whether a circuit reads its day and profiles from <work_root>/mix_days/<mix>/:
     always under peak_day_rule given, and under per_circuit for a mix that is not 100 %
-    baseline."""
-    return rule == "given" or (rule == "per_circuit" and not baseline_only)
+    baseline. With growth on (growth_years above 0 in growth.yaml) every mix under
+    per_circuit does, 100 % baseline included, because its day is the peak day of the
+    grown curve."""
+    return rule == "given" or (rule == "per_circuit" and (growth or not baseline_only))
 
 
 # The multi-day window (horizon_days in pipeline_config.yaml): horizon_days consecutive
@@ -434,7 +436,7 @@ def resolve_dss_file(directory, filename):
 # the keys it changes and is merged over the repository's file (merge_settings).
 SETTINGS_ENV = "PIPELINE_SETTINGS_DIR"
 SETTINGS_FILES = ("topology_registry.yaml", "donor_registry.yaml", "defaults.yaml", "local.yaml",
-                  "pipeline_config.yaml")
+                  "pipeline_config.yaml", "growth.yaml")
 
 
 def check_settings_dir(folder):
@@ -480,11 +482,13 @@ def merge_settings(base, override, name, _path=()):
     key; any other override value replaces the base value. A mapping against a
     non-mapping prints [FAIL] and exits 1. Strict keys: in pipeline_config.yaml every key
     path of the override must exist in the base, in defaults.yaml every top-level key;
-    the registries and local.yaml take new keys at any level."""
+    the registries and local.yaml take new keys at any level. growth.yaml is strict as
+    pipeline_config.yaml, except under the maps of GROWTH_OPEN_MAPS, which take new keys."""
     merged = dict(base)
     for key, value in override.items():
         path = _path + (str(key),)
-        strict = name == "pipeline_config.yaml" or (name == "defaults.yaml" and not _path)
+        strict = name == "pipeline_config.yaml" or (name == "defaults.yaml" and not _path) \
+            or (name == GROWTH_FILE and not (_path and _path[0] in GROWTH_OPEN_MAPS))
         if key not in base:
             if strict:
                 print(f"[FAIL] settings {name}: key {'.'.join(path)} is not in the repository's {name}.")
@@ -510,6 +514,224 @@ def settings_key_paths(override, _prefix=""):
         else:
             paths.append(f"{_prefix}{key}")
     return sorted(paths)
+
+
+# Load growth over planning years: configs/growth.yaml, with the growth.yaml of the
+# --settings folder merged over it. growth_years 0 is growth off. Phase growth
+# (growth_plan.py) writes the plan of a run with growth on to
+# <work_root>/growth/growth_plan.json; the later phases read it (read_growth_plan).
+GROWTH_FILE = "growth.yaml"
+GROWTH_OPEN_MAPS = ("infill_share_metro", "block_attach_buses")
+GROWTH_CASES = ("low", "moderate", "high")
+GROWTH_RATES = ("households", "use_per_household", "floorspace", "use_per_ft2")
+GROWTH_COMPANIONS = ("feeder", "national", "aeo")
+GROWTH_NAMED_BUS = ("seeded", "strongest", "weakest")
+GROWTH_LIMITS = ("line_limit_percent", "head_limit_percent", "transformer_limit_percent",
+                 "substation_limit_percent")
+GROWTH_PLAN_DIR = "growth"
+GROWTH_PLAN_FILE = "growth_plan.json"
+
+
+def _growth_fail(key, value, expected):
+    print(f"[FAIL] growth.yaml: {key} is {value!r}; expected {expected}.")
+    sys.exit(1)
+
+
+def _number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _whole(value):
+    """value as an int when it is a whole number (7.0 is 7), else None."""
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def load_growth(settings_dir=None):
+    """The merged growth settings, unchecked: configs/growth.yaml with the growth.yaml of
+    settings_dir merged over it (merge_settings: strict keys, the maps of GROWTH_OPEN_MAPS
+    take new keys, a list replaces a list). settings_dir None takes PIPELINE_SETTINGS_DIR."""
+    with open(REPO_ROOT / "configs" / GROWTH_FILE, encoding="utf-8") as f:
+        merged = yaml.safe_load(f) or {}
+    if settings_dir is None:
+        settings_dir = os.environ.get(SETTINGS_ENV)
+    if settings_dir:
+        override = read_settings_file(settings_dir, GROWTH_FILE)
+        if override is not None:
+            merged = merge_settings(merged, override, GROWTH_FILE)
+    return merged
+
+
+def _growth_band(key, value):
+    if not (isinstance(value, list) and len(value) == 2 and all(_number(v) for v in value)
+            and 0 < value[0] < value[1]):
+        _growth_fail(key, value, "[low, high] in per unit, low below high")
+
+
+def growth_settings(raw, topology_id=None):
+    """Check the merged growth settings raw (load_growth) and return them with
+    growth_years as an int. Any bad value prints one [FAIL] line that names the key, the
+    value and the accepted values, and exits 1. With topology_id, infill_share metro
+    also needs that topology in infill_share_metro."""
+    g = dict(raw)
+    years = _whole(g.get("growth_years"))
+    if years is None or years < 0:
+        _growth_fail("growth_years", g.get("growth_years"), "a whole number of years, 0 or above")
+    g["growth_years"] = years
+    if g.get("case") not in GROWTH_CASES:
+        _growth_fail("case", g.get("case"), "one of " + ", ".join(GROWTH_CASES))
+    for name in GROWTH_RATES:
+        cases = (g.get("rate_cases") or {}).get(name)
+        for case in GROWTH_CASES:
+            value = cases.get(case) if isinstance(cases, dict) else None
+            if not _number(value) or value <= -100:
+                _growth_fail(f"rate_cases.{name}.{case}", value, "a number, percent a year, above -100")
+        value = (g.get("rates") or {}).get(name)
+        if value is not None and (not _number(value) or value <= -100):
+            _growth_fail(f"rates.{name}", value, "null or a number, percent a year, above -100")
+    share = g.get("infill_share")
+    if share not in ("metro", "national") and not (_number(share) and 0 <= share <= 1):
+        _growth_fail("infill_share", share, "metro, national or a number from 0 to 1")
+    metro = g.get("infill_share_metro")
+    if not isinstance(metro, dict):
+        _growth_fail("infill_share_metro", metro, "a map of topology_id to a number from 0 to 1")
+    for key, value in metro.items():
+        if not (_number(value) and 0 <= value <= 1):
+            _growth_fail(f"infill_share_metro.{key}", value, "a number from 0 to 1")
+    if share == "metro" and topology_id is not None and topology_id not in metro:
+        _growth_fail("infill_share", share, f"a value for topology {topology_id} in infill_share_metro "
+                     f"(it holds {', '.join(str(k) for k in metro) or 'no topology'}), or national, "
+                     f"or a number from 0 to 1")
+    value = g.get("infill_share_national")
+    if not (_number(value) and 0 <= value <= 1):
+        _growth_fail("infill_share_national", value, "a number from 0 to 1")
+    if g.get("companions") not in GROWTH_COMPANIONS:
+        _growth_fail("companions", g.get("companions"), "one of " + ", ".join(GROWTH_COMPANIONS))
+    for key in ("commercial_buildings_million", "households_million"):
+        value = (g.get("companions_national") or {}).get(key)
+        if not _number(value) or value <= 0:
+            _growth_fail(f"companions_national.{key}", value, "a number above 0")
+    value = g.get("companion_excluded_types")
+    if not (isinstance(value, list) and all(isinstance(v, str) for v in value)):
+        _growth_fail("companion_excluded_types", value, "a list of ComStock building types")
+    attach = g.get("block_attach_buses")
+    if not isinstance(attach, dict):
+        _growth_fail("block_attach_buses", attach, "a map of feeder name to a list of buses")
+    for key, value in attach.items():
+        if not (isinstance(value, list) and all(isinstance(v, str) and v for v in value)):
+            _growth_fail(f"block_attach_buses.{key}", value, "a list of bus names")
+    named = g.get("named_loads")
+    if not isinstance(named, list):
+        _growth_fail("named_loads", named, "a list of {feeder, type, count, year, bus}")
+    for i, entry in enumerate(named):
+        key = f"named_loads[{i}]"
+        if not isinstance(entry, dict) or set(entry) - {"feeder", "type", "count", "year", "bus"}:
+            _growth_fail(key, entry, "a map with the keys feeder, type, count, year and, optional, bus")
+        for field in ("feeder", "type"):
+            if not (isinstance(entry.get(field), str) and entry[field]):
+                _growth_fail(f"{key}.{field}", entry.get(field), "a name")
+        if _whole(entry.get("count")) is None or _whole(entry["count"]) < 1:
+            _growth_fail(f"{key}.count", entry.get("count"), "a whole number, 1 or above")
+        if _whole(entry.get("year")) is None or _whole(entry["year"]) < 0:
+            _growth_fail(f"{key}.year", entry.get("year"), "a whole number of years, 0 or above")
+        if "bus" in entry and not (isinstance(entry["bus"], str) and entry["bus"]):
+            _growth_fail(f"{key}.bus", entry["bus"], "a bus name, or no bus key")
+    if g.get("named_load_bus") not in GROWTH_NAMED_BUS:
+        _growth_fail("named_load_bus", g.get("named_load_bus"), "one of " + ", ".join(GROWTH_NAMED_BUS))
+    factors = g.get("load_factors")
+    if not isinstance(factors, list):
+        _growth_fail("load_factors", factors, "a list of {feeder, load, factor, peak_factor}")
+    for i, entry in enumerate(factors):
+        key = f"load_factors[{i}]"
+        if not isinstance(entry, dict) or set(entry) - {"feeder", "load", "factor", "peak_factor"}:
+            _growth_fail(key, entry, "a map with the keys feeder, load, factor and, optional, peak_factor")
+        for field in ("feeder", "load"):
+            if not (isinstance(entry.get(field), str) and entry[field]):
+                _growth_fail(f"{key}.{field}", entry.get(field), "a name")
+        if not _number(entry.get("factor")) or entry["factor"] <= 0:
+            _growth_fail(f"{key}.factor", entry.get("factor"), "a number above 0")
+        if "peak_factor" in entry and (not _number(entry["peak_factor"]) or entry["peak_factor"] <= 0):
+            _growth_fail(f"{key}.peak_factor", entry["peak_factor"], "a number above 0, or no peak_factor key")
+    limits = g.get("planning_limits")
+    if not isinstance(limits, dict):
+        _growth_fail("planning_limits", limits, "a map")
+    bands = limits.get("voltage_bands")
+    if not isinstance(bands, dict):
+        _growth_fail("planning_limits.voltage_bands", bands, "a map with range_a and range_b")
+    for name in ("range_a", "range_b"):
+        _growth_band(f"planning_limits.voltage_bands.{name}", bands.get(name))
+    band = limits.get("voltage_band")
+    if band not in ("repository", "range_a", "range_b"):
+        if isinstance(band, list):
+            _growth_band("planning_limits.voltage_band", band)
+        else:
+            _growth_fail("planning_limits.voltage_band", band,
+                         "repository, range_a, range_b or [low, high] in per unit")
+    for name in GROWTH_LIMITS:
+        if not _number(limits.get(name)) or limits[name] <= 0:
+            _growth_fail(f"planning_limits.{name}", limits.get(name), "a number of percent above 0")
+    # off without quotes loads as a boolean in YAML: the value is read as text
+    mode = (g.get("network_growth") or {}).get("mode") if isinstance(g.get("network_growth"), dict) else None
+    if not (isinstance(mode, str) and mode == "off"):
+        _growth_fail("network_growth.mode", mode, 'the text "off", in quotes (no other mode exists yet)')
+    return g
+
+
+def growth_on(g):
+    """True when the checked growth settings g ask for growth (growth_years above 0)."""
+    return g["growth_years"] > 0
+
+
+def growth_rates(g):
+    """{rate name: percent a year}: the rates of the case, each replaced by its value in
+    rates when that is a number."""
+    return {name: g["rates"][name] if g["rates"].get(name) is not None else g["rate_cases"][name][g["case"]]
+            for name in GROWTH_RATES}
+
+
+def growth_infill_share(g, topology_id):
+    """The infill share as a number: infill_share itself, infill_share_national, or the
+    value of topology_id in infill_share_metro."""
+    share = g["infill_share"]
+    if share == "national":
+        return float(g["infill_share_national"])
+    if share == "metro":
+        if topology_id not in g["infill_share_metro"]:
+            _growth_fail("infill_share", share, f"a value for topology {topology_id} in infill_share_metro")
+        return float(g["infill_share_metro"][topology_id])
+    return float(share)
+
+
+def planning_band(g, cfg):
+    """(low, high) per unit of planning_limits.voltage_band: voltage_band of
+    pipeline_config.yaml for repository, a named band of voltage_bands, or the two given
+    values."""
+    band = g["planning_limits"]["voltage_band"]
+    if band == "repository":
+        return float(cfg["voltage_band"]["low_pu"]), float(cfg["voltage_band"]["high_pu"])
+    if isinstance(band, str):
+        band = g["planning_limits"]["voltage_bands"][band]
+    return float(band[0]), float(band[1])
+
+
+def read_growth_plan(g, phase):
+    """The plan of phase growth, <work_root>/growth/growth_plan.json, for a run with
+    growth on. Stops with [FAIL] when the file is missing, or when the settings it
+    records differ from the merged growth settings of this call (the plan belongs to
+    other settings: phase growth has to run again)."""
+    path = resolve_work_path(GROWTH_PLAN_DIR, GROWTH_PLAN_FILE)
+    if not os.path.isfile(path):
+        print(f"[FAIL] {phase}: growth_years is {g['growth_years']} but {path} is missing. "
+              f"Run phase growth first (it sits between 4 and 5a in phase_order).")
+        sys.exit(1)
+    with open(path, encoding="utf-8") as f:
+        plan = json.load(f)
+    if plan.get("settings") != json.loads(json.dumps(g)):
+        print(f"[FAIL] {phase}: the growth settings of this run differ from those recorded in {path}. "
+              f"Run phase growth again with these settings.")
+        sys.exit(1)
+    return plan
 
 
 # The OEDI year folder and release whose metadata and download folders carry no release

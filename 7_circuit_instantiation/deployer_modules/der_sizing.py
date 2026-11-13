@@ -100,12 +100,13 @@ def der_value(cfg, segment, key, case=None):
     return float(value)
 
 
-def segment_count(perc, n_bases, enabled=True):
+def segment_count(perc, n_bases, enabled=True, min_one=True):
     """Hosts of one segment: round(perc x n_bases), at least 1 and at most n_bases when
-    perc > 0 and n_bases > 0; 0 when the segment is switched off."""
+    perc > 0 and n_bases > 0; 0 when the segment is switched off. With min_one False (the
+    new loads of load growth) the count may be 0."""
     if not enabled or perc <= 0 or n_bases <= 0:
         return 0
-    return max(1, min(int(round(perc * n_bases)), n_bases))
+    return max(1 if min_one else 0, min(int(round(perc * n_bases)), n_bases))
 
 
 def pick(seed, offset, items, k):

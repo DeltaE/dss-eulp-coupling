@@ -29,6 +29,7 @@ REPO_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(REPO_ROOT))
 from pipeline_utils import load_config, resolve_config_path, resolve_day_path, resolve_work_path
 from pipeline_utils import STEPS_PER_DAY, horizon_days
+from pipeline_utils import growth_on, growth_settings, load_growth, read_growth_plan
 
 cfg = load_config()
 # Steps of every daily slice: 96 per day of the window (horizon_days in pipeline_config.yaml)
@@ -82,6 +83,16 @@ for folder_name, file_dict in folder_timestamps_raw.items():  # NEW
         sys.exit(1)
         # continue  # NEW
 
+# Load growth (growth.yaml): a building new to a feeder has no SMART-DS parquet. Its
+# loadshape takes one constant ratio of kvar to kW at every step, per circuit, from the
+# plan of phase growth: {Parquet_Name: {circuit: ratio}}.
+GROWTH_RATIOS = {}
+_growth = growth_settings(load_growth())
+if growth_on(_growth):
+    for _circuit, _ratios in read_growth_plan(_growth, "Phase 6")["kvar_ratios"].items():
+        for _name, _ratio in _ratios.items():
+            GROWTH_RATIOS.setdefault(_name, {})[_circuit] = float(_ratio)
+
 # 4) Prepare to store results
 #    kvar_ratios[ "com_12774.parquet" ] = { "some_folder": { "timestamps": [...], "ratios": [...] }, ... }
 kvar_ratios = {}
@@ -94,6 +105,14 @@ for folder_name, time_list in folder_timestamps.items():  # MODIFIED
     print(f"\n📁 Processing folder: {folder_name}")  # NEW
 
     for parquet_file in needed_parquets:  # MODIFIED
+        if parquet_file in GROWTH_RATIOS:
+            # the ratio of this folder's circuit; a circuit that does not use the
+            # building takes the first, which no load of it reads
+            by_circuit = GROWTH_RATIOS[parquet_file]
+            ratio = next((r for c, r in by_circuit.items() if folder_name.startswith(f"{cfg['state']}_{c}_")),
+                         next(iter(by_circuit.values())))
+            kvar_ratios.setdefault(parquet_file, {})[folder_name] = [ratio] * N_STEPS
+            continue
         full_parquet_path = os.path.join(original_parquet_dir, parquet_file)
 
         # print('what is the path?')

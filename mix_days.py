@@ -28,6 +28,9 @@ circuit reads its day and profiles from <work_root>/mix_days/<mix>/.
 With horizon_days above 1 in pipeline_config.yaml every profile is cut on the window of
 horizon_days days around day X (find_max_day_curve_impl.py, pipeline_utils.window_dates),
 and the later steps carry 96 x horizon_days steps; day X itself is found as above.
+With load growth on (growth_years above 0 in growth.yaml) and per_circuit, day X of every
+mix is the peak day of the grown curve, and every mix, 100 % baseline included, has its
+profiles cut on day X and runs step 2; the baseline check of step 1 does not run.
 A step that exits non-zero stops the phase with that exit code.
 """
 
@@ -39,6 +42,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 from pipeline_utils import load_config, load_mixes, peak_day_rule, resolve_work_path, uses_mix_days
+from pipeline_utils import growth_on, growth_settings, load_growth
 
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
 from heating_split import is_baseline_only
@@ -74,12 +78,13 @@ def main():
         print(f"[mix_days] peak_day_rule is {rule}: phase mix_days skipped, nothing written.")
         return
     mixes = load_mixes(cfg["mixes_file"])
+    growth = growth_on(growth_settings(load_growth()))
 
     for mix_name, mix_cfg in mixes.items():
         env = dict(os.environ)
         env.pop("PIPELINE_MIX", None)
         run("5b_profile_generation", ["find_max_day_curve_impl.py", "--mix", mix_name], env)
-        if not uses_mix_days(rule, is_baseline_only(mix_cfg["shares"])):
+        if not uses_mix_days(rule, is_baseline_only(mix_cfg["shares"]), growth):
             continue
         for sub in ("5c_csv_conversion", "6_kvar_preparation", "7_circuit_instantiation"):
             os.makedirs(resolve_work_path("mix_days", mix_name, sub), exist_ok=True)
