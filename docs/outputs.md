@@ -109,6 +109,41 @@ With `horizon_days` above 1 in `pipeline_config.yaml` every per-step output hold
 
 The weekend NHTS extracts `7_circuit_instantiation/data_ev_cars/<ST>_nhts2017_vehicle_days_weekend.csv` (tracked, written by `build_nhts_extract.py --day-type weekend`) hold one row per Saturday or Sunday vehicle-day with the columns of the weekday extracts; `TRAVDAY` is `07` for a Saturday and `01` for a Sunday.
 
+### Load growth
+
+With `growth_years` above 0 in `growth.yaml` these files and columns are added. With `growth_years: 0` none of them is written and every file is as described above.
+
+Phase `growth` writes `<ws>/growth/`:
+
+- `growth_plan.json`: `settings` (the merged growth settings), `growth_years`, `state`, `topology_id`, `rates`, `infill_share`, `factors`, `kvar_ratios` (per circuit, the constant kvar over kW of each building new to it) and `feeders`. Each feeder holds `substation`, `circuit`, `seed`, `homes`, `businesses`, `others` (customers of neither segment), `counts`, `factors`, `load_factors`, `new_shapes` (the loadshapes new to the feeder) and `units`. Each unit holds `unit` (its label: `h<i>` an infill home, `b<k>` a block, `d<i>` a block companion, `c<i>` an infill companion, `n<entry>x<number>` a named load), `kind`, `remainder`, `lines` and `transformers` (the new statements), `loads` (`name`, `template`, `bus1`, `base`, `yearly`), `coords` (new bus: longitude, latitude) and `customers` (`name`, `template`, `segment`, `factor`, `shape`).
+- `growth_customers.csv`: one row per new customer. Columns `Feeder`, `unit`, `name`, `kind` (`infill`, `block`, `companion` or `named`), `remainder` (1 for a block home or block companion that arrives as infill), `copied_customer`, `building` (bldg_id), `segment`, `type` (ComStock building type of a business), `factor`, `bus` (its load bus), `transformer` (the transformer that serves it, empty at medium voltage), `pattern` (`drop`, `transformer`, `mv_line`, `own_bus` or `block`), `new_lines` and `new_transformers` (counts; empty for a block customer, whose elements are counted in the block table).
+- `growth_blocks.csv`: one row per block drawn. Columns `Feeder`, `block`, `unit`, `built` (0 when no attach bus qualified), `template_root` and `template_tap` (the lateral's root and tap buses), `kind` (`homes` or `mixed`), `homes`, `businesses`, `attach_bus`, `attach_given` (1 for a bus of `block_attach_buses`), `bearing_deg` (0 east, counter-clockwise), `radius_m` (r of the lateral), `lines`, `transformers`, `customers`, `companions_dealt` and `attach_distance_m` (line distance from the source bus to the attach bus).
+- `growth_named_loads.csv`: one row per named load. Columns `Feeder`, `entry` and `number` (its place in `named_loads`), `unit`, `name`, `type`, `bldg_id`, `drawn_from` (`phase4_selection` or `metadata_zone`), `candidates`, `zone` (the most common climate zone of the circuit's businesses), `new_to_feeder`, `loadshape`, `bus`, `bus_rule` (`given`, `seeded`, `strongest` or `weakest`), `bus_impedance_ohm`, `template`, `template_kw`, `pattern`, `peak_kw` (the building's annual peak x its factor), `kvar_per_kw_template`, `kvar_per_kw_constant` (the ratio of a building new to the feeder), `peak_kva`, `transformer`, `transformer_kva`, `transformer_large_enough` and `factor`.
+- `growth_factors.csv`: one row per existing customer. Columns `Feeder`, `customer`, `segment`, `factor` and `peak_factor` (set for a stretched customer).
+- `growth_summary.csv`: one row per circuit. Columns `Feeder`, `growth_years`, `case`, `homes`, `businesses`, `others`, the four `rate_` columns, `factor_homes`, `factor_businesses`, `companions_rule`, `infill_share`, `new_homes`, `companions`, `infill_homes`, `block_homes`, `infill_companions`, `block_companions`, `mean_floor_area_ft2`, `floor_area_bound_ft2`, `businesses_with_building`, `pool`, `laterals`, `blocks_drawn`, `blocks_built`, `block_homes_built`, `block_businesses_built`, `remainder_homes`, `block_companions_dealt`, `infill_companions_placed`, `companions_not_placed`, `named_loads`, `new_customers`, `climate_zone` and `seed`.
+
+A building new to a feeder adds one row to `<ws>/4_quota_assignment/<STATE>_final_commercial.csv` and one row per feeder to `<ws>/parsed_loads_SUMMARY.csv` (`Chosen_Parquet` and `Parquet_Name` `com_g<bldg_id>.parquet`, `REAL_LOAD_COUNT` 0), so the outputs of Phases 5a to 7a gain its files. Under `per_circuit`, `<ws>/mix_days/<mix>/` exists for every mix, 100 % baseline included.
+
+Phase 7b, in each circuit folder:
+
+- The feeder's `Lines.dss`, `Transformers.dss`, `Loads.dss`, `LoadShapes.dss` and `Buscoords.dss` hold the new elements after the existing lines.
+- `scenario_assignments.json` gains the key `growth`: `growth_years`, `ev_loads_uncontrolled` and `ev_loads_controlled` (the EV hosts among the new homes), `pv` and `storage` (the hosts among the new loads, per segment), `factors` (the factor of every customer, existing and new), `new_customers`, `new_shape_labels` (the heating group of each loadshape new to the feeder) and `shape_building` (the source loadshape of a stretched customer's own loadshape). The other keys list the existing hosts as in a run without growth.
+- `growth_factors.csv`: one row per existing customer. Columns `customer`, `segment`, `factor`, `peak_factor`, `line_factor` (the factor on the kW and kvar of its Load lines; 1 for a stretched customer), and for a stretched customer `heating_group`, `loadshape`, `own_loadshape`, `a` and `b`.
+
+The Phase 7 deploy, in `ModifiedCircuitData/`:
+
+- `Monitors_Loading.dss`: one Monitor per enabled Line (`ml_<n>`, mode 0) and per Transformer (`mx_<n>`, mode 1).
+- `loading_lines.csv`: one row per Line. Columns `line`, `bus1`, `bus2`, `phases`, `level` (`mv` or `lv`), `length_m`, `linecode`, `normamps`, `enabled`, `short` (1 for a Line of 1 m or less: a switch, fuse or recloser, left out of the line limit), `new` (1 for an element added by load growth), `peak_amps` (the largest phase current over all steps), `peak_step`, `peak_date` and `loading_percent` (`peak_amps` over `normamps`).
+- `loading_transformers.csv`: one row per Transformer. Columns `transformer`, `phases`, `bus` and `kva` (first winding), `new`, `peak_kva` (the largest magnitude of P and Q summed over the phases of terminal 1), `peak_step`, `peak_date` and `loading_percent`.
+- `planning_limits.csv`: one row per limit. Rows `voltage_band` (customers with any step outside the band; worst is the lowest voltage), `voltage_low`, `voltage_high`, `line`, `head` and `transformer`. Columns `limit`, `setting`, `elements_checked`, `elements_over`, `worst_element`, `worst_value` (per unit for the voltage rows, percent of the rating for the others), `worst_step` and `worst_date`.
+- `growth_blocks.csv`: the feeder's rows of the block table with `v_pu_min`, `v_pu_min_load` and `v_pu_max` (the voltages at the block's customers), `path_worst_percent` and `path_worst_line` (the highest loading on the lines from the source bus to the attach bus, short lines left out), `voltage_outside` and `path_over`.
+- `der_hosts.csv`: `annual_use_kwh` is the grown annual use, the building's annual electricity x the host's factor.
+
+Phase 8:
+
+- `circuit_summary.csv`, `circuit_summary_combined.csv` and the summary rows of the aggregates gain `growth_years`, `limit_<limit>_over` and `limit_<limit>_worst` for each row of `planning_limits.csv`, and `substation_percent` and `substation_over`.
+- `<ws>/7_circuit_instantiation/substation_limits.csv`: one row per mix. Columns `scenario`, `circuits`, `rating_kva` (the sum of the kVA of the transformers in the topology's substation folder), `limit_percent`, `peak_kva` (the head power of the case's circuits summed step by step, P and Q apart, by step number), `peak_step`, `percent` and `over`. Without a readable rating, `rating_kva`, `percent` and `over` are empty.
+
 ## 4.2 Visualization & Metrics
 
 - **Peak demand tracking** (primary metric), with Tableau dashboards.  

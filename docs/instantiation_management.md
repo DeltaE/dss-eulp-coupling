@@ -46,10 +46,12 @@ resolved variables and every command and copy, and writes nothing. Provenance is
 
 `--settings` names a folder of files named as the repository's settings files
 (`topology_registry.yaml`, `donor_registry.yaml`, `defaults.yaml`, `local.yaml`,
-`pipeline_config.yaml`). Each file holds only the keys it changes and is merged over the
+`pipeline_config.yaml`, `growth.yaml`). Each file holds only the keys it changes and is merged over the
 repository's file: mappings merge key by key, and any other value replaces the repository's.
 `pipeline_config.yaml` takes no key path the repository's file lacks and `defaults.yaml` no
-new top-level key; the phases read the merged values through `PIPELINE_SETTINGS_DIR`.
+new top-level key; `growth.yaml` is merged over `configs/growth.yaml` and takes new keys only
+under `infill_share_metro` and `block_attach_buses`. The phases read the merged values
+through `PIPELINE_SETTINGS_DIR`.
 
 Under `peak_day_rule: given` the folder also holds `given_days.csv`, one simulated day per
 feeder and season (columns `Feeder`, `Season`, `Month`, `Day`; README, "Peak-day rules").
@@ -69,7 +71,7 @@ metadata filenames. Set `status: ready`.
 ## Phase boundary (why these phases)
 
 The layer runs the chain configured in `configs/defaults.yaml`:
-`pre -> 1 -> 2 -> 3 -> 4 -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> 7a -> 7b -> 7c -> 8`.
+`pre -> 1 -> 2 -> 3 -> 4 -> growth -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> 7a -> 7b -> 7c -> 8`.
 Note "pre" here is `0_download_smartds` (circuit staging), NOT
 `0_experimental_design`. Phases 2-6 were verified to have **zero** dependency on
 `0_experimental_design` (the LHS); that stage and Phase 7 (DER deployment) consume the mixes and

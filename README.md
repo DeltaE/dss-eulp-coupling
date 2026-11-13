@@ -10,6 +10,7 @@ Each value has one owner:
 - `configs/local.yaml` holds the machine paths: `smart_ds_base`, `eulp_metadata_root`, `runs_root` and `evwatts_extract_dir` (see "EV cars"), `openei_api_key_file` for the tariff fetch only (see "EV control"), and `nhts2017_csv_dir` and `evwatts_raw_dir` for the two extract scripts only. Copy it from `configs/local.yaml.example`.
 - A case file in `configs/cases/` names a topology, a donor and `execution.max_feeders`. `configs/topology_registry.yaml` and `configs/donor_registry.yaml` hold the values of each topology and donor, such as the feeder folder, the donor state and `eulp_download_date`.
 - `configs/defaults.yaml` holds the seasons, the phase order and `mixes_file`.
+- `configs/growth.yaml` holds the load growth settings: `growth_years` (default 0, growth off), the growth rates, the infill share, the companion businesses, the named loads and the planning limits (see "Load growth over planning years").
 - `pipeline_config.yaml` holds the method parameters: `random_seed`, `skip_circuits`, `quota`, `eulp_release` (the ResStock and ComStock release names with their OEDI years `residential_year` and `commercial_year`, see "Settings from a caller"), `der_sizing` (PV and storage hosts, sizes and control, see "PV and storage"), `peak_day_rule` (default `per_circuit`; `per_group` and `given` remain available, see "Peak-day rules"), `heating_label_unit` (default `building`; `customer` remains available, see "Heating labels and EV hosts"), `voltage_band` (the band for the load voltage summaries), `ev_cars`, `ev_home_window`, `ev_day` and `ev_work_share_case` (defaults `evwatts_sessions`, `true`, `typical` and `moderate`, see "EV cars"), and `ev_control` and `ev_valley_base` (defaults `valley_fill_feeder` and `buildings_only`, see "EV control").
 
 `run_case.py` resolves these files and passes the run values to each script as `PIPELINE_*` environment variables. `docs/workflow.md`, section 3.4, lists them. A script that reads a run value whose variable is not set exits 1 and names the variable. Run the pipeline through `run_case.py`.
@@ -26,6 +27,7 @@ The primary runnable scripts are state-agnostic.
 | 2 | `2_circuit_matching/` | Flatten SMART-DS feeders and review parquet matches |
 | 3 | `3_tolerance_matching/` | Match feeder peaks to EULP buildings. A loadshape that matches no building within the largest tolerance takes the buildings of the next 5 % step that matches |
 | 4 | `4_quota_assignment/` | Filter, stratify, and select representative buildings |
+| growth | `growth_plan.py` | Plan the load growth of the planning year from `configs/growth.yaml`. Writes nothing with `growth_years: 0` |
 | 5a | `5a_eulp_downloads/` | Download EULP parquet profiles from OEDI |
 | 5b | `5b_profile_generation/` | Build baseline, dm and uncontrolled peak-day parquet slices |
 | 5c | `5c_csv_conversion/` | Convert daily parquet slices to OpenDSS CSV loadshapes |
@@ -118,6 +120,7 @@ python run_case.py --case <case> --phase 1 --season <season>            # EULP m
 python run_case.py --case <case> --phase 2 --season <season>            # circuit matching
 python run_case.py --case <case> --phase 3 --season <season>            # tolerance matching
 python run_case.py --case <case> --phase 4 --season <season>            # quota assignment
+python run_case.py --case <case> --phase growth --season <season>       # load growth plan; real work only with growth_years above 0
 python run_case.py --case <case> --phase 5a --season <season>           # EULP parquet downloads
 python run_case.py --case <case> --phase 5b --season <season>           # baseline profiles
 python run_case.py --case <case> --phase 5d --season <season>           # scenario controls (combine_scenarios.py)
@@ -155,10 +158,10 @@ The mixes file is an input. Phase 7a copies the file that `mixes_file` in `confi
 
 A program that calls this repository can change settings without editing its files. In this example the folder `my_settings/` sets the low work share and the runs folder.
 
-1. The caller writes only the keys it changes, in files named as the repository's settings files: `topology_registry.yaml`, `donor_registry.yaml`, `defaults.yaml`, `local.yaml` and `pipeline_config.yaml`. Here `my_settings/pipeline_config.yaml` holds `ev_work_share_case: low` and `my_settings/local.yaml` holds `runs_root: <folder>`.
-2. `python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --settings my_settings` checks the folder and the key paths before any phase runs. It stops with `[FAIL]` on a missing folder, on a `.yaml` or `.yml` file with another name, on a file that is not a mapping, on a key that is a mapping on one side only, and on a key path of `pipeline_config.yaml` or a top-level key of `defaults.yaml` that the repository's file lacks. Other files, such as a README, are ignored.
+1. The caller writes only the keys it changes, in files named as the repository's settings files: `topology_registry.yaml`, `donor_registry.yaml`, `defaults.yaml`, `local.yaml`, `pipeline_config.yaml` and `growth.yaml`. Here `my_settings/pipeline_config.yaml` holds `ev_work_share_case: low` and `my_settings/local.yaml` holds `runs_root: <folder>`.
+2. `python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --settings my_settings` checks the folder and the key paths before any phase runs. It stops with `[FAIL]` on a missing folder, on a `.yaml` or `.yml` file with another name, on a file that is not a mapping, on a key that is a mapping on one side only, and on a key path of `pipeline_config.yaml` or a top-level key of `defaults.yaml` that the repository's file lacks. `growth.yaml` is merged over `configs/growth.yaml` and is strict as `pipeline_config.yaml`, except under its maps `infill_share_metro` and `block_attach_buses`, which take new keys. Other files, such as a README, are ignored.
 3. Each settings file is merged over the repository's file of the same name. Mappings merge key by key. Any other value (a number, a string, a list, null) replaces the repository's value. The registries and `local.yaml` take new keys, such as a new topology, a new donor or a machine path. `configs/local.yaml` may be absent when the folder holds `local.yaml`.
-4. The merged values reach `run_case.py` and, through `PIPELINE_SETTINGS_DIR`, every phase: `pipeline_utils.load_config` merges the folder's `pipeline_config.yaml` in each script.
+4. The merged values reach `run_case.py` and, through `PIPELINE_SETTINGS_DIR`, every phase: `pipeline_utils.load_config` merges the folder's `pipeline_config.yaml` in each script, and `pipeline_utils.load_growth` its `growth.yaml`.
 5. `run_case.py` prints the folder and the key paths of each settings file. `<run_dir>/resolved_case.yaml` gains a `settings` block with the folder and the key paths of each file, and `<run_dir>/settings/` holds a copy of each settings file.
 
 The folder may also hold `given_days.csv`, the day the caller gives each feeder and season under `peak_day_rule: given` (see "Peak-day rules").
@@ -171,7 +174,7 @@ Without `--settings` a run is as before.
 
 `peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each circuit is simulated on. Under `per_circuit` and `per_group`, baseline circuits run on each feeder's baseline seasonal peak day and the rule sets the day of each mixed or stress circuit.
 
-- `per_circuit`, the default: all heating groups of a circuit run on one day, the seasonal peak day of the circuit's building load under its mix. Phase `mix_days` finds that day and writes `<ws>/mix_days/<ST>_circuit_days.csv`, `<ST>_circuit_labels.csv` and `<ST>_circuit_weights.csv`. For each mix that is not 100 % baseline, it also writes the subtree `<ws>/mix_days/<mix>/` with the 5b, 5c, 6 and 7a outputs for that day.
+- `per_circuit`, the default: all heating groups of a circuit run on one day, the seasonal peak day of the circuit's building load under its mix. Phase `mix_days` finds that day and writes `<ws>/mix_days/<ST>_circuit_days.csv`, `<ST>_circuit_labels.csv` and `<ST>_circuit_weights.csv`. For each mix that is not 100 % baseline, it also writes the subtree `<ws>/mix_days/<mix>/` with the 5b, 5c, 6 and 7a outputs for that day. With load growth on, the day is the peak day of the grown curve and the subtree of every mix is written (see "Load growth over planning years").
 - `per_group`: each heating group (baseline, dm, uncontrolled) runs on its own seasonal peak day. Phase `mix_days` writes nothing.
 - `given`: the caller names the day of every circuit. In this example the caller runs both feeders of a substation of `NC_GSO_urban__NC`, `uhs13_1247--udt4015` and `uhs13_1247--udt4819`, on 15 July.
   1. The settings folder `my_settings/` holds `pipeline_config.yaml` with `peak_day_rule: given` and `given_days.csv` with the columns `Feeder`, `Season`, `Month` and `Day`. Each row gives one feeder, named as its SMART-DS feeder folder (as in `<ST>_peak_days.csv`), one season, and a month and day without a year. Here the rows are `uhs13_1247--udt4015,summer,7,15` and `uhs13_1247--udt4819,summer,7,15`.
@@ -330,6 +333,114 @@ Under `simple` and `tuned` the controller keeps one pair of targets for the whol
 - `storage_layer`: `add_kw` (the default; a buildings-only solve plus the kW of the layers on the view) or `solve` (an OpenDSS solve with the layers in).
 
 Every battery draws standby power. Under `storage_standby_element: load` (the default), `Storage.dss` gives each Storage element `%IdlingkW=0` and writes after it a constant-power Load `standby_<battery>` on the battery's bus that draws the standby kW at every step (`status=fixed`). Under `idling`, the standby is the OpenDSS `%IdlingkW` of each Storage element. `storage_standby_case` (`low`, `moderate`, the default, or `high`) picks the entry. A home battery draws `storage_standby_w` (2, 12 or 71 W), the lowest, median and highest standby power measured with the battery discharged on 26 residential systems by Orth et al. (2023), https://doi.org/10.1016/j.est.2023.107299, as a percent of the host's storage kW. A commercial battery draws `storage_standby_pct_of_kw` of its kW (0.04, 0.24 or 1.42 %).
+
+## Load growth over planning years
+
+A run simulates the circuits as SMART-DS built them, with the building load of the data year. Load growth moves a run to one planning year, `growth_years` years after the data year. Existing customers use more or less electricity. New homes and businesses arrive as copies of the circuit's own customers, one at a time or as whole copied laterals. Named loads, such as a hospital, can be added. The run also reports the planning limits of the grown circuit. Nothing in the network is rebuilt.
+
+Every setting sits in `configs/growth.yaml`. The tracked file has `growth_years: 0`, which is growth off: phase `growth` prints one line, no growth output is written, and every output equals a run without the file. A caller turns growth on with a `growth.yaml` in its `--settings` folder (see "Settings from a caller"). That file holds only the keys it changes. Every key path must exist in the tracked file, except under `infill_share_metro` and `block_attach_buses`, which take new keys. A list replaces the tracked list. `run_case.py` checks every key before any phase and stops with one `[FAIL]` line that names the key, the value and the accepted values.
+
+```yaml
+# my_settings/growth.yaml: year 10, new homes split between infill and blocks by the metro share
+growth_years: 10
+infill_share: metro
+```
+
+One run is one planning year in one workspace. A study of several years runs each year in its own workspace.
+
+### Keys
+
+| Key | Values | Meaning |
+| --- | --- | --- |
+| `growth_years` | whole number, 0 or above; default 0 | Years after the data year. 0 is growth off |
+| `case` | `low`, `moderate`, `high`; default `moderate` | The AEO2026 case that gives all four rates: Low Economic Growth, Counterfactual Baseline, High Economic Growth |
+| `rate_cases` | percent a year per rate and case | `households`, `use_per_household`, `floorspace`, `use_per_ft2` |
+| `rates` | `null` or a number per rate | A number replaces that rate of the case |
+| `infill_share` | `1.0`, `metro`, `national` or a number from 0 to 1; default `1.0` | Share of the new homes built as infill; the rest arrive as blocks |
+| `infill_share_metro` | topology: number | The share of each topology's metropolitan region, used by `metro` |
+| `infill_share_national` | number | The share used by `national` |
+| `companions` | `feeder`, `national`, `aeo`; default `feeder` | How many new businesses come with the new homes |
+| `companions_national` | two numbers | Commercial buildings and households, in millions, for `national` |
+| `companion_excluded_types` | list of ComStock building types | Types never copied as a companion |
+| `block_attach_buses` | feeder: list of buses | Where blocks attach, used in order before any drawn bearing |
+| `named_loads` | list of `{feeder, type, count, year, bus}` | Loads added by name; `bus` is optional |
+| `named_load_bus` | `seeded`, `strongest`, `weakest`; default `seeded` | The bus of a named load without `bus` |
+| `load_factors` | list of `{feeder, load, factor, peak_factor}` | The factor of one named customer; `peak_factor` is optional |
+| `planning_limits.voltage_band` | `repository`, `range_a`, `range_b` or `[low, high]`; default `repository` | The band of the voltage limit, per unit |
+| `planning_limits.voltage_bands` | `range_a`, `range_b` | The two ANSI C84.1 bands |
+| `planning_limits.line_limit_percent`, `head_limit_percent`, `transformer_limit_percent`, `substation_limit_percent` | percent; default 100 | The loading limits |
+| `network_growth.mode` | `"off"` | Only `"off"` is accepted. Keep the quotes: `off` without quotes is a boolean in YAML |
+
+### Rates and factors
+
+The rates are the average annual changes from 2025 to 2050 of the U.S. EIA Annual Energy Outlook 2026, Table 4 (Residential Sector Key Indicators) and Table 5 (Commercial Sector Key Indicators), rounded to two decimals. The sources and the derivation of each rate are written beside the values in `configs/growth.yaml`. One `case` picks all four rates from the same AEO case.
+
+- A home is a customer whose yearly loadshapes all start `res_`. A business is one whose loadshapes all start `com_`. One ResStock sample is one dwelling unit (ResStock documentation, "One Row of Data Is Not One Real House", https://nrel.github.io/ResStock.github.io/docs/resources/explanations/One_Row_Data_House.html), so a home customer is one household and the household rate applies to the count of home customers.
+- The factor of every home is (1 + `use_per_household` / 100) ^ `growth_years`. The factor of every business is (1 + `use_per_ft2` / 100) ^ `growth_years`. A customer that is neither keeps factor 1 and is never copied. A new customer takes the factor of its segment.
+- A factor multiplies the kW and kvar of each of the customer's Load lines. The loadshape CSVs stay unchanged, so energy and peak move together and the power factor is kept. Growth scales the building load only. EV, PV and storage inputs are never scaled.
+- `load_factors` replaces the factor of a named customer. With `peak_factor` the customer's curve is stretched: new = a x old + b, with a = (`peak_factor` x peak - `factor` x mean) / (peak - mean) and b = mean x (`factor` - a), peak and mean being the annual peak and the annual mean of the customer's kW. Annual energy then grows by `factor` and annual peak by `peak_factor`. The customer gets its own loadshape CSVs. The run stops with `[FAIL]` when a point of the year falls below 0, when peak equals mean, or when the feeder or the load is not in the case. For a curve with peak 900 kW, mean 650 kW and minimum 500 kW, `factor: 1.10` and `peak_factor: 1.30` give a = 1.82 and b = -468, so the three values become 1,170, 715 and 442 kW.
+
+The ASSUMPTION labels of the rates are in `configs/growth.yaml`: each growth year applies the 2025 to 2050 average on top of the data year; the national rates stand for one circuit; data centre servers and EV charging are left out of the use rates; the rates are rounded.
+
+### How many new customers
+
+Per circuit, with H its homes and N its businesses in the SMART-DS `Loads.dss`, g(r) = (1 + r / 100) ^ `growth_years`, and Python's `round`:
+
+- New homes = round(H x (g(`households`) - 1)).
+- Companion businesses: `feeder` = round(new homes x N / H); `national` = round(new homes / (`households_million` / `commercial_buildings_million`)); `aeo` = round(N x (g(`floorspace`) - 1)).
+- Infill homes = round(new homes x share); block homes = new homes - infill homes. The companions split the same way. `metro` takes the share of the run's `topology_id` in `infill_share_metro` and stops with `[FAIL]` when it has none.
+
+Worked example, a circuit of 494 homes and 272 businesses at 10 years with the `moderate` case. g(`households`) = 1.0079 ^ 10 = 1.0819, so new homes = round(494 x 0.0819) = 40. Companions: `feeder` gives round(40 x 272 / 494) = 22; `national` gives round(40 / (127.6 / 5.9)) = 2; `aeo` gives round(272 x (1.0102 ^ 10 - 1)) = 29. With `infill_share: metro` and a share of 0.25, 10 homes are infill and 30 arrive in blocks; of 22 companions, 6 are infill and 16 go with the blocks. The factors are 0.9972 ^ 10 = 0.9724 for homes and 0.9935 ^ 10 = 0.9369 for businesses.
+
+Counts are computed, never drawn. The seeds only choose which customer or lateral is copied and where it attaches. Each circuit has one growth seed, `random_seed` of `pipeline_config.yaml` plus the sha256 offset of `<substation>|<feeder>`, and every draw has its own name on that seed, so adding a draw never moves another. All mixes of a run share the same new customers.
+
+### Infill
+
+- An infill home is a copy of one existing home of the same circuit. The infill homes are the first n of one seeded order of the circuit's homes, so a longer horizon holds every infill home of a shorter one.
+- An infill companion is a copy of one business of the companion pool: the circuit's businesses, without the types of `companion_excluded_types` and without any whose floor area is above companions x the circuit's mean floor area per business.
+- A copy copies its customer's connection. When the copied customer's service transformer serves more than one customer, the copy gets a new drop: a line from the bus where the copied customer's last line starts, with the same LineCode, phases and length, to a new load bus. When the copied customer is alone on its transformer, the copy gets its own copy of that transformer and of its secondary lines. A copy of a medium-voltage customer gets a copy of the line that feeds its bus, from the same upstream bus. A customer whose load bus is not the end of exactly one line is copied onto its own bus.
+- A copy has the Load lines of its customer: legs, kV, phases, model, kW and kvar shares, and loadshape.
+
+### Extension blocks
+
+- A block is a copy of one of the circuit's own laterals. A lateral is rooted at a medium-voltage bus fed by a line of fewer than three phases whose upstream bus is fed by a three-phase line or is the source bus. It holds everything downstream: medium-voltage lines, transformers, secondaries and customers. Laterals with homes only and mixed laterals are templates. Laterals with businesses only are never templates.
+- Blocks are placed one after another until no template fits. Each template is a seeded draw among the laterals that fit: no more homes than the block homes still to place and, for a mixed lateral, no more businesses than the block companions still due, each of them in the companion pool. Block homes that no template fits arrive as infill homes, marked `remainder` in the tables.
+- Block companions still due after the blocks are dealt to the blocks in build order. Each is a copy of a business of the pool with its own copy of its transformer and secondary, or of its medium-voltage line, connected at the block's attach bus. When no block is built they arrive as infill companions.
+- A block attaches at the next unused bus of `block_attach_buses` for its feeder. Otherwise it attaches at the outermost three-phase medium-voltage bus along a seeded bearing from the load centre that is at least r(new) + r(earlier) from every earlier attach bus. The load centre is the mean position of the circuit's customers. r of a lateral is the largest straight distance from its tap bus to any of its buses. Positions come from `Buscoords.dss`, projected to metres. When no bus qualifies the block is not built and its homes arrive as infill homes.
+
+ASSUMPTION: a new customer or block has the line lengths, line codes and transformer ratings of the existing customer or lateral it copies, and its place is electrical: no street map is used. SMART-DS sized its lines and transformers with the Reference Network Model for peak planning loads (https://github.com/openEDI/documentation/tree/main/SMART-DS). A new district with longer runs has lower voltages than its copy shows.
+
+### Named loads
+
+- `named_loads` adds `count` loads of ComStock `type` on `feeder`, present when `year` is at or below `growth_years`. The building is a seeded draw among the buildings of that type in the state's Phase 4 commercial selection. When the selection has none, it is a seeded draw among the buildings of that type in the state's Phase 1 ComStock metadata whose climate zone is the most common zone among the circuit's own businesses. That building is added to the Phase 5a download with the same upgrades as every other. The run stops with `[FAIL]` when the state has no such building.
+- The bus is the entry's `bus`, which must be a three-phase medium-voltage bus of the feeder. Without it, `named_load_bus` sets the bus: `seeded` is a seeded draw among the three-phase medium-voltage buses, `strongest` the one with the lowest positive-sequence impedance to the source bus along its path, `weakest` the highest.
+- The connection copies the existing business of the feeder whose SMART-DS kW is closest to the new load's annual peak kW. A medium-voltage template gives the new load a copy of its line from the chosen bus. A template behind a service transformer gives it a transformer and a copy of the template's secondary: the transformer has the smallest rating among the feeder's transformers of the template's phases and voltages that is at or above the new load's peak kVA, or the largest when none is large enough, which the table records.
+- A building that no load of the feeder uses has no SMART-DS load and so no reactive power series. It draws reactive power at the constant ratio of kvar to kW of its template's SMART-DS Load lines, at every step (an ASSUMPTION, labelled in `configs/growth.yaml`). Its loadshape is named `com_kw_g<bldg_id>_pu`.
+
+### Day X and the mixes
+
+- With growth on and `peak_day_rule: per_circuit`, day X of each circuit and season is the peak day of the grown curve: the sum of the grown curves of all its customers, existing and new. Every mix, the 100 % baseline mix included, is cut on day X by phase `mix_days`, and the baseline check does not run. `given` is unchanged. `per_group` keeps its group days.
+- Existing customers keep exactly the heating labels and the EV, PV and storage hosts of a growth-off run of the same mix. New loads never enter an existing shuffle. They get the same mix percentages in separate draws over the new loads only, with no minimum of one. A copy runs in the heating group of its building. A building new to the feeder is labelled in a separate draw.
+- PV and storage sizes use the grown annual use, annual use x the host's factor. The roof limit is unchanged.
+
+### Planning limits
+
+With growth on, the Phase 7 deploy reports the planning limits of the grown circuit. Nothing is built, replaced or moved.
+
+- Loading. For every line, the peak current over all steps against the `normamps` of its LineCode. For every transformer, the peak kVA against its kVA. Lines of 1 m or less are switches, fuses and reclosers; they are listed with a flag and left out of the line limit.
+- `voltage_band`: customers with any step below the low value or above the high value. EV legs are left out. `repository` is `voltage_band` of `pipeline_config.yaml`. `range_a` is 0.95 to 1.05 and `range_b` is 0.9167 to 1.0583, the ANSI C84.1 service voltages of 114 to 126 V and 110 to 127 V on a 120 V base (USDA Rural Utilities Service Bulletin 1724D-113, Table 1, https://rd.usda.gov/sites/default/files/UEP_Bulletin_1724D-113.pdf; Bulletin 1724D-114, Table 2, https://www.rd.usda.gov/files/UEP_Bulletin_1724D-114.pdf; Pacific Power, Power Quality Standards 1C.2.1, Table 1, https://www.pacificpower.net/content/dam/pcorp/documents/en/pp-rmp/power-quality-standards/1C_2_1_PF.pdf). The setting never changes the existing voltage summaries.
+- `line_limit_percent` and `transformer_limit_percent`: 100 percent of the rating (Abraham and Ghosh, DISCO slides, NREL/PR-6A40-89565, slides 13 to 15, https://nrel.gov/docs/fy24osti/89565.pdf). A second sourced value for lines is 75 percent of the thermal rating as the planning rating of conductors (City of Riverside Public Utilities, Distribution Design Manual, DDM-1 Feeder Systems, section 1.2 J, https://www.tellusventure.com/downloads/riverside/DDM-1%20Feeder%20Systems%20.pdf).
+- `head_limit_percent`: the peak kVA at the feeder head against `feeder_head_kva`, the value of Phase 8.
+- `substation_limit_percent`: the head power of the case's circuits for one mix, summed step by step, against the substation rating. The rating is the sum of the kVA of the transformers in the topology's substation folder, the folder that holds the feeder folders. ASSUMPTION: the feeder head and the substation transformer take the same 100 percent of their rating as lines and service transformers; a utility that keeps a reserve for switching sets a lower value, and more circuits are then over their limit.
+- Each block gets the line distance from the source bus to its attach bus, the lowest voltage at its customers, the highest loading on the lines from the source bus to its attach bus, and whether either is outside its limit.
+
+### Phase and outputs
+
+Phase `growth` sits between phases 4 and 5a (`growth_plan.py`). With growth on it writes, under `<ws>/growth/`, the plan `growth_plan.json` and the tables `growth_customers.csv`, `growth_blocks.csv`, `growth_named_loads.csv`, `growth_factors.csv` and `growth_summary.csv`. A building new to a feeder is added to the lists that Phases 5a onward read, with a load count of 0, so every curve that weights buildings by that count keeps its values.
+
+Phase 7b appends the new customers and their lines and transformers to the copied feeder files of each circuit folder. The existing lines of those files stay as they are, apart from the kW and kvar of the Load lines. `scenario_assignments.json` lists the hosts among the new loads under the key `growth`, apart from the existing hosts. Phase 7c writes `loading_lines.csv`, `loading_transformers.csv`, `planning_limits.csv` and `growth_blocks.csv` into each `ModifiedCircuitData/`. Phase 8 adds `growth_years` and the planning-limit columns to `circuit_summary.csv` and to the summary rows, and writes `substation_limits.csv`. `docs/outputs.md` lists every file and column.
+
+A caller that overrides `phase_order` in `defaults.yaml` adds `growth` after `4`. With growth on, a later phase stops with `[FAIL]` when the plan is missing or belongs to other growth settings.
 
 ## Known limitations
 
