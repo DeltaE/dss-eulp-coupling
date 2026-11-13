@@ -1891,6 +1891,22 @@ def storage_control_step(with_cars):
 if n_storage > 0 and STORAGE_ORDER == "before_cars":
     storage_control_step(with_cars=False)
 
+def place_events_apart(place, windows, sequence, cars, shape):
+    """The controlled rows of the events of sequence, placed one at a time. place(i,
+    window) returns the row of event i; window is windows[i] without the steps that an
+    earlier-placed event of the same car (cars[i]) already uses, in the same order. Two
+    events of one car so never share a step, and the car stays within its charging
+    power. An event left without a step gets an all-zero row."""
+    placed = np.zeros(shape)
+    used = {}
+    for i in sequence:
+        taken = used.setdefault(cars[i], set())
+        window = [int(s) for s in windows[i] if int(s) not in taken]
+        if window:
+            placed[i, :] = place(i, window)
+        taken.update(int(s) for s in np.flatnonzero(placed[i, :]))
+    return placed
+
 def window_ev_control():
     """The ev_control rule over a window of more than one day (horizon_days above 1).
     Returns (controlled rows at the cars' main place, controlled home rows of the work
@@ -1902,7 +1918,8 @@ def window_ev_control():
     window) is one row of 96 x horizon_days kW with its own window on the timeline, and
     the rules of ev_control.py place the events as the one-day run places the cars.
     With ev_home_window false an event may use the 96 steps of the day of its first
-    charging step, from that step and wrapping inside the day.
+    charging step, from that step and wrapping inside the day, less the steps that an
+    earlier-placed event of the same car uses (place_events_apart).
     - Valley rules: one base solve over the window (run_base_solve); the uncontrolled
       cars' kW is added; the events are placed in order of plug-in time on the timeline
       (an event without a plug-in time at the end of its day), each placed event joining
@@ -1974,7 +1991,22 @@ def window_ev_control():
                   f"{[round(w, 4) for w in fc_w]} kW, CV per day {[None if cv is None else round(cv, 4) for cv in fc_cv]} %")
         print(f"Forecast -> curve-days with W <= 0 (no error): {n_no_error} of {len(start_curves) * HORIZON_DAYS}")
         fc_first = {name: curve.copy() for name, curve in fc_curves.items()}
-        if EV_CONTROL == "valley_fill_feeder":
+        if not EV_HOME_WINDOW:
+            # The same rule, one event at a time, each on the curves the events before it left
+            running = {name: curve.copy() for name, curve in fc_curves.items()}
+
+            def place_one(i, window):
+                if EV_CONTROL == "valley_fill_feeder":
+                    out, running["feeder"] = valley_fill(rows_e[[i]], running["feeder"], [window])
+                elif EV_CONTROL == "water_fill_feeder":
+                    out, running["feeder"] = water_fill(rows_e[[i]], running["feeder"], [powers_e[i]], [window])
+                else:
+                    out, after = valley_fill_curves(rows_e[[i]], running, [event_curve[i]], "feeder", [window])
+                    running.update(after)
+                return out[0]
+
+            placed = place_events_apart(place_one, windows_e, order, [e["car"] for e in events], (n_e, NPTS))
+        elif EV_CONTROL == "valley_fill_feeder":
             placed, _ = valley_fill(rows_e, fc_curves["feeder"], windows_e, order)
         elif EV_CONTROL == "water_fill_feeder":
             placed, _ = water_fill(rows_e, fc_curves["feeder"], powers_e, windows_e, order)
@@ -2013,7 +2045,14 @@ def window_ev_control():
                 shifts[e["car"]] = d
         print(f"Off-peak start -> start spread {EV_INPUTS['start_spread_min']} min: "
               f"{sum(d is not None for d in shifts)} of {N_c} cars with a start offset")
-        placed, _ = offpeak_start(rows_e, cheap, powers_e, windows_e, shifts_e)
+        if EV_HOME_WINDOW:
+            placed, _ = offpeak_start(rows_e, cheap, powers_e, windows_e, shifts_e)
+        else:
+            def place_one(i, window):
+                out, _ = offpeak_start(rows_e[[i]], cheap, [powers_e[i]], [window], [shifts_e[i]])
+                return out[0]
+
+            placed = place_events_apart(place_one, windows_e, range(n_e), [e["car"] for e in events], (n_e, NPTS))
     rows_c, rows_ch = np.zeros((N_c, NPTS)), np.zeros((len(home_c), NPTS))
     for i, e in enumerate(events):
         e["controlled_kwh"] = float(placed[i, :].sum()) / 4.0
