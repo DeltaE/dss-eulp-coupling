@@ -115,6 +115,15 @@ def local_value(local, key):
     return local[key]
 
 
+def inside_repository(folder, repo=REPO_ROOT):
+    """True when folder is the repository or lies inside it. The two absolute paths are
+    compared part by part, in lower case, so a folder beside the repository whose name
+    starts with the repository's name is outside it."""
+    parts = os.path.abspath(folder).lower().rstrip(os.sep).split(os.sep)
+    repo_parts = os.path.abspath(repo).lower().rstrip(os.sep).split(os.sep)
+    return parts[:len(repo_parts)] == repo_parts
+
+
 def apply_filters(s, evse, divisions, level2_max_kw, venues=VENUES, day_type="weekday"):
     """Apply the eleven rules to one session table s (columns of the session file) and the
     evse table (indexed by evse_id), keeping the venues in venues (the residential venues
@@ -183,7 +192,7 @@ def main():
         local = yaml.safe_load(f) or {}
     raw_dir = local_value(local, "evwatts_raw_dir")
     out_dir = local_value(local, "evwatts_extract_dir")
-    if os.path.abspath(out_dir).lower().startswith(REPO_ROOT.lower()):
+    if inside_repository(out_dir):
         fail(f"evwatts_extract_dir {out_dir} is inside the repository; set a folder outside it.")
     with open(INPUTS, encoding="utf-8") as f:
         inputs = yaml.safe_load(f)

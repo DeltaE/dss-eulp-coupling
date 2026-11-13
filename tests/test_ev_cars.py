@@ -29,7 +29,7 @@ from ev_cars import (charge_shape, charge_window, charging_share, evwatts_cars, 
                      nhts_cars, pick, plug_window, read_bus_coords, rng, seed, session_rows_cars,
                      window_intervals, work_cars, work_window)
 from build_nhts_extract import COLUMNS as NHTS_COLUMNS, DAY_TYPES as NHTS_DAY_TYPES, vehicle_days  # noqa: E402
-from build_evwatts_extract import DAY_TYPES as EVWATTS_DAY_TYPES, apply_filters  # noqa: E402
+from build_evwatts_extract import DAY_TYPES as EVWATTS_DAY_TYPES, apply_filters, inside_repository  # noqa: E402
 from pipeline_utils import ev_cars, ev_day, ev_home_window, ev_work_share_case  # noqa: E402
 
 INPUTS = {"level2_kw": 7.2, "level1_kw": 1.0, "kwh_per_mile": 33.7 / 99.9}
@@ -470,6 +470,18 @@ def test_empty_office_pool_stops():
         assert e.code == 1
     else:
         raise AssertionError("expected a stop")
+
+
+def test_extract_dir_inside_repository():
+    """The extract folder is refused when it is the repository or inside it. A folder
+    beside the repository whose name starts with the repository's name is accepted."""
+    repo = os.path.join(os.path.abspath(os.sep), "work", "dss-eulp-coupling")
+    assert inside_repository(repo, repo)
+    assert inside_repository(os.path.join(repo, "data", "extract"), repo)
+    assert inside_repository(os.path.join(repo.upper(), "Extract"), repo)
+    assert not inside_repository(repo + "_extract", repo)
+    assert not inside_repository(os.path.join(repo + "_scratch", "extract"), repo)
+    assert not inside_repository(os.path.dirname(repo), repo)
 
 
 def test_weekend_charging_share():
