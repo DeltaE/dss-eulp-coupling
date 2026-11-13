@@ -18,6 +18,10 @@ dt hours long.
   efficiencies and reserve, ending the day at its starting energy.
 - best_start(curve, kw, kwh, reserve, eff_charge, eff_discharge, dt, starts): the
   schedule of the start among starts whose plan leaves the lowest curve maximum.
+- schedule_days(curve, kw, kwh, start, ...) and best_window_start(curve, ..., starts):
+  the schedule over a window of more than one day (horizon_days in pipeline_config.yaml),
+  each day planned on its own curve from the energy the day before left, and the start
+  whose plan leaves the lowest maximum of the whole window.
 - feeding_lines(texts, hosts): the Line that feeds each host's bus (storage_view
   building).
 - level_above(curve, energy, cap, dt) and level_below(curve, energy, cap, dt): the
@@ -223,6 +227,91 @@ def best_start(curve, kw, kwh, reserve, eff_charge, eff_discharge, dt, starts):
     best = None
     for start in starts:
         net, energy, x = schedule(f, kw, kwh, start, reserve, eff_charge, eff_discharge, dt)
+        key = (float((f - net).max()), -x, start)
+        if best is None or key < best[0]:
+            best = (key, start, net, energy, x)
+    return best[1:]
+
+
+def _plan_day(f, x, kw, e_start, e_target, eff_charge, eff_discharge, dt):
+    """One day of a window: discharge of x kWh above level L_d, and the charge, below
+    level L_c and never above L_d, that brings the stored energy from e_start, less the
+    discharge, back to e_target."""
+    l_d = level_above(f, x, kw, dt)
+    dis = np.minimum(kw, np.maximum(0.0, f - l_d))
+    need = max(0.0, e_target - e_start + dis.sum() * dt / eff_discharge) / eff_charge
+    l_c = min(level_below(f, need, kw, dt), l_d)
+    chg = np.minimum(kw, np.maximum(0.0, l_c - f))
+    return dis, chg
+
+
+def schedule_days(curve, kw, kwh, start, reserve, eff_charge, eff_discharge, dt, steps_per_day=96):
+    """Return (net, energy, x) for one battery on a curve of whole days of steps_per_day
+    steps (the window of horizon_days days).
+
+    One day: schedule(curve, ...), the one-day rule, unchanged.
+    More days: each day is planned on its own part of the curve from the stored energy
+    it starts with, the end of the day before (start x kwh on the first day), and aims
+    to end at start x kwh. For a discharge budget x (kWh to the grid): discharge d_i =
+    min(kw, max(0, f_i - L_d)) with sum d_i x dt = x; charge c_i = min(kw, max(0, L_c -
+    f_i)), where L_c is the level below which filling the day's curve takes the grid
+    energy that brings the stored energy back to start x kwh, (start x kwh - the day's
+    starting energy + x / eff_discharge) / eff_charge, and L_c is never above L_d, so
+    the battery charges only in steps below the discharge level. x is the largest
+    budget in [0, (1 - reserve) x kwh x eff_discharge], found by the bisection of
+    schedule, for which the stored energy stays within [reserve x kwh, kwh] at every
+    step of the day; x = 0, a day that only recharges, always qualifies. A day whose
+    valleys cannot hold the charge ends below start x kwh; the next day starts there
+    and aims at start x kwh again. The one-day rule's end condition and its tie of the
+    charge to the discharge do not apply here.
+    net_i = d_i - c_i over the whole curve, energy the stored energy at the start of
+    every step and at the end of the curve, x the sum of the days' budgets."""
+    f = np.asarray(curve, dtype=float)
+    n_days = f.size // steps_per_day
+    if n_days <= 1:
+        return schedule(f, kw, kwh, start, reserve, eff_charge, eff_discharge, dt)
+    e_target, e_min, e_max = start * kwh, reserve * kwh, kwh
+    tol = kwh * 1e-9
+    cap = (1.0 - reserve) * kwh * eff_discharge
+    nets, energies, x_total, e_start = [], [np.array([e_target])], 0.0, e_target
+    for d in range(n_days):
+        day = f[d * steps_per_day:(d + 1) * steps_per_day]
+
+        def ok(x):
+            dis, chg = _plan_day(day, x, kw, e_start, e_target, eff_charge, eff_discharge, dt)
+            e = _energy(dis, chg, e_start, eff_charge, eff_discharge, dt)
+            return e.min() >= e_min - tol and e.max() <= e_max + tol
+
+        lo, hi = 0.0, cap
+        if hi > 0 and ok(hi):
+            lo = hi
+        elif hi > 0:
+            for _ in range(BISECTION_STEPS):
+                mid = (lo + hi) / 2.0
+                if mid == lo or mid == hi:
+                    break
+                if ok(mid):
+                    lo = mid
+                else:
+                    hi = mid
+        dis, chg = _plan_day(day, lo, kw, e_start, e_target, eff_charge, eff_discharge, dt)
+        e = _energy(dis, chg, e_start, eff_charge, eff_discharge, dt)
+        nets.append(dis - chg)
+        energies.append(e[1:])
+        x_total += lo
+        e_start = float(e[-1])
+    return np.concatenate(nets), np.concatenate(energies), x_total
+
+
+def best_window_start(curve, kw, kwh, reserve, eff_charge, eff_discharge, dt, starts, steps_per_day=96):
+    """Return (start, net, energy, x): schedule_days(curve, kw, kwh, start, ...) for
+    every start in starts (fractions of kwh), keeping the start whose plan leaves the
+    lowest max(curve - net) over the whole window. Ties as best_start: the larger x,
+    then the lower start. On a curve of one day this is best_start."""
+    f = np.asarray(curve, dtype=float)
+    best = None
+    for start in starts:
+        net, energy, x = schedule_days(f, kw, kwh, start, reserve, eff_charge, eff_discharge, dt, steps_per_day)
         key = (float((f - net).max()), -x, start)
         if best is None or key < best[0]:
             best = (key, start, net, energy, x)

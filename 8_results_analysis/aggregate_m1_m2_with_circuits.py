@@ -9,6 +9,11 @@ Created on Tue Nov 11 20:35:25 2025
 # Aggregate m1/m2 CSVs and add (a) timestep column and (b) one time-independent
 # summary row per circuit with counts from .dss and feeder head thermal kVA.
 # Procedural / minimal functions approach.
+# With horizon_days above 1 (pipeline_config.yaml) the Phase 7 deploy writes
+# <circuit>/window_days.csv, and the m1/m2 files hold 96 steps per day of the window.
+# Each data row then also gets date, day_index and day_type after timestep, and the
+# summary rows and circuit_summary.csv get day_x_first_step and day_x_last_step, the
+# steps of the simulated peak day. Without that file (horizon_days 1) nothing is added.
 
 import os
 import re
@@ -18,7 +23,7 @@ import pandas as pd
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from pipeline_utils import resolve_work_path
+from pipeline_utils import STEPS_PER_DAY, WINDOW_DAYS_FILE, resolve_work_path
 
 def _read_dss_text(path: Path) -> str:
     try:
@@ -220,6 +225,15 @@ if __name__ == "__main__":
         n_evs = len(ev_names)
         feeder_head_kva = _feeder_head_kva(dss_files)
 
+        # The window of a horizon of more than one day (written by the Phase 7 deploy)
+        window_days = None
+        day_x_steps = {}
+        if (circuit_dir / WINDOW_DAYS_FILE).is_file():
+            window_days = pd.read_csv(circuit_dir / WINDOW_DAYS_FILE, dtype=str, keep_default_na=False)
+            x_index = int(window_days.loc[window_days["day_x"] == "1", "day_index"].iloc[0])
+            day_x_steps = {"day_x_first_step": (x_index - 1) * STEPS_PER_DAY + 1,
+                           "day_x_last_step": x_index * STEPS_PER_DAY}
+
         # Record a clean, time-independent summary row for this circuit
         summary_rows.append({
             "circuit_folder": circuit_dir.name,
@@ -230,7 +244,8 @@ if __name__ == "__main__":
             "n_evs": n_evs,
             "n_storage": n_storage,
             "n_pv": n_pv,
-            "feeder_head_kva": feeder_head_kva
+            "feeder_head_kva": feeder_head_kva,
+            **day_x_steps
         })
 
         # ---- Load and annotate m1/m2 CSVs, add timestep + summary row ----
@@ -248,6 +263,14 @@ if __name__ == "__main__":
             # Add timestep per circuit file (1..N)
             df_m1["timestep"] = range(1, len(df_m1) + 1)
             df_m2["timestep"] = range(1, len(df_m2) + 1)
+            if window_days is not None:
+                for df in (df_m1, df_m2):
+                    if len(df) != STEPS_PER_DAY * len(window_days):
+                        raise ValueError(f"{len(df)} steps for a window of {len(window_days)} days")
+                    day = (df["timestep"] - 1) // STEPS_PER_DAY
+                    df["date"] = window_days["date"].to_numpy()[day]
+                    df["day_index"] = window_days["day_index"].astype(int).to_numpy()[day]
+                    df["day_type"] = window_days["day_type"].to_numpy()[day]
 
             # === Add per-phase P/Q and 3φ totals from S & Ang (degrees) ===
             def add_pq_totals(df: pd.DataFrame) -> pd.DataFrame:
@@ -314,6 +337,9 @@ if __name__ == "__main__":
                     # move 'timestep' right after the time column
                     cols = [c for c in cols if c != "timestep"]
                     cols.insert(idx + 1, "timestep")
+                    if window_days is not None:
+                        cols = [c for c in cols if c not in ("date", "day_index", "day_type")]
+                        cols[idx + 2:idx + 2] = ["date", "day_index", "day_type"]
                     df = df.reindex(columns=cols)
                 return df
 
@@ -333,6 +359,7 @@ if __name__ == "__main__":
                 "feeder_head_kva": feeder_head_kva,
                 "row_type": "summary",
                 "timestep": 0,  # clearly outside real time series
+                **day_x_steps,
             }
             df_m1["row_type"] = "data"
             df_m2["row_type"] = "data"

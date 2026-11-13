@@ -205,11 +205,18 @@ der_sizing:
   # before it charges. Under schedule_start: best the schedule rule replaces it for its
   # batteries.
   storage_start_pct: 20.0
-  # best or fixed: the starting energy of the batteries under storage_rule: schedule.
+  # best, best_window or fixed: the starting energy of the batteries under storage_rule:
+  # schedule.
   # fixed: every battery starts at storage_start_pct. best: for each host the schedule
   # rule tries every start of schedule_start_step_pct and keeps the one whose plan
   # leaves the lowest forecast maximum on its view; the host's batteries start and end
   # the day at that energy. The other rules keep storage_start_pct.
+  # With horizon_days above 1 the schedule rule plans each day on that day's own
+  # forecast from the energy the day before left, aiming to end every day at the
+  # starting energy. best picks the start on day X's forecast, as in a one-day run.
+  # best_window runs every start through the whole window and keeps the one that leaves
+  # the lowest forecast maximum of the window. At horizon_days 1 best and best_window
+  # give the same result.
   schedule_start: best
   # ASSUMPTION: under schedule_start: best, the starts tried for every host are every
   # 10 % of kWh from storage_reserve_pct to 100 % (20, 30, ..., 100 with the defaults).
@@ -336,6 +343,23 @@ der_sizing:
 # per_circuit is the default; per_group and given remain available through this setting.
 peak_day_rule: per_circuit
 
+# Days simulated around the peak day (day X) of each circuit and season, solved by
+# OpenDSS as one continuous run of 96 x horizon_days steps. Documented values: 1, 7, 14;
+# any whole number from 1 runs. 1 is day X alone, the one-day run. The window holds
+# horizon_days consecutive days with day X at position ceil(horizon_days / 2): X-3 to
+# X+3 for 7 days, X-6 to X+7 for 14 days. It is shifted to stay inside the season and
+# inside one stretch of the data year (summer 1 June to 31 August; winter 1 January to
+# 28 February, or 1 to 31 December), so it never crosses 31 December. Day X is picked as
+# under peak_day_rule; under given the caller's day is day X.
+# ASSUMPTION: the multi-day window is 7 days, three days either side of the simulated
+# peak day, kept inside the season. It covers Winter Storm Elliott (21 to 26 December
+# 2022, 6 days, with load shed in the Carolinas) and the average recent heat wave in
+# large U.S. cities (about 4 days) with lead-in days; Winter Storm Uri in Texas lasted
+# 13 days (8 to 20 February 2021), so horizon_days 14 is the longer option, and a
+# shorter window gives batteries fewer days to run down. The building curves use
+# typical-year and 2018 weather, so the window holds no historical storm.
+horizon_days: 7
+
 # What the heating split of Phase 7b and phase mix_days counts (heating_split.py).
 # building: each building profile (yearly loadshape) of a feeder gets one heating group,
 # the group counts are exact over buildings, and every customer of a building takes its
@@ -371,12 +395,26 @@ ev_control: valley_fill_feeder
 # Main runs use the default, buildings_only.
 ev_valley_base: buildings_only
 
+# The curve controlled cars see on each day of a horizon of more than one day
+# (horizon_days above 1); both values give the one-day run at horizon_days 1.
+# own_day: the base solve covers the whole window and each day's cars are placed on
+# that day's own forecast, with a forecast error drawn for each day; offpeak_start reads
+# the tariff row of each day's month and day type.
+# peak_day: every day's cars are placed on day X's forecast, repeated on each day;
+# offpeak_start reads the tariff row of day X's month and of each day's own day type.
+# Main runs use the default, own_day.
+ev_valley_day: own_day
+
 # Where each EV car of the Phase 7 deploy comes from (deployer_modules/ev_cars.py).
 # evwatts_sessions: each car draws one measured weekday home Level 2 session from EV
 # WATTS (needs evwatts_extract_dir in configs/local.yaml).
 # nhts_days: each car draws one weighted 2017 NHTS weekday vehicle-day of the donor state.
 # session_rows: the repaired 2024 generator on the Team-Nando check curve (needs the
 # EV WATTS extract for the share of cars charging).
+# With horizon_days above 1 each car keeps that session or vehicle-day on every weekday
+# of the window and draws one more for its weekend days (the weekend extracts of
+# build_evwatts_extract.py and build_nhts_extract.py --day-type weekend; session_rows
+# has one curve and uses it on every day).
 # Main runs use the default, evwatts_sessions.
 ev_cars: evwatts_sessions
 

@@ -42,6 +42,13 @@ charging_share:
   stress: all
   source: "EV WATTS public database, U.S. Department of Energy, https://doi.org/10.15483/1970735"
   assumption: "ASSUMPTION: each residential charger serves one car and is in service on every weekday between its first and last recorded session; s is the share of those weekdays with a session."
+  # With horizon_days above 1 in pipeline_config.yaml (ev_cars.window_group, plan_car).
+  # measured: day X keeps the draw of the one-day run; on every other day each car
+  # charges with the measured share of the day's type, the weekend share measured on
+  # the weekend extract with the same formula (used Saturdays and Sundays over
+  # in-service Saturdays and Sundays). all: every car charges on every day.
+  assumption_horizon: "ASSUMPTION: over a horizon of more than one day each car keeps its one drawn session and charger, and on every day other than the simulated peak day it charges with probability equal to the measured share of days of that type with a session at home chargers of its census division (for example 0.403 South Atlantic and 0.454 West South Central on weekdays, 0.384 and 0.435 on Saturdays and Sundays), drawn independently each day. Real drivers keep habits such as fixed charging days, so drawn days spread more evenly than real ones, while the expected sessions per car and the fleet energy per day equal the measured values."
+  assumption_top_up: "ASSUMPTION: energy a car cannot charge inside its plug-in window on a charging day is charged on the next evening the car has no drawn session, from its own plug-in time, at its own power, inside its own window; energy still owed when the horizon ends is reported and not charged. A Level 1 car at 1.0 kW needs 10 h for a 10 kWh session, so without this rule it would receive less energy over the horizon than its sessions record; when every car charges every day (stress) no top-up occurs."
 
 # Months of the year the cars draw from. all: every month; season: the months of the
 # simulated season in season_months.
@@ -109,6 +116,21 @@ work_share:
   stress: {low: 0.0, moderate: 0.10, high: 0.20}
   source: "EVI-Pro Lite daily-load-profile API, U.S. Department of Energy (weekday energy at work over energy at home and at work, 30,000 battery EVs, every car with home charging; 0.095 when every car prefers home, 0.212 when 60 percent prefer home): https://doi.org/10.15483/1855624; Idaho National Laboratory, Plugged In: How Americans Charge Their Electric Vehicles, INL/EXT-15-35584 (2015), Figure 3 (87 percent of Volt and 84 percent of Leaf charging at home) and Figure 7 (32 and 39 percent of charging at work for drivers with home and workplace charging): https://inldigitallibrary.inl.gov/sites/sti/sti/7323604.pdf"
   assumption: "ASSUMPTION: under moderate, 10 percent of the EV cars that charge on the simulated weekday charge at a workplace and the other 90 percent at home, rounded from EVI-Pro Lite's 9.5 percent of home and work energy at work when every car has home charging and prefers it, and above the 84 and 87 percent of charging done at home by the drivers INL studied; high (20 percent) is rounded from EVI-Pro Lite's 21.2 percent when 60 percent prefer home, and low (0) keeps every car at home. The share is tunable: a higher share moves charging from evenings at homes to mornings at commercial loads. Public charging is not modelled, so the share divides charging between home and work only."
+
+# Extract files the cars draw from on the weekend days (Saturday and Sunday) of a
+# horizon of more than one day (horizon_days in pipeline_config.yaml above 1); a
+# one-day run reads none of them. evwatts_residential: in evwatts_extract_dir
+# (build_evwatts_extract.py --day-type weekend). nhts: in this folder
+# (build_nhts_extract.py --day-type weekend; {state} is the donor state).
+# Each car draws one weekend session or vehicle-day once and keeps it for every weekend
+# day of the window, as it keeps its weekday one. Work cars charge at home on weekend
+# days. The office weekend extract (build_evwatts_extract.py --venue office --day-type
+# weekend) is read by no run; it gives the weekend shares of the assumption below.
+weekend_files:
+  typical: {evwatts_residential: evwatts_residential_l2_weekend.csv, nhts: "{state}_nhts2017_vehicle_days_weekend.csv"}
+  stress: {evwatts_residential: evwatts_residential_l2_weekend.csv, nhts: "{state}_nhts2017_vehicle_days_weekend.csv"}
+  source: "EV WATTS public database, U.S. Department of Energy, https://doi.org/10.15483/1970735; 2017 National Household Travel Survey, https://nhts.ornl.gov/assets/2016/download/Csv.zip"
+  assumption: "ASSUMPTION: workplace charging happens on weekdays only. EV WATTS Business Office Level 2 chargers record a session on 11 to 14 percent of Saturdays and Sundays in service against 30 to 32 percent of weekdays, and a weekend charger-day takes about a third of a weekday's energy. Shares of the days between a charger's first and last session that have a session, from the office extracts: South Atlantic weekdays 0.325, Saturdays 0.116, Sundays 0.105, Saturdays and Sundays together 0.111; West South Central weekdays 0.299, Saturdays 0.135, Sundays 0.119, Saturdays and Sundays together 0.127 (EV WATTS, https://doi.org/10.15483/1970735). On a weekend day a work car charges at home with its weekend session; weekend charging at offices would move part of that energy from homes to commercial loads."
 
 # Highest average speed of an NHTS driver trip, mph. build_nhts_extract.py makes a
 # vehicle-day with a faster driver trip class (iv); it reads the typical value.

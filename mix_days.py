@@ -25,6 +25,9 @@ Day X of each feeder and season is the day the caller gives in given_days.csv of
 --settings folder (PIPELINE_SETTINGS_DIR), not the mix's peak day, and every mix,
 100 % baseline included, has its profiles cut on day X and runs step 2, so every
 circuit reads its day and profiles from <work_root>/mix_days/<mix>/.
+With horizon_days above 1 in pipeline_config.yaml every profile is cut on the window of
+horizon_days days around day X (find_max_day_curve_impl.py, pipeline_utils.window_dates),
+and the later steps carry 96 x horizon_days steps; day X itself is found as above.
 A step that exits non-zero stops the phase with that exit code.
 """
 

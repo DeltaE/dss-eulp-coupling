@@ -5,7 +5,8 @@ instantiate_circuits.py  (procedural; mixes with EV split)
 - Discovers feeders from feeder_registry.json
 - For each feeder × mix:
     * Copies feeder into <substation>_circuit_<idx>_<mix_name>/
-    * Rewrites LoadShapes.dss to consolidated ../profiles_use_bench/<circuit>/
+    * Rewrites LoadShapes.dss to consolidated ../profiles_use_bench/<circuit>/, each
+      loadshape with npts = 96 x horizon_days (pipeline_config.yaml)
     * Normalizes Loads.dss (yearly->daily; kW and kvar = the line's share of its customer's
       SMART-DS kW and kvar, heating_split.line_shares); a loadshape without CSVs stops the run
     * Assigns EV/PV/Storage:
@@ -31,6 +32,7 @@ from typing import Optional, Iterable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
                             peak_day_rule, resolve_work_path, uses_mix_days)
+from pipeline_utils import STEPS_PER_DAY, horizon_days
 from heating_split import is_baseline_only, line_shares, load_segment, split_heating
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deployer_modules'))
 from der_sizing import SEGMENTS, der_choice, der_switch, pick_hosts, segment_count
@@ -50,7 +52,7 @@ registry = load_feeder_registry()
 feeder_to_circuit = registry["circuit_name_map"]
 SKIP_CIRCUITS = {int(n) for n in cfg.get('skip_circuits', [])}
 
-FORCE_NPTS = 96
+FORCE_NPTS = STEPS_PER_DAY * horizon_days(cfg)  # 96 steps per day of the window
 FORCE_INTERVAL = 0.25
 
 # -----------------------
@@ -126,9 +128,9 @@ MIXES = load_mixes(MIXES_FILE)
 # -----------------------
 def force_loadshape_daily_96(line: str, npts: int = FORCE_NPTS, interval: float = FORCE_INTERVAL) -> str:
     """
-    Normalize a 'New Loadshape...' line to daily 96 pts:
+    Normalize a 'New Loadshape...' line to the daily run, 96 pts per day of the window:
     - remove sinterval=...
-    - set/replace npts=96 and interval=0.25
+    - set/replace npts=<npts> and interval=0.25
     - set useactual=no if present
     """
     # remove any sinterval=...

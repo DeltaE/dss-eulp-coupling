@@ -5,7 +5,7 @@
 ### `aggregate_m2_combined.csv`
 A feeder‑level **time series** of power flows plus a one‑line metadata “summary” row for each circuit/scenario/season/design.
 
-- **Time‑series rows:** 96 per circuit, season, design and scenario (one per 15-minute timestep)
+- **Time‑series rows:** 96 x `horizon_days` per circuit, season, design and scenario (one per 15-minute timestep; 96 at `horizon_days: 1`)
 - **Summary rows:** one per circuit, season, design and scenario
 
 **Selected columns (typical):**
@@ -16,7 +16,7 @@ A feeder‑level **time series** of power flows plus a one‑line metadata “su
 
 **Usage patterns:**
 
-- **Peak demand:** `max(P_3ph)` across 96 timesteps  
+- **Peak demand:** `max(P_3ph)` across the timesteps
 - **Energy:** trapezoidal integration over `P_3ph`  
 - **Imbalance:** `S_sum_3ph - S_3ph` as a simple metric
 
@@ -50,7 +50,7 @@ The band is `voltage_band` in `pipeline_config.yaml`: 0.95 to 1.05 per unit, ANS
 
 ### EV car file
 
-When a circuit has EV cars, the Phase 7 deploy writes `<circuit>/EVControl/ev_cars.csv`, beside `ModifiedCircuitData/`: one row per car, uncontrolled cars first. Phase 8 does not read it. Intervals are 1 to 96.
+When a circuit has EV cars, the Phase 7 deploy writes `<circuit>/EVControl/ev_cars.csv`, beside `ModifiedCircuitData/`: one row per car, uncontrolled cars first. Phase 8 does not read it. Intervals are 1 to 96. With `horizon_days` above 1 the file holds each car's record on day X, as in the one-day run; `ev_car_days.csv` holds every day (see "The multi-day window" below).
 
 - `car`: `EVu_<i>` or `EVc_<j>`, its shape in `LoadShapes_EV.dss`.
 - `host`: the EV host load. `group`: `uncontrolled` or `controlled`.
@@ -78,7 +78,7 @@ The NHTS extracts `7_circuit_instantiation/data_ev_cars/<ST>_nhts2017_vehicle_da
 When a circuit has controlled cars and `ev_control` is not `uncontrolled`, the Phase 7 deploy writes these files to `<circuit>/EVControl/`. Phase 8 does not read them.
 
 - `ev_control_cars.csv`: one row per controlled car. Columns `car` (`EVc_<j>`, its shape in `LoadShapes_EV.dss`), `host`, `rule` (the `ev_control` value), `curve` (`feeder`, `feeder_fallback` for a car whose host has no single service transformer, or the transformer name; empty under `offpeak_start`), `energy_kw_intervals` (the sum of the car's session row, kW over 15-minute intervals), `n_intervals` (non-zero intervals of the controlled shape), `first_interval_uncontrolled` and `first_interval_controlled` (1 to 96; under `offpeak_start` the start interval, since charging can wrap past midnight), `max_kw_uncontrolled`, `max_kw_controlled`, `window_on` (whether the rule kept the car inside a plug-in window), `power_kw` (as in `ev_cars.csv`), `delivered_kwh_controlled` (the controlled shape's energy, sum / 4), `leftover_kwh_controlled` (the session row's energy minus the controlled shape's, in kWh), `placement_order` (1 to the number of controlled cars, the order the valley rules place the cars in, by plug-in time from 04:00; empty under `offpeak_start`), `start_offset_intervals` (under `offpeak_start`, the offset of the car's schedule time from the start of the cheap period, in 15-minute intervals; the car starts at the later of its schedule time and its plug-in, clamped into its window; empty for a car without an offset and under the valley rules), `place_load` (the load whose bus carries the car's EV loads: its host, or its office for a work car; `host` stays the home host, and under `valley_fill_transformer` `curve` is the service transformer of the place).
-- `ev_control_curves.csv`, under the valley rules: one row per curve and step. Columns `curve` (`feeder` or a transformer name), `monitor` (`m2`, or `mt_<n>` in `base_solve/Monitors_Transformers.dss`), `step` (1 to 96), `base_kw` (real power of the no-EV solve), `uncontrolled_ev_kw` (the uncontrolled cars on that curve), `controlled_ev_kw` (the controlled cars placed on it; every controlled car for `feeder`), `forecast_error_kw` (the aggregator's forecast error at that step: the forecast the cars were placed on is `base_kw + uncontrolled_ev_kw + forecast_error_kw`).
+- `ev_control_curves.csv`, under the valley rules: one row per curve and step. Columns `curve` (`feeder` or a transformer name), `monitor` (`m2`, or `mt_<n>` in `base_solve/Monitors_Transformers.dss`), `step` (1 to 96 x `horizon_days`), `base_kw` (real power of the no-EV solve), `uncontrolled_ev_kw` (the uncontrolled cars on that curve), `controlled_ev_kw` (the controlled cars placed on it; every controlled car for `feeder`), `forecast_error_kw` (the aggregator's forecast error at that step: the forecast the cars were placed on is `base_kw + uncontrolled_ev_kw + forecast_error_kw`).
 - `base_solve/`, under the valley rules: the `.dss` files and the monitor CSVs of the no-EV solve.
 
 ### PV and storage files
@@ -89,10 +89,25 @@ The Phase 7 deploy writes `ModifiedCircuitData/der_hosts.csv`: one row per PV or
 
 When a circuit has storage, the deploy writes `<circuit>/StorageControl/`. Phase 8 does not read it.
 
-- `storage_curves.csv`: one row per view and step. Columns `view` (`feeder`, `transformer_<name>` or `building_<line>`, one view for the hosts a line feeds), `element` and `terminal` (what the view watches), `step` (1 to 96), `measured_kw` (the measured curve), `forecast_error_kw` and `forecast_kw` (the curve the targets or schedules use).
+- `storage_curves.csv`: one row per view and step. Columns `view` (`feeder`, `transformer_<name>` or `building_<line>`, one view for the hosts a line feeds), `element` and `terminal` (what the view watches), `step` (1 to 96 x `horizon_days`), `measured_kw` (the measured curve), `forecast_error_kw` and `forecast_kw` (the curve the targets or schedules use).
 - `storage_targets.csv`: one row per battery object. Columns `view`, `element`, `terminal`, `rule` (`storage_rule`), `view_kw` and `view_kwh` (the batteries of the view), `forecast_draw` (the random stream of the forecast), `kw_target` and `kw_target_low` (controller rules), `schedule_discharge_kwh` (under `schedule`, the battery's share of its host's scheduled discharge to the grid), `battery`, `host`, `segment`, `kw_rated`, `kwh_rated`, `start_pct` (the starting energy, percent of kWh: the start chosen under `schedule` with `schedule_start: best`, else `storage_start_pct`), and after the solve `charged_kwh` and `discharged_kwh` (from its state monitor), `stored_kwh_start` (`kwh_rated` x `start_pct` / 100), `stored_kwh_end` (the energy after step 96: the state monitor's last sample plus the last step's change), and `stored_kwh_min` and `stored_kwh_max` (over the monitor's samples and `stored_kwh_end`).
 - `storage_schedule.csv`, under `schedule`: one row per host and step. Columns `view`, `host`, `loadshape` (`StoSched_<n>` in `Storage.dss`), `step`, `net_kw` (positive discharging, negative charging), `stored_kwh_start` and `stored_kwh_end` (the planned stored energy).
 - `base_solve/` or `measure_solve/`: the `.dss` files and monitor CSVs of a solve run for the measured curves.
+
+### The multi-day window
+
+With `horizon_days` above 1 in `pipeline_config.yaml` every per-step output holds 96 x `horizon_days` steps, and these files and columns are added. With `horizon_days: 1` none of them is written and every file is as described above.
+
+- `<circuit>/window_days.csv`: one row per day of the window. Columns `date` (YYYY-MM-DD on the 2018 calendar of the building curves), `weekday` (Monday to Sunday), `day_type` (`weekday` or `weekend`, from the date), `day_index` (1 for the first day), `day_x` (1 on the simulated peak day, else 0) and `holiday` (the name of a 2018 U.S. federal holiday, else empty; a holiday keeps the day type of its weekday).
+- `date`, `day_index` and `day_type` follow the step column of `load_voltages.parquet`, `load_voltage_steps.csv`, `EVControl/ev_control_curves.csv`, `StorageControl/storage_curves.csv` and `StorageControl/storage_schedule.csv`, and follow `timestep` in the time-series rows of `aggregate_m1.csv`, `aggregate_m2.csv` and `aggregate_m2_combined.csv`.
+- `day_x_first_step` and `day_x_last_step`: the steps of day X, in the summary rows of the aggregates and in `circuit_summary.csv` and `circuit_summary_combined.csv`.
+- `EVControl/ev_control_curves.csv` also gets `forecast_kw`, the forecast the first placed car saw: the base and the uncontrolled cars plus the forecast error, each day with its own error under `ev_valley_day: own_day`, day X's forecast repeated under `peak_day`.
+- `EVControl/ev_car_days.csv`: one row per car and day, the day before the window (`day_index` 0) and each day of the window. Columns `car`, `group`, `host`, `day_index`, `date`, `day_type` (the type of the sessions the car uses that day; day X is `weekday`), `day_x`, `charges` (whether the car has a drawn session that day), `event` (`session`, `top_up` or empty), `session_id` (the EV WATTS session or NHTS vehicle-day used), `place` (`home` or `work`) and `place_load`, `needed_kwh` (the session's energy on a charging day; for day 0 the part that lands in the window), `planned_kwh` (the car's charging on the run's steps before any control), `delivered_kwh` (the energy of its loadshape for that day's session or top-up; for a controlled car the controlled result), `topup_kwh` (`delivered_kwh` of a top-up), `tail_kwh` (energy that falls after the window's last step), `backlog_kwh` (energy that has not fitted in a window so far and waits for a top-up) and `owed_kwh` (`needed_kwh` less `delivered_kwh`, summed from day 0). Over a car, the sum of `needed_kwh` equals the sum of `delivered_kwh` plus the last day's `owed_kwh`.
+- `LoadShapes_EV.dss` also holds `EVu_<i>h` and `EVc_<j>h`, the home rows of the work cars (their weekend days), on the loads `EVu_<host>_1` and `_2` (or `EVc_`). `ev_places.csv` keeps each car's place on day X.
+- `StorageControl/storage_midnights.csv`: one row per battery object and day. Columns `battery`, `host`, `view`, `rule`, `day_index`, `date`, `day_type`, `kwh_rated`, `planned_kwh_end` (under `schedule`, the battery's share of its host's planned stored energy at the end of the day; empty under the other rules), `monitor_kwh_end` (the stored energy of the state monitor at the same step) and `drift_kwh` (monitor less planned).
+- `storage_targets.csv` keeps one row per battery: `stored_kwh_start` and `stored_kwh_end` are those of the window, and `schedule_discharge_kwh` is the sum of the days' budgets.
+
+The weekend NHTS extracts `7_circuit_instantiation/data_ev_cars/<ST>_nhts2017_vehicle_days_weekend.csv` (tracked, written by `build_nhts_extract.py --day-type weekend`) hold one row per Saturday or Sunday vehicle-day with the columns of the weekday extracts; `TRAVDAY` is `07` for a Saturday and `01` for a Sunday.
 
 ## 4.2 Visualization & Metrics
 

@@ -14,8 +14,11 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import load_config, resolve_day_path
+from pipeline_utils import STEPS_PER_DAY, horizon_days
 
 cfg = load_config()
+# Steps of every kW and ratio series: 96 per day of the window (horizon_days in pipeline_config.yaml)
+N_STEPS = STEPS_PER_DAY * horizon_days(cfg)
 
 START_PROCESS = time.time()
 
@@ -88,7 +91,7 @@ for folder_name in folder_list:
 
         ratio_list = kvar_ratios[parquet_name][folder_name]
         ratio_arr = np.array(ratio_list)
-        if len(ratio_arr) != 96 or len(kw_values) != 96:
+        if len(ratio_arr) != N_STEPS or len(kw_values) != N_STEPS:
             print(f"⚠️ Length mismatch in {fname}, skipping.", file=sys.stderr)
             sys.exit(1)
             # continue

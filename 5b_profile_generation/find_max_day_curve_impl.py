@@ -27,7 +27,12 @@ Steps
 3. Winter peak day: the kept month in {12, 1, 2} with the highest point; summer: the
    same in {6, 7, 8}. Both seasons are always processed; the run's season is not used.
 4. For each CSV row of the feeder, reads the full parquet, keeps the rows whose
-   timestamp month and day equal the peak day (any year), and writes them.
+   timestamp month and day equal the peak day (any year), and writes them. With
+   horizon_days above 1 in pipeline_config.yaml it keeps the rows of every day of the
+   window around the peak day (pipeline_utils.window_dates: horizon_days consecutive
+   days, kept inside the season months WINTER_MONTHS or SUMMER_MONTHS below and never
+   across 31 December), each day cut the same way and joined in date order, 96 x
+   horizon_days rows; the peak day itself is found as in steps 1 to 3.
 
 Outputs
 - baseline only: <work_root>/5b_profile_generation/<STATE>_peak_days.csv, one row per
@@ -49,6 +54,9 @@ Stops
 - Slice pass, every scenario: an empty peak day exits 1 (winter) or 3 (summer); an
   unreadable parquet exits 2 (winter) or 4 (summer).
 - A missing input CSV raises FileNotFoundError (exit 1).
+- horizon_days missing, not a whole number or below 1; with horizon_days above 1, a
+  window that does not fit its stretch of the season, or window rows stamped with a
+  year other than pipeline_utils.WINDOW_YEAR ([FAIL], exit 1).
 
 --mix <name> (peak_day_rule: per_circuit in pipeline_config.yaml; with per_group it
 prints one line and writes nothing)
@@ -102,6 +110,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
                             peak_day_rule, read_given_days, resolve_config_path, resolve_work_path)
+from pipeline_utils import WINDOW_YEAR, horizon_days, window_dates
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation'))
 from heating_split import is_baseline_only, read_loads, split_heating
 
@@ -119,6 +128,7 @@ _mode.add_argument("--mix", help="mix name in the mixes file (phase mix_days)")
 ARGS = parser.parse_args()
 
 cfg = load_config()
+HORIZON_DAYS = horizon_days(cfg)
 STATE = cfg['state']
 SEASON = cfg['season']
 STR_STATE = STATE
@@ -197,12 +207,40 @@ def season_peak_row(df_peak_daily, feeder, months):
     return df_season.loc[df_season.iloc[:, 3:].max(axis=1).idxmax()]
 
 
+def window_rows(df_full, dates, where):
+    """The rows of df_full of each date of dates (timestamp month and day), each day cut
+    as the peak day is, joined in date order. Stops with [FAIL] when a day's rows carry
+    a year other than WINDOW_YEAR, whose calendar gives the window its weekdays; the one
+    row stamped 1 January 00:00 of the next year, the last row of the data year, is
+    accepted."""
+    year_end = pd.Timestamp(year=WINDOW_YEAR + 1, month=1, day=1)
+    parts = []
+    for date in dates:
+        part = df_full[(df_full["timestamp"].dt.month == date.month) &
+                       (df_full["timestamp"].dt.day == date.day)]
+        other = part[(part["timestamp"].dt.year != WINDOW_YEAR) & (part["timestamp"] != year_end)]
+        if not other.empty:
+            print(f"[FAIL] {where}: rows of {date.month:02d}-{date.day:02d} are stamped "
+                  f"{other['timestamp'].iloc[0]}, not on the {WINDOW_YEAR} calendar of the window.")
+            sys.exit(1)
+        parts.append(part)
+    return pd.concat(parts)
+
+
 def cut_peak_day(feeder, df_rows, target_date, output_dir, season):
     """Write the rows of every parquet in df_rows whose timestamp month and day equal
-    target_date (any year) to output_dir/<Parquet_File>. An empty day exits 1 (winter)
-    or 3 (summer); an unreadable parquet exits 2 (winter) or 4 (summer)."""
+    target_date (any year) to output_dir/<Parquet_File>. With horizon_days above 1, the
+    rows of every day of the window around target_date (pipeline_utils.window_dates),
+    in date order (window_rows). An empty day exits 1 (winter) or 3 (summer); an
+    unreadable parquet exits 2 (winter) or 4 (summer)."""
     exit_empty, exit_read = (1, 2) if season == "winter" else (3, 4)
     os.makedirs(output_dir, exist_ok=True)
+    window = None
+    if HORIZON_DAYS > 1:
+        window, x = window_dates(target_date.month, target_date.day, season, HORIZON_DAYS)
+        print(f"[window] {feeder} {season}: {HORIZON_DAYS} days {window[0].month:02d}-{window[0].day:02d} "
+              f"to {window[-1].month:02d}-{window[-1].day:02d}, day X {target_date.month:02d}-"
+              f"{target_date.day:02d} at position {x + 1}, into {output_dir}")
     for _, row in df_rows.iterrows():
         parquet_path = PARQUET_DATA_ROOT / row['Parquet_Folder'] / row['Parquet_File']
         try:
@@ -217,6 +255,8 @@ def cut_peak_day(feeder, df_rows, target_date, output_dir, season):
             # Filter by month and day only (ignore year)
             df_day = df_full[(df_full["timestamp"].dt.month == target_month) &
                             (df_full["timestamp"].dt.day == target_day)]
+            if window is not None:
+                df_day = window_rows(df_full, window, parquet_path)
 
             out_path = os.path.join(output_dir, row['Parquet_File'])
             if not df_day.empty:

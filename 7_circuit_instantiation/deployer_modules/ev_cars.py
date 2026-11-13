@@ -28,9 +28,16 @@ Intervals are 0 to 95 here and 1 to 96 in output files.
 
 Every random draw has its own generator, seeded by seed(name, effective_seed) from the
 mix's ev.effective_seed of scenario_assignments.json and the draw's name.
+
+With horizon_days above 1 in pipeline_config.yaml the cars charge over a window of days
+(the last part of this module): window_group gives each car one session for weekdays
+and one for weekend days and a seeded draw of its charging days, and plan_car puts its
+sessions and top-ups on the window's own timeline, where charging past midnight lands
+on the next day. The car records of day X stay those of the one-day run.
 """
 import math
 import re
+import sys
 
 import numpy as np
 import pandas as pd
@@ -51,8 +58,9 @@ def load_inputs(path, value_set="typical"):
     charging_share, months, season_months ({season: list of months}),
     check_curve_folder, check_curve_file, census_division ({state: division}),
     forecast_error (the model name), forecast_models ({model: coefficients}),
-    start_spread_min and work_share ({low, moderate, high: share of the charging cars
-    that charge at a workplace})."""
+    start_spread_min, work_share ({low, moderate, high: share of the charging cars
+    that charge at a workplace}) and weekend_files ({evwatts_residential, nhts: the
+    weekend extract file names})."""
     with open(path, encoding="utf-8") as f:
         raw = yaml.safe_load(f)
     v = {k: raw[k][value_set] for k in raw}
@@ -70,6 +78,7 @@ def load_inputs(path, value_set="typical"):
         "forecast_models": dict(raw["forecast_error"]["models"]),
         "start_spread_min": float(v["start_spread_min"]),
         "work_share": {k: float(s) for k, s in v["work_share"].items()},
+        "weekend_files": dict(v["weekend_files"]),
     }
 
 
@@ -218,25 +227,30 @@ def read_evwatts_pool(extract_dir, division, months=None, file=EVWATTS_EXTRACT_F
     return ex[keep].reset_index(drop=True)
 
 
-def charging_share(pool, months=None):
+WEEKMASKS = {"weekday": "1111100", "weekend": "0000011"}  # Monday to Sunday, numpy busday weekmask
+
+
+def charging_share(pool, months=None, day_type="weekday"):
     """Share of cars charging on a weekday, from the EV WATTS pool. For each EVSE: used
     weekdays = its distinct start_dates; in-service weekdays = the Monday to Friday
     dates from its first to its last start_date, inclusive, and, when months is given,
     in months only (the months of the pool). Returns sum of used / sum of in-service
-    over all EVSE.
+    over all EVSE. With day_type weekend, the same on the weekend pool: used and
+    in-service Saturdays and Sundays.
 
     ASSUMPTION: each residential charger serves one car and is in service on every
     weekday between its first and last recorded session; s is the share of those
     weekdays with a session."""
+    weekmask = WEEKMASKS[day_type]
     g = pool.groupby("evse_id")["start_date"]
     used = g.nunique()
     first = pd.to_datetime(g.min()).values.astype("datetime64[D]")
     last = pd.to_datetime(g.max()).values.astype("datetime64[D]")
     if months is None:
-        in_service = np.busday_count(first, last + np.timedelta64(1, "D"))
+        in_service = np.busday_count(first, last + np.timedelta64(1, "D"), weekmask=weekmask)
     else:
         days = np.arange(first.min(), last.max() + np.timedelta64(1, "D"))
-        keep = np.is_busday(days) & np.isin(pd.DatetimeIndex(days).month, [int(m) for m in months])
+        keep = np.is_busday(days, weekmask=weekmask) & np.isin(pd.DatetimeIndex(days).month, [int(m) for m in months])
         cum = np.concatenate([[0], np.cumsum(keep)])
         in_service = cum[(last - days[0]).astype(int) + 1] - cum[(first - days[0]).astype(int)]
     return float(used.sum()) / float(in_service.sum())
@@ -411,8 +425,16 @@ def session_rows_cars(group, hosts, curve, share, l2_share, inputs, effective_se
     return cars
 
 
+def fail_empty_pool(pool, name, where, day_type):
+    """Stop with one [FAIL] line when a draw pool holds no row: name is the pool, where
+    its census division or state, day_type weekday or weekend."""
+    if len(pool) == 0:
+        print(f"[FAIL] EV draw pool {name} is empty: no row for {where}, {day_type}.")
+        sys.exit(1)
+
+
 def work_cars(group, cars, share, offices, inputs, effective_seed, source, office_pool=None,
-              work_day_pool=None):
+              work_day_pool=None, where=""):
     """The group's car list with its work cars replaced. The charging cars of the group
     are those with charges_today, in host order; chosen = pick(n_charging, share,
     rng(work_<group>)) over them. With share 0, or no charging car, cars is returned
@@ -429,7 +451,9 @@ def work_cars(group, cars, share, offices, inputs, effective_seed, source, offic
     driver_miles x kwh_per_mile, its power level2_kw, its row charge_window; level L2;
     day_class i; source_id HOUSEID-VEHID; plug_minute its first arrival at work. The
     replaced record keeps its car name, host, group and charging_share, with place work
-    and place_load the office. Under session_rows the work share is not applied.
+    and place_load the office. Under session_rows the work share is not applied. An
+    empty office_pool or work_day_pool stops with [FAIL] (fail_empty_pool; where names
+    the census division or state of the pool).
 
     ASSUMPTION: each car charges at one place on the simulated weekday, so a work car
     charges its whole day's energy at work and nothing at home; a car that charged at
@@ -455,8 +479,10 @@ def work_cars(group, cars, share, offices, inputs, effective_seed, source, offic
     n_chosen = len(chosen)
     office_idx = rng(f"office_{group}", effective_seed).integers(0, len(offices), size=n_chosen)
     if source == "evwatts_sessions":
+        fail_empty_pool(office_pool, "EV WATTS office sessions", where, "weekday")
         idx = rng(f"evwatts_work_{group}", effective_seed).integers(0, len(office_pool), size=n_chosen)
     else:
+        fail_empty_pool(work_day_pool, "NHTS vehicle-days with a work stop", where, "weekday")
         idx = draw_nhts(work_day_pool, n_chosen, rng(f"nhts_work_{group}", effective_seed))
     out = list(cars)
     for j, k in enumerate(chosen):
@@ -490,3 +516,381 @@ def cars_frame(cars):
     for col in ("plug_in_interval", "window_intervals", "first_interval"):
         df[col] = df[col].astype("Int64")
     return df
+
+
+# ---------------------------------------------------------------------------
+# A window of more than one day (horizon_days in pipeline_config.yaml above 1)
+# ---------------------------------------------------------------------------
+# Days are counted p = 0, 1, ..., n_days: p = 0 is the day before the window and p = 1
+# its first day. Step t of the window's timeline is interval t - 96 x (p - 1) of day p,
+# so the window covers t = 0 to 96 x n_days - 1 and day 0 covers t = -96 to -1.
+# A session is a dict (_session): place (home or work), place_load, power (kW), energy
+# (kWh), charges (False for an NHTS day without a trip), offsets (the plug-in window as
+# intervals counted from 00:00 of its day, in plug order and not wrapped, so 96 and
+# above fall on the next day; None for a car without a window), row_offsets (the
+# intervals its uncontrolled charging runs through, the window unless stated),
+# plug_minute (minutes from 00:00 of its day, or None), source_id and day_class.
+
+DAY_START_MIN = 240  # the NHTS travel day runs from 04:00 (build_nhts_extract.py rule 3)
+
+
+def draw_name(name, offset):
+    """The name of a draw made for one day of the window: name itself on day X (offset
+    0), the name of the one-day run, else name_d<offset>, the days from day X with their
+    sign (charging_controlled_d-3, charging_controlled_d+2). A day keeps its draws when
+    the window grows, and a new draw never moves an existing one."""
+    return name if offset == 0 else f"{name}_d{offset:+d}"
+
+
+def _session(place, place_load, power, energy, offsets, plug_minute, charges=True, source_id="",
+             day_class="", row_offsets=None):
+    return {"place": place, "place_load": place_load, "power": float(power), "energy": float(energy),
+            "charges": bool(charges), "offsets": offsets,
+            "row_offsets": offsets if row_offsets is None else row_offsets,
+            "plug_minute": plug_minute, "source_id": source_id, "day_class": day_class}
+
+
+def evwatts_session(s, place_load, level1_kw=None, place="home"):
+    """The session of one EV WATTS extract row s: energy_kwh at the session's mean power
+    energy_kwh / charge_h (at level1_kw when given, a Level 1 car), plugged in at
+    start_min for plug_min minutes (plug_window), the window not wrapped."""
+    energy = float(s["energy_kwh"])
+    power = energy / float(s["charge_h"]) if level1_kw is None else level1_kw
+    a, n_w = plug_window(float(s["start_min"]), float(s["plug_min"]))
+    return _session(place, place_load, power, energy, [a + k for k in range(n_w)], float(s["start_min"]),
+                    source_id=str(int(s["session_id"])))
+
+
+def _travel_minute(t):
+    """Clock minute t of an NHTS travel day as minutes from 00:00 of its calendar day: a
+    time before 04:00 (DAY_START_MIN) lies after midnight, on the next calendar day."""
+    return float(t) + 1440.0 if float(t) < DAY_START_MIN else float(t)
+
+
+def nhts_session(d, host, power, kwh_per_mile):
+    """The session of one NHTS vehicle-day d at home. Class (i): driver_miles x
+    kwh_per_mile at power, plugged in at arrival_min for window_min minutes
+    (plug_window), the window not wrapped and an arrival before 04:00 on the next
+    calendar day (_travel_minute). Class (ii): no session (charges False) and the whole
+    day as its window."""
+    sid = f"{d['HOUSEID']}-{int(d['VEHID'])}"
+    if d["day_class"] != "i":
+        return _session("home", host, power, 0.0, list(range(N_INTERVALS)), None, charges=False,
+                        source_id=sid, day_class=d["day_class"])
+    minute = _travel_minute(d["arrival_min"])
+    a, n_w = plug_window(minute, float(d["window_min"]))
+    return _session("home", host, power, float(d["driver_miles"]) * kwh_per_mile,
+                    [a + k for k in range(n_w)], minute, source_id=sid, day_class="i")
+
+
+def nhts_work_session(d, office, power, kwh_per_mile):
+    """The session of one NHTS vehicle-day d at work: driver_miles x kwh_per_mile at
+    power through the pieces of work_pieces (arrival:minutes joined by |), each piece
+    plug_window(arrival, minutes) not wrapped, an arrival before 04:00 on the next
+    calendar day, an interval already in the window not repeated. A stay parked to
+    04:00 so lands on the next day."""
+    offsets, first_minute = [], None
+    for piece in str(d["work_pieces"]).split("|"):
+        arrival, minutes = (float(x) for x in piece.split(":"))
+        minute = _travel_minute(arrival)
+        if first_minute is None:
+            first_minute = minute
+        a, n_w = plug_window(minute, minutes)
+        for k in range(n_w):
+            if a + k not in offsets:
+                offsets.append(a + k)
+    return _session("work", office, power, float(d["driver_miles"]) * kwh_per_mile, offsets, first_minute,
+                    source_id=f"{d['HOUSEID']}-{int(d['VEHID'])}", day_class="i")
+
+
+def window_group(group, cars, source, day_types, x, inputs, effective_seed, l2_share, share=None,
+                 pool=None, work=None, curve=None, where=""):
+    """The cars of one group over a window: for each car of cars (the group's records of
+    day X, in host order) its session of each day type and its charging days.
+
+    day_types[p] is weekday or weekend for p = 0 (the day before the window) to n_days;
+    day X is p = x + 1 and its type is weekday, the type of the one-day run's draw,
+    whatever its date. Returns one dict per car: sessions {weekday, weekend}, charges
+    (one bool per p) and work (True for a car that charges at a workplace on weekdays).
+
+    Level: pick(level_<group>), the draw of the one-day run.
+    evwatts_sessions (pool {weekday, weekend}: the residential draw pools; share
+    {weekday, weekend}: the share of cars charging on a day of that type):
+    - weekday session: the pool row of rng(evwatts_<group>), the one-day run's draw, for
+      every car; weekend session: the weekend pool row of rng(evwatts_weekend_<group>).
+    - charging days: day X as the one-day run (charges_today); any other day, for every
+      car, rng(charging_<group>_d<offset>).random() below the share of the day's type
+      (every car when the share is 1).
+    - work cars (work = {share, offices, office_pool}): the work cars of day X keep
+      their office and Business Office session. Among the cars that do not charge on
+      day X, pick(work_<group>_others) with the same share chooses more, each with an
+      office from rng(office_<group>_others) and a session from
+      rng(evwatts_work_<group>_others), so that on every weekday the work share of the
+      charging cars charges at a workplace. A work car charges at its office on
+      weekdays and at home, with its weekend session, on weekend days.
+    nhts_days (pool {weekday, weekend}: the NHTS draw pools; work = {work_day_pool}):
+    - weekday vehicle-day: draw_nhts with rng(nhts_<group>), the one-day run's draw;
+      weekend vehicle-day: draw_nhts on the weekend pool with rng(nhts_weekend_<group>).
+      A car charges on every day whose vehicle-day is class (i). The work cars of day X
+      keep their work vehicle-day on weekdays.
+    session_rows (curve: the check curve; share as evwatts_sessions): one block for
+    every day, weekday or weekend, because the check curve has no weekend file. The
+    cars that charge on day X keep their start; the others draw theirs as
+    session_rows_cars does, with rng(session_rows_<group>_others) on a target of
+    (number of those cars) x curve. Controlled cars keep their NHTS window. Charging
+    days as evwatts_sessions.
+    An empty pool stops with [FAIL] (fail_empty_pool; where names the census division
+    or state).
+
+    ASSUMPTION: over a horizon of more than one day each car keeps its one drawn
+    session and charger, and on every day other than the simulated peak day it charges
+    with probability equal to the measured share of days of that type (weekdays, or
+    Saturdays and Sundays) with a session at home chargers of its census division,
+    drawn independently each day. Real drivers keep habits such as fixed charging days,
+    so drawn days spread more evenly than real ones, while the expected sessions per
+    car and the fleet energy per day equal the measured values (charging_share in
+    ev_inputs.yaml).
+    ASSUMPTION: workplace charging happens on weekdays only (weekend_files in
+    ev_inputs.yaml)."""
+    n = len(cars)
+    n_p = len(day_types)
+    is_l2 = pick(n, l2_share, rng(f"level_{group}", effective_seed))
+    hosts = [c["host"] for c in cars]
+    x_charges = [bool(c["charges_today"]) for c in cars]
+    out = [{"sessions": {}, "charges": [False] * n_p, "work": False} for _ in range(n)]
+
+    def drawn_days(k_out):
+        for p in range(n_p):
+            offset = p - 1 - x
+            if offset == 0:
+                flags = x_charges
+            elif share[day_types[p]] >= 1.0:
+                flags = [True] * n
+            else:
+                flags = rng(draw_name(f"charging_{group}", offset), effective_seed).random(n) < share[day_types[p]]
+            for k in range(n):
+                k_out[k]["charges"][p] = bool(flags[k])
+
+    if source == "evwatts_sessions":
+        for day_type in ("weekday", "weekend"):
+            fail_empty_pool(pool[day_type], "EV WATTS residential sessions", where, day_type)
+        idx = {"weekday": rng(f"evwatts_{group}", effective_seed).integers(0, len(pool["weekday"]), size=n),
+               "weekend": rng(f"evwatts_weekend_{group}", effective_seed).integers(0, len(pool["weekend"]), size=n)}
+        office_of = {}
+        if work is not None:
+            office_pool = work["office_pool"]
+            fail_empty_pool(office_pool, "EV WATTS office sessions", where, "weekday")
+            by_id = {int(s): i for i, s in enumerate(office_pool["session_id"])}
+            for k, c in enumerate(cars):
+                if c["place"] == "work":
+                    office_of[k] = (c["place_load"], office_pool.iloc[by_id[int(c["source_id"])]])
+            others = [k for k in range(n) if not x_charges[k]]
+            if work["share"] > 0 and others:
+                chosen = pick(len(others), work["share"], rng(f"work_{group}_others", effective_seed))
+                chosen = [k for k, c in zip(others, chosen) if c]
+                office_idx = rng(f"office_{group}_others", effective_seed).integers(
+                    0, len(work["offices"]), size=len(chosen))
+                session_idx = rng(f"evwatts_work_{group}_others", effective_seed).integers(
+                    0, len(office_pool), size=len(chosen))
+                for j, k in enumerate(chosen):
+                    office_of[k] = (work["offices"][int(office_idx[j])], office_pool.iloc[int(session_idx[j])])
+        for k in range(n):
+            level1 = None if is_l2[k] else inputs["level1_kw"]
+            if k in office_of:
+                out[k]["work"] = True
+                out[k]["sessions"]["weekday"] = evwatts_session(office_of[k][1], office_of[k][0], place="work")
+            else:
+                out[k]["sessions"]["weekday"] = evwatts_session(pool["weekday"].iloc[int(idx["weekday"][k])],
+                                                                hosts[k], level1)
+            out[k]["sessions"]["weekend"] = evwatts_session(pool["weekend"].iloc[int(idx["weekend"][k])],
+                                                            hosts[k], level1)
+        drawn_days(out)
+    elif source == "nhts_days":
+        for day_type in ("weekday", "weekend"):
+            fail_empty_pool(pool[day_type], "NHTS vehicle-days", where, day_type)
+        idx = {"weekday": draw_nhts(pool["weekday"], n, rng(f"nhts_{group}", effective_seed)),
+               "weekend": draw_nhts(pool["weekend"], n, rng(f"nhts_weekend_{group}", effective_seed))}
+        work_days = {}
+        if work is not None:
+            work_days = {f"{d['HOUSEID']}-{int(d['VEHID'])}": d for _, d in work["work_day_pool"].iterrows()}
+        for k, c in enumerate(cars):
+            power = inputs["level2_kw"] if is_l2[k] else inputs["level1_kw"]
+            if c["place"] == "work":
+                out[k]["work"] = True
+                out[k]["sessions"]["weekday"] = nhts_work_session(work_days[c["source_id"]], c["place_load"],
+                                                                  inputs["level2_kw"], inputs["kwh_per_mile"])
+            else:
+                out[k]["sessions"]["weekday"] = nhts_session(pool["weekday"].iloc[int(idx["weekday"][k])],
+                                                             hosts[k], power, inputs["kwh_per_mile"])
+            out[k]["sessions"]["weekend"] = nhts_session(pool["weekend"].iloc[int(idx["weekend"][k])],
+                                                         hosts[k], power, inputs["kwh_per_mile"])
+            out[k]["charges"] = [out[k]["sessions"][day_types[p]]["charges"] for p in range(n_p)]
+    else:  # session_rows
+        c96 = np.asarray(curve, dtype=float)
+        energy = c96.sum() / 4.0
+        blocks = np.array([charge_shape(s, inputs["level2_kw"], energy, N_INTERVALS) for s in range(N_INTERVALS)])
+        mask = blocks > 0
+        others = [k for k in range(n) if not x_charges[k]]
+        starts = {k: int(c["first_interval"]) - 1 for k, c in enumerate(cars) if x_charges[k]}
+        resid = len(others) * c96
+        gen = rng(f"session_rows_{group}_others", effective_seed)
+        for k in others:
+            w = mask @ np.maximum(resid, 0.0)
+            if w.sum() == 0:
+                w = np.ones(N_INTERVALS)
+            starts[k] = int(gen.choice(N_INTERVALS, p=w / w.sum()))
+            resid = resid - blocks[starts[k]]
+        for k, c in enumerate(cars):
+            power = inputs["level2_kw"] if is_l2[k] else inputs["level1_kw"]
+            offsets, minute = None, c["plug_minute"]
+            if c["window"] is not None and c["plug_in_interval"] is None:
+                offsets = list(range(N_INTERVALS))
+            elif c["window"] is not None:
+                a = int(c["plug_in_interval"]) - 1
+                offsets = [a + j for j in range(len(c["window"]))]
+                minute = a * 15.0 if minute is None else minute
+            one = _session("home", hosts[k], power, energy, offsets, minute,
+                           row_offsets=[starts[k] + j for j in range(N_INTERVALS)])
+            out[k]["sessions"] = {"weekday": one, "weekend": one}
+        drawn_days(out)
+    # Day X is the one-day run: its session is that of the car's record
+    for k, c in enumerate(cars):
+        if source != "session_rows" and x_charges[k]:
+            s = out[k]["sessions"]["weekday"]
+            if s["source_id"] != c["source_id"] or abs(s["energy"] - c["energy_kwh"]) > 1e-9:
+                raise RuntimeError(f"Window session of {c['car']} ({s['source_id']}, {s['energy']} kWh) differs "
+                                   f"from its day X record ({c['source_id']}, {c['energy_kwh']} kWh).")
+    return out
+
+
+def plan_car(sessions, charges, n_days, top_up=True):
+    """The charging of one car over a window of n_days days, on the window's timeline.
+
+    sessions[p] and charges[p] for p = 0 to n_days: the session the car would use on day
+    p (its weekday or weekend session) and whether it charges on that day.
+    - A charging day is a session event: the car charges the session's energy at its
+      power through the session's intervals, from 00:00 of day p on the timeline, so
+      charging past midnight lands on the next day.
+    - Energy that does not fit in the window is the car's backlog. On the next day
+      without a drawn session (and with top_up) the car has a top-up event: it charges
+      its backlog from its own plug-in time, at its own power, inside its own window of
+      that day's type; what still does not fit stays in the backlog for the next such
+      day.
+    - A window ends where the car's next event begins.
+    - Day 0, the day before the window, gives day 1 the part of its session after
+      midnight; it leaves no backlog and has no top-up.
+    - Energy placed after the window's last step, the tail, is not charged in the run;
+      it is owed, as is the backlog left at the end.
+
+    Returns (events, days). events: one dict per event in day order, with p, kind
+    (session or top_up), energy (to charge), power, place, place_load, placed ({step:
+    kW}, steps of the timeline, also those outside the window), window (the steps of the
+    car's window inside the run, in plug order), plug_abs (minutes from the window's
+    first midnight; the end of day p when the session has no plug-in time), fit_kwh
+    (charged inside the car's window), delivered_kwh (the part on the run's steps),
+    tail_kwh (the part after the run's last step) and source_id. days: one dict per p,
+    with charges, kind ("" without an event), place, place_load, source_id, needed_kwh
+    (the session's energy on a charging day of the window; for day 0 the part that
+    lands in the run), fit_kwh, delivered_kwh, topup_kwh (delivered_kwh of a top-up),
+    tail_kwh, backlog_kwh (the backlog after the day's event) and owed_kwh (needed less
+    delivered, summed from day 0 to this day). Over the car, sum of needed_kwh = sum of
+    delivered_kwh + the last owed_kwh, and the last owed_kwh = the last backlog_kwh +
+    the sum of tail_kwh.
+
+    ASSUMPTION: energy a car cannot charge inside its plug-in window on a charging day
+    is charged on the next evening the car has no drawn session, from its own plug-in
+    time, at its own power, inside its own window; energy still owed when the horizon
+    ends is reported and not charged (charging_share in ev_inputs.yaml).
+    ASSUMPTION: a car's plug-in window ends when the car plugs in again, so two events
+    of one car never share an interval; this cuts a window only where consecutive days
+    use sessions with different plug-in times (a weekday followed by a weekend day, or
+    the reverse), and the energy cut off joins the backlog."""
+    n_steps = n_days * N_INTERVALS
+    events, state = [], {"backlog": 0.0}
+
+    def fit(event, steps):
+        """{step: kW} of event's energy at its power through steps, as charge_window."""
+        energy, power = 4.0 * event["energy"], event["power"]
+        if energy <= 0 or power <= 0:
+            return {}
+        n_full = int(math.floor(energy / power + EPS))
+        rem = energy - n_full * power
+        placed = {t: power for t in steps[:n_full]}
+        if n_full < len(steps) and rem >= EPS:
+            placed[steps[n_full]] = rem
+        return placed
+
+    def change(event, placed):
+        """What event adds to the backlog when it charges placed."""
+        if event["p"] == 0:
+            return 0.0
+        fit_kwh = sum(placed.values()) / 4.0
+        return event["energy"] - fit_kwh if event["kind"] == "session" else -fit_kwh
+
+    def close(event, cut=None):
+        if cut is not None:
+            event["row_steps"] = [t for t in event["row_steps"] if t < cut]
+            event["window_steps"] = [t for t in event["window_steps"] if t < cut]
+        event["placed"] = fit(event, event["row_steps"])
+        state["backlog"] = max(0.0, state["backlog"] + change(event, event["placed"]))
+        event["backlog_after"] = state["backlog"]
+
+    pending = None
+    for p in range(n_days + 1):
+        s = sessions[p]
+        base = (p - 1) * N_INTERVALS
+        is_session = bool(charges[p]) and s["energy"] > 0
+        if not is_session:
+            open_change = change(pending, fit(pending, pending["row_steps"])) if pending is not None else 0.0
+            if not (top_up and p >= 1 and state["backlog"] + open_change > EPS):
+                continue
+        start = base + s["row_offsets"][0]
+        if pending is not None:
+            close(pending, cut=start)
+        day_steps = [base + k for k in range(N_INTERVALS)]
+        pending = {"p": p, "kind": "session" if is_session else "top_up",
+                   "energy": s["energy"] if is_session else state["backlog"], "power": s["power"],
+                   "place": s["place"], "place_load": s["place_load"], "source_id": s["source_id"],
+                   "row_steps": [base + o for o in s["row_offsets"]],
+                   "window_steps": day_steps if s["offsets"] is None else [base + o for o in s["offsets"]],
+                   "plug_abs": base * 15.0 + (s["plug_minute"] if s["plug_minute"] is not None else 1440.0)}
+        events.append(pending)
+    if pending is not None:
+        close(pending)
+
+    by_day = {}
+    for event in events:
+        inside = sum(kw for t, kw in event["placed"].items() if 0 <= t < n_steps) / 4.0
+        event["fit_kwh"] = sum(event["placed"].values()) / 4.0
+        event["delivered_kwh"] = inside
+        event["tail_kwh"] = sum(kw for t, kw in event["placed"].items() if t >= n_steps) / 4.0
+        event["window"] = [t for t in event["window_steps"] if 0 <= t < n_steps]
+        by_day[event["p"]] = event
+    days, backlog, needed_sum, delivered_sum = [], 0.0, 0.0, 0.0
+    for p in range(n_days + 1):
+        event = by_day.get(p)
+        row = {"charges": bool(charges[p]), "kind": "", "place": sessions[p]["place"],
+               "place_load": sessions[p]["place_load"], "source_id": "", "needed_kwh": 0.0, "fit_kwh": 0.0,
+               "delivered_kwh": 0.0, "topup_kwh": 0.0, "tail_kwh": 0.0}
+        if event is not None:
+            backlog = event["backlog_after"]
+            session = event["kind"] == "session"
+            needed = (event["energy"] if p >= 1 else event["delivered_kwh"] + event["tail_kwh"]) if session else 0.0
+            row.update({"kind": event["kind"], "source_id": event["source_id"], "needed_kwh": needed,
+                        "fit_kwh": event["fit_kwh"], "delivered_kwh": event["delivered_kwh"],
+                        "topup_kwh": 0.0 if session else event["delivered_kwh"], "tail_kwh": event["tail_kwh"]})
+        needed_sum += row["needed_kwh"]
+        delivered_sum += row["delivered_kwh"]
+        row["backlog_kwh"] = backlog
+        row["owed_kwh"] = needed_sum - delivered_sum
+        days.append(row)
+    return events, days
+
+
+def event_row(event, n_steps):
+    """The kW of one event of plan_car on the n_steps steps of the run."""
+    row = np.zeros(n_steps)
+    for t, kw in event["placed"].items():
+        if 0 <= t < n_steps:
+            row[t] = kw
+    return row

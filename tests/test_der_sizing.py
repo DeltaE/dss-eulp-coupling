@@ -156,6 +156,19 @@ def test_standby_element():
     assert _stops(der_choice, {"der_sizing": {"storage_standby_element": "storage"}}, "storage_standby_element")
 
 
+
+def test_window_choices_and_helpers():
+    """schedule_start takes best_window; a loadshape name gives its building as text; the
+    peak of a profile of several days is read on one day (tests/test_multi_day.py)."""
+    from der_sizing import CHOICES, day_peak, loadshape_building
+    assert der_choice({"der_sizing": {"schedule_start": "best_window"}}, "schedule_start") == "best_window"
+    assert _stops(der_choice, {"der_sizing": {"schedule_start": "window"}}, "schedule_start")
+    assert CHOICES["schedule_start"] == ("best", "best_window", "fixed")
+    assert loadshape_building("res_kw_9312-North_pu") == ("res", "9312-North")
+    assert loadshape_building("com_kw_12815_pu") == ("com", "12815")
+    assert day_peak([1.0] * 96 + [3.0] * 96) == 3.0 and day_peak([1.0] * 96 + [3.0] * 96, 0) == 1.0
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

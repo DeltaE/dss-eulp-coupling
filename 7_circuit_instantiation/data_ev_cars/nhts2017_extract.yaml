@@ -45,3 +45,54 @@ work_days_per_state_and_class:
     ii: 0
     iii: 1012
     iv: 109
+weekend:
+  files:
+  - NC_nhts2017_vehicle_days_weekend.csv
+  - TX_nhts2017_vehicle_days_weekend.csv
+  built_utc: '2026-11-12T01:24:59Z'
+  travday_filter: TRAVDAY 07 (Saturday) or 01 (Sunday)
+  rows_per_state_day_and_class:
+    NC:
+      Saturday:
+        i: 623
+        ii: 628
+        iii: 80
+        iv: 4
+      Sunday:
+        i: 616
+        ii: 644
+        iii: 59
+        iv: 10
+    TX:
+      Saturday:
+        i: 1743
+        ii: 1440
+        iii: 197
+        iv: 17
+      Sunday:
+        i: 1678
+        ii: 1762
+        iii: 187
+        iv: 17
+  rows_per_state_and_class:
+    NC:
+      i: 1239
+      ii: 1272
+      iii: 139
+      iv: 14
+    TX:
+      i: 3421
+      ii: 3202
+      iii: 384
+      iv: 34
+  work_days_per_state_and_class:
+    NC:
+      i: 184
+      ii: 0
+      iii: 24
+      iv: 0
+    TX:
+      i: 598
+      ii: 0
+      iii: 62
+      iv: 10

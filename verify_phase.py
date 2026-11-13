@@ -22,6 +22,8 @@ import time
 
 import pandas as pd
 
+from pipeline_utils import STEPS_PER_DAY, horizon_days
+
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Configuration — pipeline_utils.load_config(), run values from run_case.py
@@ -376,9 +378,11 @@ def verify_phase5c():
             fp = os.path.join(full, csv_name)
             df = pd.read_csv(fp, header=None)
             rows = len(df)
+            # 96 rows per day of the window (horizon_days in pipeline_config.yaml)
+            n_steps = STEPS_PER_DAY * horizon_days(CFG["_raw"])
             check(
-                f"    {tag} '{csv_name}': {rows} rows (expect 96)",
-                rows == 96,
+                f"    {tag} '{csv_name}': {rows} rows (expect {n_steps})",
+                rows == n_steps,
             )
 
     if matched:

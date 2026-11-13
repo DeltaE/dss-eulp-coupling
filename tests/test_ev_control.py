@@ -304,6 +304,23 @@ def test_uncontrolled_keeps_session_rows():
     assert "equal_energy_realloc" not in src
 
 
+
+def test_weekend_row_and_forecast_per_day():
+    """cheap_intervals reads the weekend schedule for a weekend day, and forecast_days on one
+    day is forecast_curve (horizon_days 1); tests/test_multi_day.py holds the window cases."""
+    from ev_control import forecast_curve, forecast_days
+    rate = {"energyratestructure": [[{"rate": 0.20}], [{"rate": 0.05}]],
+            "energyweekdayschedule": [[0] * 7 + [1] * 2 + [0] * 15] * 12,
+            "energyweekendschedule": [[0] * 20 + [1] * 4] * 12}
+    assert cheap_intervals(rate, 3) == (1, list(range(28, 36)))
+    assert cheap_intervals(rate, 3, "weekend") == (1, list(range(80, 96)))
+    curve = 100.0 + np.arange(96.0)
+    z = np.linspace(-1.0, 1.0, 24)
+    k = {"a": 54.4, "b": 0.91, "c": 1.19}
+    one, days = forecast_curve(curve, "hour_ahead", k, z), forecast_days(curve, "hour_ahead", k, [z])
+    assert np.array_equal(one[0], days[0]) and np.array_equal(one[1], days[1]) and [one[2]] == days[2]
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

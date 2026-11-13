@@ -11,6 +11,11 @@ Run twice from the repository root:
   python 7_circuit_instantiation/build_evwatts_extract.py --venue office
 --venue residential (the default) builds the residential extract; --venue office the
 office extract. Both go to evwatts_extract_dir.
+--day-type weekday (the default) keeps the sessions that start on Monday to Friday;
+--day-type weekend keeps those that start on Saturday or Sunday and writes the weekend
+files beside the weekday files (the days other than the simulated peak day of a
+horizon of more than one day draw from them). Run each venue once more with
+--day-type weekend.
 
 Inputs
 - configs/local.yaml: evwatts_raw_dir (the folder that holds evwatts.public.session.csv
@@ -27,7 +32,8 @@ Rules, in this order (each filter's dropped rows are counted):
 3. venue Single Family Residential or Multi-Unit Dwelling (--venue residential), or
    venue Business Office (--venue office);
 4. region in the divisions of census_division;
-5. start_datetime on Monday to Friday;
+5. start_datetime on Monday to Friday (--day-type weekday), or on Saturday or Sunday
+   (--day-type weekend);
 6. end_datetime - start_datetime present, not below 0 and at most 24 h;
 7. flag_id 0 (an empty flag_id counts as 0);
 8. end_datetime - start_datetime above 0;
@@ -41,12 +47,17 @@ Outputs (in evwatts_extract_dir)
 - evwatts_residential_l2_weekday.csv (--venue residential) or
   evwatts_office_l2_weekday.csv (--venue office), sorted by session_id, columns
   session_id, evse_id, division, venue, start_date (YYYY-MM-DD), weekday (0 Monday to 4
-  Friday), month, start_min (clock minute of start_datetime with seconds as decimals),
+  Friday; 5 Saturday and 6 Sunday in the weekend files), month, start_min (clock
+  minute of start_datetime with seconds as decimals),
   plug_min (end_datetime - start_datetime in minutes), charge_h (charge_duration,
   hours), energy_kwh.
 - evwatts_extract.yaml (residential) or evwatts_office_extract.yaml (office): sources,
   input file names and bytes, build time UTC, level2_max_kw, filters, rows dropped by
   each filter, rows kept per division and venue.
+- With --day-type weekend: evwatts_residential_l2_weekend.csv and
+  evwatts_weekend_extract.yaml, or evwatts_office_l2_weekend.csv and
+  evwatts_office_weekend_extract.yaml, with the same columns and record, plus day_type
+  and the rows kept per division and day (Saturday, Sunday) in the record.
 
 Stops (exit 1): a key missing from configs/local.yaml, an input file missing, or the
 extract folder inside the repository.
@@ -71,13 +82,19 @@ VENUE_OPTIONS = {
     "office": (["Business Office"], "evwatts_office_l2_weekday.csv", "evwatts_office_extract.yaml",
                "venue Business Office"),
 }
+# --day-type: the text of filter 5 and the days of the week kept (0 Monday to 6 Sunday)
+DAY_TYPES = {
+    "weekday": ("start_datetime on Monday to Friday", (0, 1, 2, 3, 4)),
+    "weekend": ("start_datetime on Saturday or Sunday", (5, 6)),
+}
+DAY_NAMES = {5: "Saturday", 6: "Sunday"}
 CHUNK = 2_000_000
 FILTERS = [
     "evse_id in the evse table",
     "charge_level L2",
     VENUE_OPTIONS["residential"][3],
     "region in the census divisions",
-    "start_datetime on Monday to Friday",
+    DAY_TYPES["weekday"][0],
     "end_datetime - start_datetime present, not below 0 and at most 24 h",
     "flag_id 0 (empty counts as 0)",
     "end_datetime - start_datetime above 0",
@@ -98,11 +115,12 @@ def local_value(local, key):
     return local[key]
 
 
-def apply_filters(s, evse, divisions, level2_max_kw, venues=VENUES):
+def apply_filters(s, evse, divisions, level2_max_kw, venues=VENUES, day_type="weekday"):
     """Apply the eleven rules to one session table s (columns of the session file) and the
     evse table (indexed by evse_id), keeping the venues in venues (the residential venues
-    by default). Returns (kept rows with the extract columns, list of rows dropped by
-    each rule)."""
+    by default) and, at rule 5, the days of day_type (weekday: Monday to Friday, the
+    default; weekend: Saturday and Sunday). Returns (kept rows with the extract columns,
+    list of rows dropped by each rule)."""
     dropped = []
 
     def keep(df, mask):
@@ -117,7 +135,7 @@ def apply_filters(s, evse, divisions, level2_max_kw, venues=VENUES):
     t0 = pd.to_datetime(s["start_datetime"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
     t1 = pd.to_datetime(s["end_datetime"], format="%Y-%m-%d %H:%M:%S", errors="coerce")
     s = s.assign(t0=t0, t1=t1)
-    s = keep(s, s["t0"].dt.dayofweek < 5)
+    s = keep(s, s["t0"].dt.dayofweek.isin(DAY_TYPES[day_type][1]))
     plug_s = (s["t1"] - s["t0"]).dt.total_seconds()
     s = keep(s, plug_s.notna() & (plug_s >= 0) & (plug_s <= 24 * 3600))
     before_flag = s.groupby("region").size().to_dict()
@@ -150,8 +168,17 @@ def main():
     parser.add_argument("--venue", choices=sorted(VENUE_OPTIONS), default="residential",
                         help="residential (default): Single Family Residential and Multi-Unit "
                              "Dwelling; office: Business Office")
-    venues, out_csv, out_yaml, venue_text = VENUE_OPTIONS[parser.parse_args().venue]
+    parser.add_argument("--day-type", choices=sorted(DAY_TYPES), default="weekday",
+                        help="weekday (default): sessions that start on Monday to Friday; "
+                             "weekend: on Saturday or Sunday, written to the weekend files")
+    args = parser.parse_args()
+    day_type = args.day_type
+    venues, out_csv, out_yaml, venue_text = VENUE_OPTIONS[args.venue]
     filters = [venue_text if f == VENUE_OPTIONS["residential"][3] else f for f in FILTERS]
+    if day_type == "weekend":
+        out_csv = out_csv.replace("_weekday.csv", "_weekend.csv")
+        out_yaml = out_yaml.replace("_extract.yaml", "_weekend_extract.yaml")
+        filters = [DAY_TYPES["weekend"][0] if f == DAY_TYPES["weekday"][0] else f for f in filters]
     with open(os.path.join(REPO_ROOT, "configs", "local.yaml"), encoding="utf-8") as f:
         local = yaml.safe_load(f) or {}
     raw_dir = local_value(local, "evwatts_raw_dir")
@@ -172,7 +199,7 @@ def main():
                           usecols=["session_id", "evse_id", "start_datetime", "end_datetime",
                                    "charge_duration", "energy_kwh", "flag_id"]):
         n_read += len(ch)
-        kept, d, bf = apply_filters(ch, evse, divisions, level2_max_kw, venues)
+        kept, d, bf = apply_filters(ch, evse, divisions, level2_max_kw, venues, day_type)
         dropped = [a + b for a, b in zip(dropped, d)]
         for k, v in bf.items():
             before_flag[k] = before_flag.get(k, 0) + int(v)
@@ -200,6 +227,11 @@ def main():
         "rows_kept": len(out),
         "rows_kept_by_division_and_venue": kept_by,
     }
+    if day_type == "weekend":
+        record["day_type"] = day_type
+        record["rows_kept_by_division_and_day"] = {
+            f"{d} | {DAY_NAMES[int(w)]}": int(n)
+            for (d, w), n in out.groupby(["division", "weekday"]).size().items()}
     with open(os.path.join(out_dir, out_yaml), "w", encoding="utf-8") as f:
         yaml.safe_dump(record, f, sort_keys=False, allow_unicode=True)
     print(f"[OK] {len(out):,} sessions -> {os.path.join(out_dir, out_csv)}")
