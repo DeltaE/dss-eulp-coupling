@@ -472,6 +472,33 @@ def test_empty_office_pool_stops():
         raise AssertionError("expected a stop")
 
 
+def test_empty_one_day_pools_stop():
+    """An empty pool stops the one-day draws with [FAIL] and exit 1, not with a numpy
+    error: the EV WATTS sessions of evwatts_cars, the NHTS vehicle-days of nhts_cars and
+    the NHTS windows of session_rows_cars."""
+    sessions = pd.DataFrame({"session_id": [1], "energy_kwh": [8.0], "charge_h": [2.0], "start_min": [1080.0],
+                             "plug_min": [600.0]})
+    days = pd.DataFrame({"HOUSEID": ["1"], "VEHID": [1], "WTHHFIN": [1.0], "day_class": ["i"],
+                         "arrival_min": [1080.0], "window_min": [600.0], "driver_miles": [30.0]})
+    calls = [
+        lambda: evwatts_cars("uncontrolled", ["a", "b"], sessions.iloc[0:0], 1.0, 1.0, INPUTS, 7,
+                             where="South Atlantic"),
+        lambda: evwatts_cars("uncontrolled", [], sessions.iloc[0:0], 1.0, 1.0, INPUTS, 7),
+        lambda: nhts_cars("controlled", ["a", "b"], days.iloc[0:0], 1.0, INPUTS, 7, where="NC"),
+        lambda: session_rows_cars("controlled", ["a", "b"], np.ones(96), 1.0, 1.0, INPUTS, 7,
+                                  window_pool=days.iloc[0:0], where="NC"),
+    ]
+    for call in calls:
+        try:
+            call()
+        except SystemExit as e:
+            assert e.code == 1
+        else:
+            raise AssertionError("expected a stop")
+    # a pool with a row still draws
+    assert len(evwatts_cars("uncontrolled", ["a", "b"], sessions, 1.0, 1.0, INPUTS, 7)) == 2
+
+
 def test_extract_dir_inside_repository():
     """The extract folder is refused when it is the repository or inside it. A folder
     beside the repository whose name starts with the repository's name is accepted."""

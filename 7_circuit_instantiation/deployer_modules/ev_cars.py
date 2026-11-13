@@ -312,17 +312,19 @@ def _car(group, k, host, source, level, power, charges, row, energy, window=None
     }
 
 
-def evwatts_cars(group, hosts, pool, share, l2_share, inputs, effective_seed):
+def evwatts_cars(group, hosts, pool, share, l2_share, inputs, effective_seed, where="the run"):
     """ev_cars evwatts_sessions, one group. Level: pick(level_<group>); charging today:
     pick(charging_<group>) with the measured share; every car draws one pool row,
     idx = rng(evwatts_<group>).integers(0, len(pool), size=N). A charging car plugs in
     at start_min for plug_min minutes and charges energy_kwh: Level 2 at the session's
     mean power energy_kwh / charge_h, Level 1 at level1_kw. A car that does not charge
-    has an all-zero row and no window.
+    has an all-zero row and no window. An empty pool stops with [FAIL]
+    (fail_empty_pool; where names the census division).
 
     ASSUMPTION: EV WATTS timestamps are the local clock time of the charger; the
     database gives no time zone, and a shift of one hour would move every plug-in time
     by four intervals."""
+    fail_empty_pool(pool, "EV WATTS residential sessions", where, "weekday")
     n = len(hosts)
     is_l2 = pick(n, l2_share, rng(f"level_{group}", effective_seed))
     charges = pick(n, share, rng(f"charging_{group}", effective_seed))
@@ -345,11 +347,13 @@ def evwatts_cars(group, hosts, pool, share, l2_share, inputs, effective_seed):
     return cars
 
 
-def nhts_cars(group, hosts, pool, l2_share, inputs, effective_seed):
+def nhts_cars(group, hosts, pool, l2_share, inputs, effective_seed, where="the run"):
     """ev_cars nhts_days, one group. Level: pick(level_<group>); each car draws one
     vehicle-day (draw_nhts with rng(nhts_<group>)). Class (i): plugs in at arrival_min
     for window_min minutes and charges driver_miles x kwh_per_mile at its level's power.
-    Class (ii): all-zero row, window the whole day."""
+    Class (ii): all-zero row, window the whole day. An empty pool stops with [FAIL]
+    (fail_empty_pool; where names the state)."""
+    fail_empty_pool(pool, "NHTS vehicle-days", where, "weekday")
     n = len(hosts)
     is_l2 = pick(n, l2_share, rng(f"level_{group}", effective_seed))
     idx = draw_nhts(pool, n, rng(f"nhts_{group}", effective_seed))
@@ -371,7 +375,8 @@ def nhts_cars(group, hosts, pool, l2_share, inputs, effective_seed):
     return cars
 
 
-def session_rows_cars(group, hosts, curve, share, l2_share, inputs, effective_seed, window_pool=None):
+def session_rows_cars(group, hosts, curve, share, l2_share, inputs, effective_seed, window_pool=None,
+                      where="the run"):
     """ev_cars session_rows (the repaired 2024 generator), one group.
 
     curve: the 96 kW means c of the check curve; E = sum(c) / 4 kWh per charging car.
@@ -382,7 +387,8 @@ def session_rows_cars(group, hosts, curve, share, l2_share, inputs, effective_se
     rng(session_rows_<group>).choice(96, p=w / sum(w)); R = R - block_s. A Level 2 car's
     row is block_s, a Level 1 car's charge_shape(s, level1_kw, E, 96). Uncontrolled cars
     have no window. With window_pool (controlled cars), each car takes the window of one
-    NHTS vehicle-day drawn as nhts_days with rng(nhts_windows_controlled).
+    NHTS vehicle-day drawn as nhts_days with rng(nhts_windows_controlled); an empty
+    window_pool stops with [FAIL] (fail_empty_pool; where names the state).
 
     ASSUMPTION: each charging car charges the curve's daily energy per plugged-in EV as
     one block at Level 2 power, starting where the fleet is furthest below the
@@ -399,6 +405,7 @@ def session_rows_cars(group, hosts, curve, share, l2_share, inputs, effective_se
     gen = rng(f"session_rows_{group}", effective_seed)
     windows = [None] * n
     if window_pool is not None:
+        fail_empty_pool(window_pool, "NHTS vehicle-days", where, "weekday")
         widx = draw_nhts(window_pool, n, rng("nhts_windows_controlled", effective_seed))
         windows = [window_pool.iloc[int(i)] for i in widx]
     cars = []

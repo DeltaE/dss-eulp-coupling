@@ -988,6 +988,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
             print(f"[FAIL] No census_division for {ev_state} in ev_inputs.yaml.")
             sys.exit(1)
         ev_pool = read_evwatts_pool(ev_extract_dir, EV_INPUTS["census_division"][ev_state], ev_months)
+        fail_empty_pool(ev_pool, "EV WATTS residential sessions", EV_INPUTS["census_division"][ev_state], "weekday")
         ev_share_measured = charging_share(ev_pool, ev_months)
         ev_share = ev_share_measured if EV_INPUTS["charging_share"] == "measured" else 1.0
         print(f"EV cars -> EV WATTS pool: {len(ev_pool)} sessions of {EV_INPUTS['census_division'][ev_state]}, "
@@ -997,6 +998,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
         ev_nhts_classes = ("i",) if EV_INPUTS["charging_share"] == "all" else ("i", "ii")
         ev_nhts_pool = read_nhts_pool(os.path.join(ROOT, "data_ev_cars", NHTS_EXTRACT_FILE.format(state=ev_state)),
                                       ev_months, ev_nhts_classes)
+        fail_empty_pool(ev_nhts_pool, "NHTS vehicle-days", ev_state, "weekday")
         print(f"EV cars -> NHTS pool: {len(ev_nhts_pool)} vehicle-days of {ev_state}, {ev_months_text}, "
               f"classes {', '.join(ev_nhts_classes)}")
     if EV_CARS == "session_rows":
@@ -1033,12 +1035,15 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
         print(f"EV cars -> NHTS work-day pool: {len(ev_work_day_pool)} class i vehicle-days with a work stop")
     for group, hosts in (("uncontrolled", json_ev_un), ("controlled", json_ev_ct)):
         if EV_CARS == "evwatts_sessions":
-            group_cars = evwatts_cars(group, hosts, ev_pool, ev_share, lvl2_charger_perc, EV_INPUTS, ev_effective_seed)
+            group_cars = evwatts_cars(group, hosts, ev_pool, ev_share, lvl2_charger_perc, EV_INPUTS, ev_effective_seed,
+                                      where=EV_INPUTS["census_division"][ev_state])
         elif EV_CARS == "nhts_days":
-            group_cars = nhts_cars(group, hosts, ev_nhts_pool, lvl2_charger_perc, EV_INPUTS, ev_effective_seed)
+            group_cars = nhts_cars(group, hosts, ev_nhts_pool, lvl2_charger_perc, EV_INPUTS, ev_effective_seed,
+                                   where=ev_state)
         else:
             group_cars = session_rows_cars(group, hosts, ev_check_curve, ev_share, lvl2_charger_perc, EV_INPUTS,
-                                           ev_effective_seed, ev_nhts_pool if group == "controlled" else None)
+                                           ev_effective_seed, ev_nhts_pool if group == "controlled" else None,
+                                           where=ev_state)
         if ev_work_on:
             group_cars = work_cars(group, group_cars, ev_work_share, OFFICES, EV_INPUTS, ev_effective_seed, EV_CARS,
                                    office_pool=ev_office_pool, work_day_pool=ev_work_day_pool,
