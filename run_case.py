@@ -8,7 +8,7 @@ are intentionally OUT of scope here - they live downstream in 0_experimental_des
 LHS) and Phase 7 (DER deployment).
 
 This layer runs only the DETERMINISTIC instantiation chain (the proven fire-test sequence):
-    pre -> 1 -> 2 -> 3 -> 4 -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> mix_days -> 7a -> 7b -> 7c -> 8
+    pre -> 1 -> 2 -> 3 -> 4 -> growth -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> mix_days -> 7a -> 7b -> 7c -> 8
 It sets the PIPELINE_* environment variables the existing scripts already read
 (see pipeline_utils.py) and shells out to them. No core pipeline code is modified.
 
@@ -20,12 +20,14 @@ Usage:
     python run_case.py --case configs/cases/NC_GSO_urban__NC.yaml --all --settings path/to/settings
 
 --settings names a folder of override files with the names of the repository's settings
-files: topology_registry.yaml, donor_registry.yaml, defaults.yaml, local.yaml and
-pipeline_config.yaml. Each file holds only the keys it changes and is merged over the
-repository's file: mappings merge key by key, any other value replaces the repository's.
-pipeline_config.yaml takes no key path the repository's file lacks, defaults.yaml no new
-top-level key. The phases read the merged pipeline_config.yaml through
-PIPELINE_SETTINGS_DIR; resolved_case.yaml and <run_dir>/settings/ record the overrides.
+files: topology_registry.yaml, donor_registry.yaml, defaults.yaml, local.yaml,
+pipeline_config.yaml and growth.yaml. Each file holds only the keys it changes and is
+merged over the repository's file: mappings merge key by key, any other value replaces the
+repository's. pipeline_config.yaml takes no key path the repository's file lacks,
+defaults.yaml no new top-level key, growth.yaml (merged over configs/growth.yaml) no key
+path outside its two maps keyed by topology or feeder. The phases read the merged
+pipeline_config.yaml and growth.yaml through PIPELINE_SETTINGS_DIR; resolved_case.yaml and
+<run_dir>/settings/ record the overrides.
 """
 from __future__ import annotations
 
@@ -54,6 +56,7 @@ from pipeline_utils import (SETTINGS_ENV, check_settings_dir, merge_settings, re
                             settings_key_paths)
 from pipeline_utils import GIVEN_DAYS_FILE, read_given_days, uses_mix_days
 from pipeline_utils import horizon_days
+from pipeline_utils import growth_on, growth_settings, load_growth
 
 
 def _load_yaml(path: Path) -> dict:
@@ -210,7 +213,8 @@ def run_phase(phase_id, phase_def, resolved, season, env, log, dry_run) -> bool:
            "smart_ds_root": resolved["smart_ds_root"],
            "max_feeders": resolved["max_feeders"],
            "work_root": resolved["work_root"],
-           "state": resolved["donor_state"]}
+           "state": resolved["donor_state"],
+           "topology_id": resolved["topology_id"]}
     phase_env = dict(env)
     for k, v in (phase_def.get("env") or {}).items():
         phase_env[k] = _subst(str(v), ctx)
@@ -278,7 +282,8 @@ def verify_calls(phase_def, resolved) -> list:
     - verify_mix_days, under peak_day_rule per_circuit or given: every phase it lists, for
       baseline, dm and uncontrolled, with --mix <mix> for each mix of the mixes file that
       phase mix_days writes a subtree for (uses_mix_days: every mix under given, each mix
-      that is not 100 % baseline under per_circuit)."""
+      that is not 100 % baseline under per_circuit, and every mix under per_circuit with
+      growth on)."""
     def scenario_args(scen):
         return [] if scen == "baseline" else ["--scenario", scen]
     calls = []
@@ -290,7 +295,7 @@ def verify_calls(phase_def, resolved) -> list:
     if phase_def.get("verify_mix_days") and rule in ("per_circuit", "given"):
         mixes = load_mixes(resolved["mixes_file"])
         for mix, mix_cfg in mixes.items():
-            if not uses_mix_days(rule, is_baseline_only(mix_cfg["shares"])):
+            if not uses_mix_days(rule, is_baseline_only(mix_cfg["shares"]), resolved.get("growth_on", False)):
                 continue
             for verify_phase in phase_def["verify_mix_days"]:
                 for scen in ("baseline", "dm", "uncontrolled"):
@@ -414,6 +419,9 @@ def main() -> None:
     # horizon_days (the window of days around the peak day): a value that is not a whole
     # number of days, 1 or above, stops here before any phase runs.
     horizon_days(pipeline_config)
+    # growth.yaml (load growth over planning years): a bad value in any key stops here
+    # before any phase runs. growth_years 0, the default, is growth off.
+    resolved["growth_on"] = growth_on(growth_settings(load_growth(settings), resolved["topology_id"]))
     phases =_load_yaml(CONFIG_DIR / "phases.yaml")
     seasons = [args.season] if args.season else resolved["seasons"]
     phase_ids = [args.phase] if args.phase else resolved["phase_order"]

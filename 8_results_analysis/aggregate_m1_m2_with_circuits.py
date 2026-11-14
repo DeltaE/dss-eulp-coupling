@@ -14,6 +14,14 @@ Created on Tue Nov 11 20:35:25 2025
 # Each data row then also gets date, day_index and day_type after timestep, and the
 # summary rows and circuit_summary.csv get day_x_first_step and day_x_last_step, the
 # steps of the simulated peak day. Without that file (horizon_days 1) nothing is added.
+# With load growth on (growth_years above 0 in growth.yaml) the deploy writes
+# ModifiedCircuitData/planning_limits.csv. The summary rows and circuit_summary.csv then
+# also get growth_years, limit_<limit>_over and limit_<limit>_worst for each row of that
+# file (voltage_band, voltage_low, voltage_high, line, head, transformer), and
+# substation_percent and substation_over; substation_limits.csv gets one row per mix: the
+# head power of the case's circuits summed step by step against the sum of the kVA of the
+# transformers in the topology's substation folder (the folder that holds the feeder
+# folders). With growth off nothing is added.
 
 import os
 import re
@@ -24,6 +32,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import STEPS_PER_DAY, WINDOW_DAYS_FILE, resolve_work_path
+from pipeline_utils import growth_on, growth_settings, load_config, load_growth, resolve_config_path
 
 def _read_dss_text(path: Path) -> str:
     try:
@@ -124,6 +133,14 @@ M2_RE = re.compile(r"(?<![0-9A-Za-z])m2(?![0-9A-Za-z])", re.IGNORECASE)
 
 if __name__ == "__main__":
     ROOT = Path(resolve_work_path("7_circuit_instantiation"))
+    # Load growth (growth.yaml): with growth on, the planning limits of every circuit
+    GROWTH = growth_settings(load_growth())
+    mix_power = {}  # {mix: [(circuit folder, head kW per step, head kvar per step)]}
+    if growth_on(GROWTH):
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation'))
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation',
+                                        'deployer_modules'))
+        import planning_limits
 
     # Accumulators
     m1_frames = []
@@ -233,6 +250,17 @@ if __name__ == "__main__":
             x_index = int(window_days.loc[window_days["day_x"] == "1", "day_index"].iloc[0])
             day_x_steps = {"day_x_first_step": (x_index - 1) * STEPS_PER_DAY + 1,
                            "day_x_last_step": x_index * STEPS_PER_DAY}
+        if growth_on(GROWTH):
+            # Load growth: the planning limits the deploy reported for this circuit
+            limits_path = mcd / "planning_limits.csv"
+            if not limits_path.is_file():
+                problems.append(f"{circuit_dir.name}  # No planning_limits.csv (growth_years "
+                                f"{GROWTH['growth_years']})")
+                continue
+            day_x_steps = dict(day_x_steps, growth_years=GROWTH["growth_years"])
+            for _, limit_row in pd.read_csv(limits_path).iterrows():
+                day_x_steps[f"limit_{limit_row['limit']}_over"] = limit_row["elements_over"]
+                day_x_steps[f"limit_{limit_row['limit']}_worst"] = limit_row["worst_value"]
 
         # Record a clean, time-independent summary row for this circuit
         summary_rows.append({
@@ -326,6 +354,9 @@ if __name__ == "__main__":
             
             df_m1 = add_pq_totals(df_m1)
             df_m2 = add_pq_totals(df_m2)
+            if growth_on(GROWTH):
+                mix_power.setdefault(scenario, []).append(
+                    (circuit_dir.name, df_m2["P_3ph (kW)"].to_numpy(), df_m2["Q_3ph (kVAr)"].to_numpy()))
 
             # Try to place 'timestep' next to a time column ('hour', 'time', 'Time', 't(sec)')
             def insert_timestep_next_to(df):
@@ -379,6 +410,27 @@ if __name__ == "__main__":
     out_m2 = ROOT / "aggregate_m2.csv"
     out_summary = ROOT / "circuit_summary.csv"
     out_problems = ROOT / "problem_circuits.txt"
+
+    if growth_on(GROWTH) and mix_power:
+        # The substation: the kVA of the transformers in the folder that holds the feeder folders
+        substation_dir = resolve_config_path(load_config()["smart_ds_root"])
+        tr_path = next((p for p in substation_dir.iterdir() if p.name.lower() == "transformers.dss"), None) \
+            if substation_dir.is_dir() else None
+        rating = planning_limits.substation_rating(_read_dss_text(tr_path)) if tr_path else None
+        if rating is None:
+            print(f"Substation rating not found in {substation_dir}: rating and percent left empty.")
+        sub_rows = planning_limits.substation_rows(mix_power, rating,
+                                                   GROWTH["planning_limits"]["substation_limit_percent"])
+        pd.DataFrame(sub_rows).to_csv(ROOT / "substation_limits.csv", index=False)
+        by_mix = {r["scenario"]: r for r in sub_rows}
+        for row in summary_rows:
+            row["substation_percent"] = by_mix[row["scenario"]]["percent"]
+            row["substation_over"] = by_mix[row["scenario"]]["over"]
+        for frame in m1_frames + m2_frames:
+            is_summary = frame["row_type"] == "summary"
+            mix = frame.loc[is_summary, "scenario"].iloc[0]
+            frame.loc[is_summary, "substation_percent"] = by_mix[mix]["percent"]
+            frame.loc[is_summary, "substation_over"] = by_mix[mix]["over"]
 
     if m1_frames:
         pd.concat(m1_frames, ignore_index=True).to_csv(out_m1, index=False)

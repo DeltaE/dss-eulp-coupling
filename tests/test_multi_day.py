@@ -38,7 +38,7 @@ from pipeline_utils import (EV_VALLEY_DAYS, FEDERAL_HOLIDAYS, GIVEN_SEASON_MONTH
 from der_sizing import CHOICES, day_peak, loadshape_building  # noqa: E402
 from ev_cars import (charging_share, draw_name, event_row, evwatts_cars, evwatts_session, load_inputs,  # noqa: E402
                      nhts_cars, nhts_session, nhts_work_session, plan_car, rng, window_group, work_cars)
-from ev_control import cheap_intervals, forecast_curve, forecast_days  # noqa: E402
+from ev_control import cheap_intervals, forecast_curve, forecast_days, valley_fill  # noqa: E402
 from storage_control import (_energy, _plan, best_start, best_window_start, schedule,  # noqa: E402
                              schedule_days)
 from test_caller_settings import _ensure_local_yaml  # noqa: E402
@@ -624,6 +624,43 @@ def test_cheap_intervals_reads_the_weekend_row():
     assert cheap_intervals(rate, 7) == cheap_intervals(rate, 7, "weekday") == (1, list(range(28, 36)))
     assert cheap_intervals(rate, 7, "weekend") == (1, list(range(80, 96)))
     assert cheap_intervals(rate, 1, "weekend") == (1, list(range(96)))
+
+
+def test_events_of_one_car_never_share_a_step():
+    """ev_home_window false over a window: two events of one car on one day (the part
+    after midnight of the day before, and the day's own session) may both use the 96
+    steps of that day. Placed apart, they share no step, so the car stays within its
+    charging power; placed on the same windows without the rule, they share steps."""
+    place_events_apart = _function(DEPLOY, "place_events_apart", {"np": np})
+    power, n_steps = 7.2, 192
+    day = list(range(96, 192))                       # both events on day 2
+    rows = np.zeros((3, n_steps))
+    rows[0, 96:104] = power                          # car 0, the part after midnight
+    rows[1, 168:184] = power                         # car 0, the day's own session
+    rows[2, 168:176] = power                         # car 1, one event
+    curve = np.tile(CURVE, 2)
+    windows, cars, order = [day, day, day], [0, 0, 1], [0, 1, 2]
+
+    together, _ = valley_fill(rows, curve, windows, order)
+    assert np.count_nonzero((together[0] > 0) & (together[1] > 0)) > 0
+    assert (together[0] + together[1]).max() > power + 1e-9
+
+    running = {"feeder": curve.copy()}
+
+    def place_one(i, window):
+        out, running["feeder"] = valley_fill(rows[[i]], running["feeder"], [window])
+        return out[0]
+
+    apart = place_events_apart(place_one, windows, order, cars, rows.shape)
+    assert np.count_nonzero((apart[0] > 0) & (apart[1] > 0)) == 0
+    assert (apart[0] + apart[1]).max() <= power + 1e-9
+    assert np.allclose(apart.sum(axis=1), rows.sum(axis=1))      # every event keeps its energy
+    assert np.array_equal(apart[0], together[0])                 # the first event of a car is unchanged
+    assert np.count_nonzero(apart[2]) == 8                       # another car may share the steps
+    # an event whose steps are all taken gets an all-zero row
+    full = place_events_apart(lambda i, window: np.full(n_steps, 1.0) * np.isin(np.arange(n_steps), window),
+                              [day, day], [0, 1], [0, 0], (2, n_steps))
+    assert full[0].sum() == 96 and full[1].sum() == 0
 
 
 # ---------------------------------------------------------------------------

@@ -21,6 +21,26 @@ instantiate_circuits.py  (procedural; mixes with EV split)
          - ev_loads_uncontrolled, ev_loads_controlled, ev_split
          - pv and storage hosts per segment, storage_targets, pv_targets, season, etc.
     * Patches the runner. Phase 7c (run_circuits.py) runs it.
+- With load growth on (growth_years above 0 in growth.yaml; the plan of phase growth,
+  <work_root>/growth/growth_plan.json), after the steps above have run on the SMART-DS
+  files and customers exactly as without growth:
+    * every existing Load line's kW and kvar are its share x its customer's factor;
+    * the new Line and Transformer statements, Load lines, loadshapes and bus
+      coordinates of the plan are appended to the circuit folder's Lines.dss,
+      Transformers.dss, Loads.dss, LoadShapes.dss and Buscoords.dss, in plan order; the
+      existing lines of those files stay as they are. A new Load line is its template's
+      line with the new name, bus and loadshape, kW and kvar = the template's share x
+      the new customer's factor;
+    * a loadshape new to the feeder is labelled in a draw of its own
+      (growth.label_new_shapes);
+    * a customer of load_factors with peak_factor gets a loadshape of its own,
+      <loadshape>x<k>, whose kW CSV is a x old + b and whose kvar CSV is scaled step by
+      step by new kW over old kW (growth.stretch on the whole year of its building's
+      curve in its heating group); <circuit>/growth_factors.csv records a and b;
+    * EV hosts among the new homes, and PV and storage hosts per segment among the new
+      loads, are drawn apart with the mix's percentages and no minimum of one;
+    * scenario_assignments.json gets the key growth: the new hosts, the factor of every
+      customer, the labels of the new loadshapes and the new customers.
 
 Keeps the procedural style and your working behaviors.
 """
@@ -33,9 +53,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
                             peak_day_rule, resolve_work_path, uses_mix_days)
 from pipeline_utils import STEPS_PER_DAY, horizon_days
+from pipeline_utils import growth_on, growth_settings, load_growth, read_growth_plan
 from heating_split import is_baseline_only, line_shares, load_segment, split_heating
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deployer_modules'))
 from der_sizing import SEGMENTS, der_choice, der_switch, pick_hosts, segment_count
+import growth as growth_rules
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -50,6 +72,9 @@ STATE = cfg['state']
 SEASON = cfg['season']
 registry = load_feeder_registry()
 feeder_to_circuit = registry["circuit_name_map"]
+# Load growth (growth.yaml): with growth on, the plan of phase growth
+GROWTH = growth_settings(load_growth())
+GROWTH_PLAN = read_growth_plan(GROWTH, "Phase 7b") if growth_on(GROWTH) else None
 SKIP_CIRCUITS = {int(n) for n in cfg.get('skip_circuits', [])}
 
 FORCE_NPTS = STEPS_PER_DAY * horizon_days(cfg)  # 96 steps per day of the window
@@ -183,6 +208,39 @@ def has_required_dss_files(path: Path) -> bool:
     except PermissionError:
         return False
     return "loads.dss" in names and "loadshapes.dss" in names
+
+def stretch_coefficients(feeder_name, base, shape, group, entry):
+    """(a, b) of a stretched customer (load_factors with peak_factor): growth.stretch on
+    the whole year of the curve of its building in heating group group (baseline, dm or
+    un), found through <STATE>_parquet_and_bldgs[_dm|_uncontrolled].csv as phase mix_days
+    finds it. Stops with [FAIL] when the building or its curve is missing or the curve
+    cannot be stretched."""
+    import pyarrow.parquet as pq
+    scen = {"baseline": "", "dm": "dm", "un": "uncontrolled"}[group]
+    if scen:
+        map_path = resolve_work_path("5d_scenario_controls", "get_scenario_csv_controls",
+                                     f"{STATE}_parquet_and_bldgs_{scen}.csv")
+    else:
+        map_path = resolve_work_path("5b_profile_generation", f"{STATE}_parquet_and_bldgs.csv")
+    m = re.match(r"^(.+)_kw_(.+)_pu$", shape)
+    with open(map_path, newline="", encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(f) if r["Feeder"] == feeder_name and m
+                and os.path.splitext(r["Parquet_Name"])[0] == f"{m.group(1)}_{m.group(2)}"]
+    if len(rows) != 1:
+        print(f"[FAIL] load_factors: {len(rows)} building rows for load {base} (loadshape {shape}) in {map_path}.")
+        sys.exit(1)
+    parquet_path = resolve_config_path(cfg['parquet_data_root']) / rows[0]["Parquet_Folder"] / rows[0]["Parquet_File"]
+    try:
+        values = (pq.read_table(parquet_path, columns=["out.electricity.total.energy_consumption"])
+                  ["out.electricity.total.energy_consumption"].to_numpy() * 4).tolist()
+        return growth_rules.stretch(values, entry["factor"], entry["peak_factor"])
+    except growth_rules.GrowthError as e:
+        print(f"[FAIL] load_factors, load {base}: {e}.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"[FAIL] load_factors, load {base}: cannot read {parquet_path}: {e}")
+        sys.exit(1)
+
 
 def circuit_num_from_tag(circ_tag: Optional[str], fallback: Optional[int] = None) -> Optional[int]:
     if not circ_tag:
@@ -367,7 +425,7 @@ for feeder in feeders:
         # per-bucket indexing (state/season)
         bucket_name = bucket_from_map(feeder_name, STATE, SEASON)
         hp_baseline_root, hp_dm_root, hp_un_root = HP_BASELINE_ROOT, HP_DM_ROOT, HP_UN_ROOT
-        if uses_mix_days(PEAK_DAY_RULE, is_baseline_only(shares)):
+        if uses_mix_days(PEAK_DAY_RULE, is_baseline_only(shares), GROWTH_PLAN is not None):
             mix_phase7 = Path(resolve_work_path("mix_days", mix_name, "7_circuit_instantiation"))
             hp_baseline_root = mix_phase7 / (STATE + '_4_profhp')
             hp_dm_root       = mix_phase7 / (STATE + '_6_profhp_dm')
@@ -476,6 +534,18 @@ for feeder in feeders:
         # print('get until here')
         # sys.exit()
 
+        # Load growth: this feeder's part of the plan. A loadshape new to the feeder is
+        # labelled in a draw of its own and joins the rewrite below.
+        grow = None
+        if GROWTH_PLAN is not None:
+            if feeder_name not in GROWTH_PLAN["feeders"]:
+                print(f"[FAIL] feeder {feeder_name} is not in the growth plan; run phase growth again.")
+                sys.exit(1)
+            grow = GROWTH_PLAN["feeders"][feeder_name]
+            new_shape_labels = growth_rules.label_new_shapes(grow["new_shapes"], shares,
+                                                             int(heating_seed) + mix_seed_offset)
+            daily_to_scen = dict(daily_to_scen, **new_shape_labels)
+
         # rewrite LoadShapes.dss and copy CSVs; a loadshape without CSVs stops the run
         profiles_dest_dir = PROFILES_USE_BENCH_DIR / dst_folder_name
         profiles_dest_dir.mkdir(parents=True, exist_ok=True)
@@ -485,6 +555,12 @@ for feeder in feeders:
 
         with lshp_path.open('r', encoding='utf-8') as f:
             lines = f.readlines()
+        if grow is not None and grow["new_shapes"]:
+            # the loadshapes new to the feeder, in the form of the SMART-DS lines
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+            lines += [f"New Loadshape.{shape} npts= 35040 interval=0.25 mult = (file={shape}.csv) "
+                      f"qmult = (file={shape.replace('_kw_', '_kvar_')}.csv)\n" for shape in grow["new_shapes"]]
         new_lines = []
         for line in lines:
             if line.strip().lower().startswith('new loadshape') and 'file=' in line.lower():
@@ -540,6 +616,11 @@ for feeder in feeders:
               + ", ".join(f"{k} line(s)={by_count[k]}" for k in sorted(by_count))
               + f"; kvar fallbacks={n_kvar_fallback}")
         num = r"\s*[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?"
+        # Load growth: the factor of every existing customer on the kW and kvar of its lines
+        line_factor, norm_line = {}, {}
+        if grow is not None:
+            line_factor = growth_rules.customer_factors(
+                grow, sorted(unique_bases), lambda b: load_segment(b, base_to_daily))
         upd = []
         for line in orig:
             if line.lower().startswith('new load.'):
@@ -547,9 +628,96 @@ for feeder in feeders:
                     line = re.sub(r'yearly=', 'daily=', line, flags=re.IGNORECASE)
                 m_name = re.search(r"New\s+Load\.(\S+)", line, flags=re.IGNORECASE)
                 kw_share, kvar_share = shares_kw[m_name.group(1)]
+                if grow is not None:
+                    norm_line[m_name.group(1)] = line
+                    factor = line_factor.get(re.sub(r"_[0-9]+$", "", m_name.group(1)), 1.0)
+                    kw_share, kvar_share = kw_share * factor, kvar_share * factor
                 if 'kW='   in line: line = re.sub(r"kW=" + num,   f"kW={format(kw_share, '.10g')}", line)
                 if 'kvar=' in line: line = re.sub(r"kvar=" + num, f"kvar={format(kvar_share, '.10g')}", line)
             upd.append(line)
+        new_customers = []
+        if grow is not None:
+            # The new customers: each new Load line is its template's line with the new
+            # name, bus and loadshape, kW and kvar = the template's share x the new factor
+            new_customers = [c for unit in grow["units"] for c in unit["customers"]]
+            new_factor = {c["name"]: c["factor"] for c in new_customers}
+            if upd and not upd[-1].endswith("\n"):
+                upd[-1] += "\n"
+            for unit in grow["units"]:
+                for ld in unit["loads"]:
+                    line = norm_line[ld["template"]]
+                    kw_share, kvar_share = shares_kw[ld["template"]]
+                    factor = new_factor[ld["base"]]
+                    line = re.sub(r"(New\s+Load\.)\S+", lambda m: m.group(1) + ld["name"], line, count=1,
+                                  flags=re.IGNORECASE)
+                    line = re.sub(r"\bbus1=\S+", lambda m: f"bus1={ld['bus1']}", line, count=1, flags=re.IGNORECASE)
+                    line = re.sub(r"\bdaily=\S+", lambda m: f"daily={ld['yearly']}", line, count=1, flags=re.IGNORECASE)
+                    line = re.sub(r"kW=" + num, f"kW={format(kw_share * factor, '.10g')}", line)
+                    line = re.sub(r"kvar=" + num, f"kvar={format(kvar_share * factor, '.10g')}", line)
+                    upd.append("\n" + line.rstrip("\n") + "\n")
+            # The new lines, transformers and bus coordinates, after the existing ones
+            for file_name, key in (("lines.dss", "lines"), ("transformers.dss", "transformers"),
+                                   ("buscoords.dss", "coords")):
+                if key == "coords":
+                    added = [f"{bus} {xy[0]!r} {xy[1]!r}\n" for unit in grow["units"]
+                             for bus, xy in unit["coords"].items()]
+                else:
+                    added = ["\n" + text + "\n" for unit in grow["units"] for text in unit[key]]
+                if not added:
+                    continue
+                path = next((dst_feeder_sub / nm for nm in os.listdir(dst_feeder_sub) if nm.lower() == file_name), None)
+                if path is None:
+                    if key == "coords":
+                        continue
+                    print(f"[FAIL] {dst_feeder_sub} has no {file_name} for the new elements of load growth.")
+                    sys.exit(1)
+                text = path.read_text(encoding='utf-8')
+                with path.open('a', encoding='utf-8', newline='') as f:
+                    f.write(("" if text.endswith("\n") or not text else "\n") + "".join(added))
+            # A stretched customer (load_factors with peak_factor) gets a loadshape of its own
+            growth_rows = []
+            stretched = sorted(b for b, e in grow["load_factors"].items() if e.get("peak_factor") is not None)
+            shape_building = {}
+            for k, base in enumerate(stretched, start=1):
+                entry = grow["load_factors"][base]
+                shapes_of = sorted(base_to_daily.get(base, set()))
+                if len(shapes_of) != 1:
+                    print(f"[FAIL] load_factors: load {base} has {len(shapes_of)} loadshapes; expected 1.")
+                    sys.exit(1)
+                shape = shapes_of[0]
+                group = daily_to_scen.get(shape, 'baseline')
+                a, b = stretch_coefficients(feeder_name, base, shape, group, entry)
+                own = re.sub(r"_pu$", f"x{k}_pu", shape)
+                shape_building[own] = shape
+                kw_old = [float(v) for v in (profiles_dest_dir / f"{shape}.csv").read_text().split()]
+                kvar_old = [float(v) for v in
+                            (profiles_dest_dir / f"{shape}.csv".replace('_kw_', '_kvar_')).read_text().split()]
+                kw_new = [a * v + b for v in kw_old]
+                kvar_new = [q * (n / o) if o != 0 else 0.0 for q, n, o in zip(kvar_old, kw_new, kw_old)]
+                (profiles_dest_dir / f"{own}.csv").write_text("".join(f"{v!r}\n" for v in kw_new), encoding='utf-8')
+                (profiles_dest_dir / f"{own}.csv".replace('_kw_', '_kvar_')).write_text(
+                    "".join(f"{v!r}\n" for v in kvar_new), encoding='utf-8')
+                shape_line = next(ln for ln in new_lines
+                                  if re.match(rf"(?i)^\s*New\s+Loadshape\.{re.escape(shape)}\s", ln))
+                new_lines.append(shape_line.replace(shape, own).replace(shape.replace('_kw_', '_kvar_'),
+                                                                        own.replace('_kw_', '_kvar_')))
+                upd = [re.sub(rf"\bdaily={re.escape(shape)}(?=\s|$)", f"daily={own}", ln)
+                       if re.match(rf"(?i)^\s*New\s+Load\.{re.escape(base)}(_[0-9]+)?\s", ln) else ln for ln in upd]
+                growth_rows.append((base, group, shape, own, a, b))
+            if stretched:
+                with lshp_path.open('w', encoding='utf-8') as f:
+                    f.writelines(new_lines)
+            with open(dst_folder / "growth_factors.csv", "w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f, lineterminator="\n")
+                w.writerow(["customer", "segment", "factor", "peak_factor", "line_factor", "heating_group",
+                            "loadshape", "own_loadshape", "a", "b"])
+                done = {r[0]: r for r in growth_rows}
+                for base in sorted(unique_bases):
+                    entry = grow["load_factors"].get(base) or {}
+                    r = done.get(base, (base, "", "", "", "", ""))
+                    w.writerow([base, load_segment(base, base_to_daily) or "",
+                                entry.get("factor", line_factor[base]), entry.get("peak_factor") or "",
+                                line_factor[base], r[1], r[2], r[3], r[4], r[5]])
         with loads_path.open('w', encoding='utf-8') as f:
             f.writelines(upd)
 
@@ -617,6 +785,35 @@ for feeder in feeders:
                             "hosts": sto_hosts}
         storage_targets = [b for seg in SEGMENTS for b in sto_seg[seg]["hosts"]]
         pv_targets      = [b for seg in SEGMENTS for b in pv_seg[seg]["hosts"]]
+        growth_block = None
+        if grow is not None:
+            # Hosts among the new loads, drawn apart: the mix's percentages, no minimum of one
+            new_by_segment = {seg: sorted(c["name"] for c in new_customers if c["segment"] == seg)
+                              for seg in SEGMENTS}
+            ev_new = growth_rules.pick_new(new_by_segment['residential'], ev_perc, "growth_ev_hosts",
+                                           ev_seed + pick_offset)
+            n_ev_new_ctl = int(round(len(ev_new) * split_ctl))
+            pv_new, sto_new = {}, {}
+            for seg in SEGMENTS:
+                n_pv_new = segment_count(pv_perc[seg], len(new_by_segment[seg]), PV_ON[seg], min_one=False)
+                n_sto_new = segment_count(storage_perc[seg], len(new_by_segment[seg]), STO_ON[seg], min_one=False)
+                pv_new[seg], sto_new[seg] = pick_hosts(
+                    new_by_segment[seg], n_pv_new, n_sto_new,
+                    pv_seed + _stable_seed_offset("growth_pv_hosts"),
+                    storage_seed + _stable_seed_offset("growth_storage_hosts"), pick_offset, STORAGE_HOSTS)
+            use_factor = {b: (grow["load_factors"].get(b) or {}).get("factor", line_factor[b])
+                          for b in sorted(unique_bases)}
+            use_factor.update({c["name"]: c["factor"] for c in new_customers})
+            growth_block = {
+                "growth_years": GROWTH["growth_years"],
+                "ev_loads_uncontrolled": ev_new[:len(ev_new) - n_ev_new_ctl],
+                "ev_loads_controlled": ev_new[len(ev_new) - n_ev_new_ctl:],
+                "pv": pv_new, "storage": sto_new,
+                "factors": use_factor,
+                "new_customers": [c["name"] for c in new_customers],
+                "new_shape_labels": new_shape_labels,
+                "shape_building": shape_building,
+            }
         assignments = {
             # seed_offset/effective_seed: sha256-derived replacement for the old
             # hash()-based offset (Task 0 determinism fix). Recorded so a referee
@@ -638,6 +835,8 @@ for feeder in feeders:
             "pv_targets":      pv_targets,
             "season": SEASON
         }
+        if growth_block is not None:
+            assignments["growth"] = growth_block
         (dst_folder / 'scenario_assignments.json').write_text(json.dumps(assignments, indent=2), encoding='utf-8')
 
         # tracking['missing_files']: loadshapes without a kW/kVAr CSV. A missing CSV stops

@@ -1,5 +1,5 @@
 # Phase definitions for run_case.py. --all runs the phases in defaults.yaml phase_order, pre to 8, for each selected season. A failed phase ends that season.
-# Placeholders substituted from the resolved case: {python}, {smart_ds_root}, {max_feeders}, {state}, {work_root}.
+# Placeholders substituted from the resolved case: {python}, {smart_ds_root}, {max_feeders}, {state}, {work_root}, {topology_id}.
 # Each step is either {cmd: "..."} (optional cwd:) or {copy: [src, dst]} (dst ending "/" = into dir).
 # 'verify' runs `{python} verify_phase.py --phase <id>` from repo root after the steps,
 # once per scenario in 'verify_scenarios' (baseline when absent).
@@ -45,6 +45,12 @@ pre:
     - cmd: "{python} phase4_select.py"
       cwd: 4_quota_assignment
   verify: "4"
+
+# Load growth over planning years (configs/growth.yaml). With growth_years 0 it prints one
+# line and writes nothing.
+growth:
+  steps:
+    - cmd: "{python} growth_plan.py --topology-id {topology_id}"
 
 "5a":
   steps:

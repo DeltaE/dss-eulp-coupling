@@ -209,6 +209,31 @@ Window of more than one day (horizon_days above 1)
   load_voltage_steps.csv, load_voltages.parquet) get date, day_index and day_type
   after their step column; ev_control_curves.csv also gets forecast_kw.
 
+Load growth (growth_years above 0 in growth.yaml)
+- Phase 7b writes the key growth into scenario_assignments.json and appends the new
+  customers and their lines and transformers to the circuit folder's .dss files, so
+  the steps above read them as any other element. Without that key nothing below runs.
+- The EV hosts among the new homes follow the existing hosts of each group. Their cars
+  are built by the same functions on a seed of their own (ev_cars.seed of
+  growth_new_loads on ev.effective_seed), and work cars of the existing hosts draw
+  their office among the existing businesses, so every draw over the existing cars has
+  the size and the values of a run without growth. The PV and storage hosts among the
+  new loads follow the existing hosts of each segment.
+- Sizes: a host's annual use is multiplied by its factor (growth.factors); the roof is
+  unchanged.
+- Planning limits (planning_limits.py; reported, nothing is built or moved): one Monitor
+  per enabled Line (mode 0) and per Transformer (mode 1) in Monitors_Loading.dss,
+  redirected before the first Solve of the final solve only. After the solve:
+  ModifiedCircuitData/loading_lines.csv (every Line: peak current over all steps
+  against the normamps of its LineCode; a Line of 1 m or less is flagged short and left
+  out of the limit), loading_transformers.csv (every Transformer: peak kVA against its
+  kVA), planning_limits.csv (one row per limit: voltage_band, voltage_low, voltage_high
+  with the band of planning_limits.voltage_band over customer loads, line, head and
+  transformer with their percent limits) and growth_blocks.csv (the feeder's rows of
+  the block table of phase growth with the lowest voltage at each block's customers and
+  the highest loading on the lines from the source bus to its attach bus). The existing
+  voltage summaries keep voltage_band of pipeline_config.yaml.
+
 Outputs
 - ModifiedCircuitData/: copied and edited .dss files, LoadShapes_EV.dss, Storage.dss,
   PVSystems.dss, LoadShapes_PV.dss and the monitor CSVs OpenDSS exports.
@@ -384,6 +409,11 @@ from ev_cars import draw_name, event_row, fail_empty_pool, plan_car, window_grou
 from ev_control import forecast_days
 from storage_control import best_window_start, schedule_days
 from der_sizing import day_peak, loadshape_building
+# Load growth (growth.yaml): the pieces used with growth on only
+from pipeline_utils import WINDOW_YEAR, growth_on, growth_settings, load_growth, planning_band, read_growth_plan
+from ev_cars import seed as ev_draw_seed
+import growth as growth_rules
+import planning_limits
 CFG = load_config()
 HORIZON_DAYS = horizon_days(CFG)
 NPTS = IRRADIANCE_NPTS * HORIZON_DAYS   # steps of the solve and of every loadshape
@@ -494,6 +524,19 @@ if not isinstance(ASSIGN, dict):
     print(f"[FAIL] scenario_assignments.json does not hold a JSON object: {ASSIGN_PATH}")
     sys.exit(1)
 print(f"[OK] Loaded scenario assignments: {ASSIGN_PATH}")
+
+# Load growth: Phase 7b writes the key growth with growth on (the hosts among the new
+# loads, the factor of every customer, the new customers). GROWTH is None with growth off.
+GROWTH = ASSIGN.get("growth")
+GROWTH_SETTINGS = growth_settings(load_growth())
+GROWTH_PLAN = None
+if growth_on(GROWTH_SETTINGS) != (GROWTH is not None):
+    print(f"[FAIL] growth_years is {GROWTH_SETTINGS['growth_years']} but {ASSIGN_PATH} "
+          f"{'holds no' if GROWTH is None else 'holds a'} growth key. Run Phase 7b again.")
+    sys.exit(1)
+if GROWTH is not None:
+    GROWTH_PLAN = read_growth_plan(GROWTH_SETTINGS, "Phase 7c")
+    NEW_CUSTOMERS = set(GROWTH["new_customers"])
 
 # EV params
 if "lvl2_perc" not in (ASSIGN.get("ev") or {}):
@@ -805,7 +848,7 @@ def simulated_day(feeder, season):
         if not m_mix or m_mix.group(1) not in mixes:
             print(f"[FAIL] No mix for circuit folder {CIRCUIT_FOLDER} in {mixes_path}.")
             sys.exit(1)
-        if uses_mix_days(PEAK_DAY_RULE, is_baseline_only(mixes[m_mix.group(1)]["shares"])):
+        if uses_mix_days(PEAK_DAY_RULE, is_baseline_only(mixes[m_mix.group(1)]["shares"]), GROWTH is not None):
             mix_name = m_mix.group(1)
             peak_days_path = os.path.join(CFG["work_root"], "mix_days",
                                           f"{CFG['state']}_circuit_days.csv")
@@ -958,6 +1001,12 @@ if (not json_ev_un) and (not json_ev_ct):
               f"split {len(all_ev)} ev_loads hosts into {len(json_ev_un)} uncontrolled "
               f"and {len(json_ev_ct)} controlled.")
 
+# Load growth: the EV hosts among the new homes follow the existing hosts of each group
+N_u_old, N_c_old = len(json_ev_un), len(json_ev_ct)
+if GROWTH is not None:
+    json_ev_un = json_ev_un + GROWTH["ev_loads_uncontrolled"]
+    json_ev_ct = json_ev_ct + GROWTH["ev_loads_controlled"]
+
 N_u = len(json_ev_un)
 N_c = len(json_ev_ct)
 
@@ -988,6 +1037,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
             print(f"[FAIL] No census_division for {ev_state} in ev_inputs.yaml.")
             sys.exit(1)
         ev_pool = read_evwatts_pool(ev_extract_dir, EV_INPUTS["census_division"][ev_state], ev_months)
+        fail_empty_pool(ev_pool, "EV WATTS residential sessions", EV_INPUTS["census_division"][ev_state], "weekday")
         ev_share_measured = charging_share(ev_pool, ev_months)
         ev_share = ev_share_measured if EV_INPUTS["charging_share"] == "measured" else 1.0
         print(f"EV cars -> EV WATTS pool: {len(ev_pool)} sessions of {EV_INPUTS['census_division'][ev_state]}, "
@@ -997,6 +1047,7 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
         ev_nhts_classes = ("i",) if EV_INPUTS["charging_share"] == "all" else ("i", "ii")
         ev_nhts_pool = read_nhts_pool(os.path.join(ROOT, "data_ev_cars", NHTS_EXTRACT_FILE.format(state=ev_state)),
                                       ev_months, ev_nhts_classes)
+        fail_empty_pool(ev_nhts_pool, "NHTS vehicle-days", ev_state, "weekday")
         print(f"EV cars -> NHTS pool: {len(ev_nhts_pool)} vehicle-days of {ev_state}, {ev_months_text}, "
               f"classes {', '.join(ev_nhts_classes)}")
     if EV_CARS == "session_rows":
@@ -1007,10 +1058,14 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
     # a commercial load of the circuit instead of at home.
     ev_work_share = EV_INPUTS["work_share"][EV_WORK_SHARE_CASE]
     OFFICES = sorted(b for b in unique_bases if load_segment(b, base_to_daily) == "commercial")
+    # Load growth: the cars of the existing hosts draw their office among the existing
+    # businesses, and the cars of the new hosts have a seed of their own
+    OFFICES_OLD = OFFICES if GROWTH is None else [b for b in OFFICES if b not in NEW_CUSTOMERS]
+    ev_new_seed = ev_draw_seed("growth_new_loads", ev_effective_seed)
     print(f"EV cars -> work share case {EV_WORK_SHARE_CASE}: share {ev_work_share}, "
           f"commercial loads {len(OFFICES)}")
     ev_office_pool = ev_work_day_pool = None
-    ev_work_on = ev_work_share > 0 and EV_CARS != "session_rows" and len(OFFICES) > 0
+    ev_work_on = ev_work_share > 0 and EV_CARS != "session_rows" and len(OFFICES_OLD) > 0
     if ev_work_share > 0 and EV_CARS == "session_rows":
         print("EV cars -> work share not applied under ev_cars session_rows: every car charges at home")
     elif ev_work_share > 0 and not OFFICES:
@@ -1031,19 +1086,33 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
             print(f"[FAIL] No class i vehicle-day with a work stop in the NHTS pool of {ev_state}, {ev_months_text}.")
             sys.exit(1)
         print(f"EV cars -> NHTS work-day pool: {len(ev_work_day_pool)} class i vehicle-days with a work stop")
-    for group, hosts in (("uncontrolled", json_ev_un), ("controlled", json_ev_ct)):
+    # (group, hosts, seed, offices, position of the first car): the existing hosts of each
+    # group, then, with load growth on, the hosts among the new homes
+    ev_parts = [("uncontrolled", json_ev_un[:N_u_old], ev_effective_seed, OFFICES_OLD, 0),
+                ("controlled", json_ev_ct[:N_c_old], ev_effective_seed, OFFICES_OLD, 0)]
+    if GROWTH is not None:
+        ev_parts += [("uncontrolled", json_ev_un[N_u_old:], ev_new_seed, OFFICES, N_u_old),
+                     ("controlled", json_ev_ct[N_c_old:], ev_new_seed, OFFICES, N_c_old)]
+    for group, hosts, part_seed, part_offices, first_car in ev_parts:
+        if part_seed != ev_effective_seed and not hosts:
+            continue
         if EV_CARS == "evwatts_sessions":
-            group_cars = evwatts_cars(group, hosts, ev_pool, ev_share, lvl2_charger_perc, EV_INPUTS, ev_effective_seed)
+            group_cars = evwatts_cars(group, hosts, ev_pool, ev_share, lvl2_charger_perc, EV_INPUTS, part_seed,
+                                      where=EV_INPUTS["census_division"][ev_state])
         elif EV_CARS == "nhts_days":
-            group_cars = nhts_cars(group, hosts, ev_nhts_pool, lvl2_charger_perc, EV_INPUTS, ev_effective_seed)
+            group_cars = nhts_cars(group, hosts, ev_nhts_pool, lvl2_charger_perc, EV_INPUTS, part_seed,
+                                   where=ev_state)
         else:
             group_cars = session_rows_cars(group, hosts, ev_check_curve, ev_share, lvl2_charger_perc, EV_INPUTS,
-                                           ev_effective_seed, ev_nhts_pool if group == "controlled" else None)
+                                           part_seed, ev_nhts_pool if group == "controlled" else None,
+                                           where=ev_state)
         if ev_work_on:
-            group_cars = work_cars(group, group_cars, ev_work_share, OFFICES, EV_INPUTS, ev_effective_seed, EV_CARS,
+            group_cars = work_cars(group, group_cars, ev_work_share, part_offices, EV_INPUTS, part_seed, EV_CARS,
                                    office_pool=ev_office_pool, work_day_pool=ev_work_day_pool,
                                    where=EV_INPUTS["census_division"].get(ev_state, ev_state)
                                    if EV_CARS == "evwatts_sessions" else ev_state)
+        for k, c in enumerate(group_cars if first_car else []):
+            c["car"] = f"{'EVu' if group == 'uncontrolled' else 'EVc'}_{first_car + k}"
         print(f"EV cars -> {EV_CARS}, {group}: {len(group_cars)} cars, Level 2 "
               f"{sum(c['level'] == 'L2' for c in group_cars)}, charging today {sum(c['charges_today'] for c in group_cars)}, "
               f"at work {sum(c['place'] == 'work' for c in group_cars)}")
@@ -1088,14 +1157,23 @@ if ACTIVATE_EV and (N_u + N_c) > 0:
             print(f"EV cars -> NHTS weekend pool: {len(ev_nhts_pool_weekend)} vehicle-days of {ev_state}, "
                   f"{ev_months_text}, classes {', '.join(ev_nhts_classes)}")
         if ev_work_on:
-            ev_window_work = {"share": ev_work_share, "offices": OFFICES, "office_pool": ev_office_pool,
+            ev_window_work = {"share": ev_work_share, "offices": OFFICES_OLD, "office_pool": ev_office_pool,
                               "work_day_pool": ev_work_day_pool}
         WINDOW_CARS = {}
         for group in ("uncontrolled", "controlled"):
             WINDOW_CARS[group] = window_group(
-                group, [c for c in cars if c["group"] == group], EV_CARS, EV_DAY_TYPES, X_INDEX, EV_INPUTS,
+                group, [c for c in cars if c["group"] == group][:N_u_old if group == "uncontrolled" else N_c_old],
+                EV_CARS, EV_DAY_TYPES, X_INDEX, EV_INPUTS,
                 ev_effective_seed, lvl2_charger_perc, share=ev_window_share, pool=ev_window_pool,
                 work=ev_window_work, curve=ev_check_curve if EV_CARS == "session_rows" else None, where=ev_where)
+            # Load growth: the cars of the hosts among the new homes, on their own seed
+            ev_new_cars = [c for c in cars if c["group"] == group][N_u_old if group == "uncontrolled" else N_c_old:]
+            if ev_new_cars:
+                WINDOW_CARS[group] = WINDOW_CARS[group] + window_group(
+                    group, ev_new_cars, EV_CARS, EV_DAY_TYPES, X_INDEX, EV_INPUTS, ev_new_seed, lvl2_charger_perc,
+                    share=ev_window_share, pool=ev_window_pool,
+                    work=dict(ev_window_work, offices=OFFICES) if ev_window_work else None,
+                    curve=ev_check_curve if EV_CARS == "session_rows" else None, where=ev_where)
             print(f"EV cars -> window, {group}: {len(WINDOW_CARS[group])} cars, work cars "
                   f"{sum(w['work'] for w in WINDOW_CARS[group])}, charging days "
                   f"{[sum(w['charges'][p] for w in WINDOW_CARS[group]) for p in range(HORIZON_DAYS + 1)]} "
@@ -1284,6 +1362,10 @@ def segment_hosts(kind):
 
 PV_HOSTS = segment_hosts("pv")
 STORAGE_HOSTS = segment_hosts("storage")
+if GROWTH is not None:  # load growth: the hosts among the new loads follow the existing hosts
+    for _seg in SEGMENTS:
+        PV_HOSTS[_seg] = PV_HOSTS[_seg] + GROWTH["pv"][_seg]
+        STORAGE_HOSTS[_seg] = STORAGE_HOSTS[_seg] + GROWTH["storage"][_seg]
 HOST_SEGMENT = {b: seg for hosts_by_seg in (PV_HOSTS, STORAGE_HOSTS)
                 for seg, hosts in hosts_by_seg.items() for b in hosts}
 DER_HOST_LIST = list(dict.fromkeys(b for seg in SEGMENTS for b in PV_HOSTS[seg] + STORAGE_HOSTS[seg]))
@@ -1308,6 +1390,8 @@ def building_of(base, seg, bldg_map):
     (ft2 for homes, m2 for commercial). Stops if the loadshape, the row, a column or a
     value is missing."""
     shapes = sorted(base_to_daily.get(base, set()))
+    if GROWTH is not None and shapes:  # a stretched customer's own loadshape: the building of its source
+        shapes[0] = GROWTH["shape_building"].get(shapes[0], shapes[0])
     m = loadshape_building(shapes[0]) if shapes else None
     rows = bldg_map[(bldg_map["Feeder"] == CIRCUIT_NAME) & (bldg_map["Yearly_Type"] == m[0])
                     & (bldg_map["Yearly_Number"] == m[1])] if m else bldg_map.iloc[0:0]
@@ -1406,7 +1490,10 @@ if DER_HOST_LIST:
     print(f"Sizing -> annual yield {annual_yield_kwh_per_kw:.4f} kWh per kW from {CFG['pv_profile_file']}")
     for b in DER_HOST_LIST:
         seg = HOST_SEGMENT[b]
-        DER_ROWS[b] = host_sizes(b, seg, building_of(b, seg, bldg_map), annual_yield_kwh_per_kw)
+        bldg_of_host = building_of(b, seg, bldg_map)
+        if GROWTH is not None:  # load growth: the grown annual use; the roof is unchanged
+            bldg_of_host["annual_use_kwh"] *= GROWTH["factors"][b]
+        DER_ROWS[b] = host_sizes(b, seg, bldg_of_host, annual_yield_kwh_per_kw)
         DER_ROWS[b]["units"] = len(der_units(b))
         DER_ROWS[b]["legs"] = DER_ROWS[b]["units"] > 1
 der_cols = ["base", "segment", "pv_host", "storage_host", "loadshape", "bldg_id", "floor_area_ft2", "stories",
@@ -1545,6 +1632,16 @@ for ln in read_lines(loads_ev_path):
     if m_ld:
         LV_LOADS.append(m_ld.group(1))
 write_lines(os.path.join(OUT_DIR, LV_MONITORS_FILE), monitor_lines(LV_LOADS))
+
+# Load growth: one loading Monitor per enabled Line and per Transformer (planning_limits.py)
+LOADING_MONITORS_FILE = "Monitors_Loading.dss"
+if GROWTH is not None:
+    # every New Line and New Transformer statement of the copied .dss files, whatever file holds it
+    _dss_text = "\n".join(read_text(os.path.join(OUT_DIR, fn)) for fn in sorted(dss_files))
+    LOADING_NET = growth_rules.read_feeder({key: _dss_text for key in (
+        "lines.dss", "transformers.dss", "loads.dss", "master.dss", "linecodes.dss", "buscoords.dss")})
+    _loading_lines, LINE_MONITORS, TR_MONITORS = planning_limits.loading_monitor_lines(LOADING_NET)
+    write_lines(os.path.join(OUT_DIR, LOADING_MONITORS_FILE), _loading_lines)
 
 # ---------------- EV control (ev_control in pipeline_config.yaml) ----------------
 EVC_DIR = os.path.join(CURRENT_DIR, "EVControl")
@@ -1891,6 +1988,22 @@ def storage_control_step(with_cars):
 if n_storage > 0 and STORAGE_ORDER == "before_cars":
     storage_control_step(with_cars=False)
 
+def place_events_apart(place, windows, sequence, cars, shape):
+    """The controlled rows of the events of sequence, placed one at a time. place(i,
+    window) returns the row of event i; window is windows[i] without the steps that an
+    earlier-placed event of the same car (cars[i]) already uses, in the same order. Two
+    events of one car so never share a step, and the car stays within its charging
+    power. An event left without a step gets an all-zero row."""
+    placed = np.zeros(shape)
+    used = {}
+    for i in sequence:
+        taken = used.setdefault(cars[i], set())
+        window = [int(s) for s in windows[i] if int(s) not in taken]
+        if window:
+            placed[i, :] = place(i, window)
+        taken.update(int(s) for s in np.flatnonzero(placed[i, :]))
+    return placed
+
 def window_ev_control():
     """The ev_control rule over a window of more than one day (horizon_days above 1).
     Returns (controlled rows at the cars' main place, controlled home rows of the work
@@ -1902,7 +2015,8 @@ def window_ev_control():
     window) is one row of 96 x horizon_days kW with its own window on the timeline, and
     the rules of ev_control.py place the events as the one-day run places the cars.
     With ev_home_window false an event may use the 96 steps of the day of its first
-    charging step, from that step and wrapping inside the day.
+    charging step, from that step and wrapping inside the day, less the steps that an
+    earlier-placed event of the same car uses (place_events_apart).
     - Valley rules: one base solve over the window (run_base_solve); the uncontrolled
       cars' kW is added; the events are placed in order of plug-in time on the timeline
       (an event without a plug-in time at the end of its day), each placed event joining
@@ -1974,7 +2088,22 @@ def window_ev_control():
                   f"{[round(w, 4) for w in fc_w]} kW, CV per day {[None if cv is None else round(cv, 4) for cv in fc_cv]} %")
         print(f"Forecast -> curve-days with W <= 0 (no error): {n_no_error} of {len(start_curves) * HORIZON_DAYS}")
         fc_first = {name: curve.copy() for name, curve in fc_curves.items()}
-        if EV_CONTROL == "valley_fill_feeder":
+        if not EV_HOME_WINDOW:
+            # The same rule, one event at a time, each on the curves the events before it left
+            running = {name: curve.copy() for name, curve in fc_curves.items()}
+
+            def place_one(i, window):
+                if EV_CONTROL == "valley_fill_feeder":
+                    out, running["feeder"] = valley_fill(rows_e[[i]], running["feeder"], [window])
+                elif EV_CONTROL == "water_fill_feeder":
+                    out, running["feeder"] = water_fill(rows_e[[i]], running["feeder"], [powers_e[i]], [window])
+                else:
+                    out, after = valley_fill_curves(rows_e[[i]], running, [event_curve[i]], "feeder", [window])
+                    running.update(after)
+                return out[0]
+
+            placed = place_events_apart(place_one, windows_e, order, [e["car"] for e in events], (n_e, NPTS))
+        elif EV_CONTROL == "valley_fill_feeder":
             placed, _ = valley_fill(rows_e, fc_curves["feeder"], windows_e, order)
         elif EV_CONTROL == "water_fill_feeder":
             placed, _ = water_fill(rows_e, fc_curves["feeder"], powers_e, windows_e, order)
@@ -2013,7 +2142,14 @@ def window_ev_control():
                 shifts[e["car"]] = d
         print(f"Off-peak start -> start spread {EV_INPUTS['start_spread_min']} min: "
               f"{sum(d is not None for d in shifts)} of {N_c} cars with a start offset")
-        placed, _ = offpeak_start(rows_e, cheap, powers_e, windows_e, shifts_e)
+        if EV_HOME_WINDOW:
+            placed, _ = offpeak_start(rows_e, cheap, powers_e, windows_e, shifts_e)
+        else:
+            def place_one(i, window):
+                out, _ = offpeak_start(rows_e[[i]], cheap, [powers_e[i]], [window], [shifts_e[i]])
+                return out[0]
+
+            placed = place_events_apart(place_one, windows_e, range(n_e), [e["car"] for e in events], (n_e, NPTS))
     rows_c, rows_ch = np.zeros((N_c, NPTS)), np.zeros((len(home_c), NPTS))
     for i, e in enumerate(events):
         e["controlled_kwh"] = float(placed[i, :].sum()) / 4.0
@@ -2196,6 +2332,8 @@ if n_storage > 0 and STORAGE_ORDER != "before_cars":
 if master_dss_path:
     ensure_redirects_before_solve(master_dss_path)
     add_redirect_before_solve(master_dss_path, LV_MONITORS_FILE)
+    if GROWTH is not None:
+        add_redirect_before_solve(master_dss_path, LOADING_MONITORS_FILE)
     if n_storage > 0:
         add_redirect_before_solve(master_dss_path, None, f"Set MaxControlIter={STORAGE_MAX_CONTROL_ITER}\n")
     assert_expected_redirects(
@@ -2244,6 +2382,57 @@ if COMPILE_CIRCUIT and master_dss_path:
               f"{time.time() - lv_start:.2f} s")
         print(f"Loads on a bus with no base voltage (base from the load kV): {len(lv_no_base)}"
               f"{' ' + ' '.join(lv_no_base) if lv_no_base else ''}")
+
+        if GROWTH is not None:
+            # Load growth: the loading tables and the planning limits of the grown circuit
+            pl_start = time.time()
+            for kind, names, engine_set in (
+                    ("Line", [ln["name"] for ln in LOADING_NET["lines"]], getattr(DSScircuit, "Lines", None)),
+                    ("Transformer", [tr["name"] for tr in LOADING_NET["transformers"]],
+                     getattr(DSScircuit, "Transformers", None))):
+                if engine_set is None:  # an engine without this interface: the tables hold the .dss elements
+                    print(f"Planning limits -> the engine lists no {kind} names; not compared with the tables")
+                    continue
+                in_engine = {str(n).lower() for n in engine_set.AllNames} - {"none"}
+                if in_engine != {n.lower() for n in names}:
+                    raise RuntimeError(f"{kind}s in the compiled circuit ({len(in_engine)}) differ from "
+                                       f"the {kind}s read for the loading tables ({len(names)}).")
+            if HORIZON_DAYS > 1:
+                pl_dates = [d.isoformat() for d in WINDOW_DATES]
+            else:
+                pl_month, pl_day = simulated_day(CIRCUIT_NAME, (ASSIGN.get("season") or "").lower())
+                pl_dates = [datetime.date(WINDOW_YEAR, pl_month, pl_day).isoformat()]
+            pl_units = GROWTH_PLAN["feeders"][CIRCUIT_NAME]["units"]
+            pl_new = {kind: [re.match(r"(?i)^\s*new\s+\w+\.(\S+)", text).group(1)
+                             for unit in pl_units for text in unit[kind]] for kind in ("lines", "transformers")}
+            line_peaks, tr_peaks = planning_limits.read_loading(DSScircuit, LINE_MONITORS, TR_MONITORS)
+            pl_lines = planning_limits.line_rows(LOADING_NET, line_peaks, pl_dates, pl_new["lines"])
+            pl_trs = planning_limits.transformer_rows(LOADING_NET, tr_peaks, pl_dates, pl_new["transformers"])
+            pd.DataFrame(pl_lines).to_csv(os.path.join(OUT_DIR, "loading_lines.csv"), index=False)
+            pd.DataFrame(pl_trs, columns=["transformer", "phases", "bus", "kva", "new", "peak_kva", "peak_step",
+                                          "peak_date", "loading_percent"]).to_csv(
+                os.path.join(OUT_DIR, "loading_transformers.csv"), index=False)
+            pl_limits = GROWTH_SETTINGS["planning_limits"]
+            pl_low, pl_high = planning_band(GROWTH_SETTINGS, CFG)
+            head_kva, _, _ = planning_limits.head_series(pd.read_csv(
+                os.path.join(OUT_DIR, f"{get_circuit_name(master_dss_path)}_Mon_m2_1.csv")))
+            head_rating_kva, head_line = planning_limits.head_rating(LOADING_NET, read_text(master_dss_path))
+            pl_rows = planning_limits.voltage_rows(lv_frame, pl_low, pl_high, pl_dates) \
+                + planning_limits.limit_rows(pl_lines, pl_trs, head_kva, head_rating_kva, head_line, pl_limits, pl_dates)
+            pd.DataFrame(pl_rows).to_csv(os.path.join(OUT_DIR, "planning_limits.csv"), index=False)
+            with open(os.path.join(CFG["work_root"], "growth", "growth_blocks.csv"), newline="", encoding="utf-8") as f:
+                pl_reader = csv.DictReader(f)
+                pl_block_columns = list(pl_reader.fieldnames)
+                pl_blocks = [r for r in pl_reader if r["Feeder"] == CIRCUIT_NAME]
+            pd.DataFrame(planning_limits.block_rows(pl_blocks, pl_units, LOADING_NET, lv_frame, pl_lines, pl_low,
+                                                    pl_high, pl_limits["line_limit_percent"]),
+                         columns=pl_block_columns + ["v_pu_min", "v_pu_min_load", "v_pu_max", "path_worst_percent",
+                                                     "path_worst_line", "voltage_outside", "path_over"]).to_csv(
+                os.path.join(OUT_DIR, "growth_blocks.csv"), index=False)
+            print(f"Planning limits -> band {pl_low} to {pl_high} pu; {len(LINE_MONITORS)} line and "
+                  f"{len(TR_MONITORS)} transformer monitors; "
+                  + "; ".join(f"{r['limit']} over {r['elements_over']} of {r['elements_checked']}" for r in pl_rows)
+                  + f"; {time.time() - pl_start:.2f} s")
 
     # Each battery's state monitor (mode=3): energy charged and discharged, stored energy range
     if STORAGE_TARGET_ROWS:

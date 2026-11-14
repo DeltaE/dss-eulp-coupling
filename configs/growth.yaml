@@ -1,0 +1,162 @@
+# Load growth over planning years. One run is one planning year, growth_years years after the
+# data year of the building curves. Tracked defaults: growth off. A growth.yaml in the folder
+# given to run_case.py --settings holds only the keys it changes and is merged over this file.
+# Every key path of that file must exist here, except under infill_share_metro and
+# block_attach_buses, which take new keys. A list replaces the list of this file.
+# The rules are in README.md, section "Load growth over planning years".
+
+# Whole number of years, 0 or above. 0 is growth off: no growth output is written and every
+# output equals a run without this file.
+growth_years: 0
+
+# The AEO case that gives all four rates below: low | moderate | high.
+#   low      = AEO2026 Low Economic Growth case
+#   moderate = AEO2026 Counterfactual Baseline case
+#   high     = AEO2026 High Economic Growth case
+case: moderate
+
+# Rates, percent a year: the average annual change from 2025 to 2050 of each quantity.
+# Source: U.S. EIA, Annual Energy Outlook 2026, Table 4 (Residential Sector Key Indicators)
+# and Table 5 (Commercial Sector Key Indicators).
+#   Counterfactual Baseline: https://www.eia.gov/Outlooks/Aeo/excel/aeotab4.xlsx and
+#   https://www.eia.gov/Outlooks/Aeo/excel/aeotab5.xlsx (https://www.eia.gov/outlooks/aeo/tables_ref.php)
+#   Low and High Economic Growth: https://www.eia.gov/outlooks/Aeo/excel/sidecases/lowmacro/aeotab4.xlsx,
+#   .../lowmacro/aeotab5.xlsx, .../highmacro/aeotab4.xlsx, .../highmacro/aeotab5.xlsx
+#   (https://www.eia.gov/outlooks/aeo/tables_side_xls.php)
+# Derived values, each (value of 2050 / value of 2025) ^ (1 / 25) - 1, in percent:
+#   households        = single-family + multifamily + mobile homes
+#   use_per_household = residential gross end-use electricity consumption / households
+#   floorspace        = total commercial floorspace
+#   use_per_ft2       = (commercial gross end-use electricity consumption - data center servers)
+#                       / total commercial floorspace
+# Electricity for electric vehicle charging is a row of its own in both tables and is outside
+# the gross end-use rows.
+# One ResStock sample is one dwelling unit, so a home customer is one household and the
+# household rate applies to the count of home customers: ResStock documentation, "One Row of
+# Data Is Not One Real House",
+# https://nrel.github.io/ResStock.github.io/docs/resources/explanations/One_Row_Data_House.html
+# ASSUMPTION: each growth year applies the 2025 to 2050 average annual change on top of the
+# data year of the building curves. The tables give no rate for the years before 2025; a run
+# of 10 years moves home use by (1 + rate / 100) ^ 10, so another base period moves every
+# factor and count.
+# ASSUMPTION: the national rates stand for one circuit. The tables give no value below census
+# division; a circuit that grows faster or slower than the country gets more or fewer new
+# customers in proportion.
+# ASSUMPTION: data centre servers are left out of use_per_ft2, because no ComStock building
+# type is a data centre. They are 6.9 percent of commercial gross end-use electricity in 2025
+# and 22.5 percent in 2050 in Table 5; with them the commercial use rate is above zero.
+# ASSUMPTION: electric vehicle charging is left out of both use rates, because the EV layer of
+# the pipeline adds it; with it every building factor would also carry EV growth.
+# ASSUMPTION: the rates are rounded to two decimals. Rounding moves a rate by at most 0.005
+# percent a year, so a factor at 10 years by at most 0.05 percent.
+rate_cases:
+  households:        {low: 0.67, moderate: 0.79, high: 0.82}
+  use_per_household: {low: -0.30, moderate: -0.28, high: -0.25}
+  floorspace:        {low: 0.84, moderate: 1.02, high: 1.20}
+  use_per_ft2:       {low: -0.61, moderate: -0.65, high: -0.67}
+
+# A number here replaces that rate of the case (percent a year); null keeps the case.
+# ASSUMPTION: a rate set here is the caller's own value and has no source in this file.
+rates:
+  households: null
+  use_per_household: null
+  floorspace: null
+  use_per_ft2: null
+
+# Share of the new homes built as infill (copies of single customers inside the circuit); the
+# rest arrive as extension blocks (copies of whole laterals). 1.0 | metro | national | a
+# number from 0 to 1. metro takes the value of the run's topology_id in infill_share_metro.
+# Source: U.S. EPA, Residential Construction Trends in America's Metropolitan Regions, 2012
+# edition, Appendix A, share of new homes built as infill from 2000 to 2009:
+# https://www.epa.gov/sites/production/files/2014-03/documents/residential_construction_trends.pdf
+# 21 percent across 209 regions (range 1.7 to 79.7 percent), 25.0 percent in Greensboro-High
+# Point, 7.0 percent in Austin-Round Rock-San Marcos.
+# ASSUMPTION: the share of a metropolitan region applies to one circuit of that region. The
+# report gives no value below the region; a circuit in a built-out district has a higher
+# share, and its new homes then load existing transformers and secondaries more.
+infill_share: 1.0
+infill_share_metro:
+  NC_GSO_urban_uhs13_1247: 0.250
+  TX_AUS_urban_p2uhs12_1247: 0.070
+infill_share_national: 0.21
+
+# New businesses that come with the new homes: feeder | national | aeo.
+#   feeder   = new homes x the circuit's businesses / the circuit's homes
+#   national = new homes / (households_million / commercial_buildings_million)
+#   aeo      = the circuit's businesses x the floorspace growth of the case
+# Sources of the national ratio: 5.9 million commercial buildings in 2018, U.S. EIA,
+# Commercial Buildings Energy Consumption Survey 2018,
+# https://www.eia.gov/consumption/commercial/data/2018/pdf/CBECS_2018_Building_Characteristics_Flipbook.pdf
+# and 127.6 million households in 2018, U.S. Census Bureau, series TTLHH,
+# https://fred.stlouisfed.org/data/TTLHH
+companions: feeder
+companions_national:
+  commercial_buildings_million: 5.9
+  households_million: 127.6
+# ComStock building types (in.comstock_building_type) never copied as a companion business.
+# ASSUMPTION: a hospital or a school does not arrive with a few dozen new homes. A circuit
+# with such a building keeps it and gains none; one is added by name in named_loads.
+companion_excluded_types: [Hospital, PrimarySchool, SecondarySchool]
+
+# Copies and blocks reuse the circuit's own elements. SMART-DS sized its lines and
+# transformers with the Reference Network Model for peak planning loads:
+# https://github.com/openEDI/documentation/tree/main/SMART-DS
+# ASSUMPTION: a new customer or block has the line lengths, line codes and transformer ratings
+# of the existing customer or lateral it copies, and its place is electrical: no street map is
+# used. A new district with longer runs has lower voltages than its copy shows.
+
+# Where extension blocks attach: feeder name: [bus, ...], three-phase medium-voltage buses,
+# used in order before any drawn bearing.
+block_attach_buses: {}
+
+# Loads added by name. Each entry: {feeder, type, count, year, bus}. type is a ComStock
+# building type; the load is present when year is at or below growth_years; bus is optional
+# and must be a three-phase medium-voltage bus of the feeder.
+named_loads: []
+# Bus of a named load without bus: seeded | strongest | weakest (lowest or highest
+# positive-sequence impedance magnitude from the source bus along the path).
+named_load_bus: seeded
+# ASSUMPTION: a building new to the feeder draws reactive power at the constant ratio of kvar
+# to kW of the SMART-DS load lines of the existing customer whose connection it copies, at
+# every step. It has no SMART-DS load of its own to give a reactive power series; a hospital
+# with a different power factor moves its kVA and the loading of its transformer.
+
+# Factor of one named customer in place of its segment's factor. Each entry: {feeder, load,
+# factor, peak_factor}. factor multiplies the customer's annual energy. With peak_factor
+# (optional) the annual peak grows by peak_factor instead, and the curve is stretched
+# linearly between the two.
+# ASSUMPTION: a factor set here is the caller's own value and has no source in this file.
+load_factors: []
+
+# Planning limits, reported for the grown circuit only. Nothing is built, replaced or moved.
+planning_limits:
+  # repository | range_a | range_b | [low, high] in per unit. repository is voltage_band of
+  # pipeline_config.yaml. The setting never changes the existing voltage summaries.
+  voltage_band: repository
+  # ANSI C84.1 service voltage on a 120 V base: Range A 114 to 126 V, Range B 110 to 127 V.
+  # USDA Rural Utilities Service Bulletin 1724D-113, Table 1,
+  # https://rd.usda.gov/sites/default/files/UEP_Bulletin_1724D-113.pdf ; Bulletin 1724D-114,
+  # Table 2, https://www.rd.usda.gov/files/UEP_Bulletin_1724D-114.pdf ; Pacific Power, Power
+  # Quality Standards 1C.2.1, Table 1,
+  # https://www.pacificpower.net/content/dam/pcorp/documents/en/pp-rmp/power-quality-standards/1C_2_1_PF.pdf
+  voltage_bands:
+    range_a: [0.95, 1.05]
+    range_b: [0.9167, 1.0583]
+  # Percent of the rating. Lines against the normamps of their LineCode and transformers
+  # against their kVA, 100 percent: Abraham and Ghosh, DISCO slides, NREL/PR-6A40-89565,
+  # slides 13 to 15, https://nrel.gov/docs/fy24osti/89565.pdf . A second sourced line value is
+  # 75 percent of the thermal rating as the planning rating of conductors: City of Riverside
+  # Public Utilities, Distribution Design Manual, DDM-1 Feeder Systems, section 1.2 J,
+  # https://www.tellusventure.com/downloads/riverside/DDM-1%20Feeder%20Systems%20.pdf
+  line_limit_percent: 100
+  transformer_limit_percent: 100
+  # ASSUMPTION: the feeder head and the substation transformer take the same 100 percent of
+  # their rating as lines and service transformers. A utility that keeps a reserve for
+  # switching sets a lower value, and more circuits are then over their limit.
+  head_limit_percent: 100
+  substation_limit_percent: 100
+
+# Network growth (new feeders, rebuilt lines). Only "off" is accepted. Keep the quotes: off
+# without quotes is a boolean in YAML.
+network_growth:
+  mode: "off"
