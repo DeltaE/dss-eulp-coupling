@@ -826,6 +826,44 @@ def test_regulator_rules_and_statements():
     assert ng.regulator_choice(again, _groups(again), only_m2, SUBSTATION) == ([], [])
     assert _raises(ng.apply_items, dict(FILES, **changed), [{"step": "regulator", "line": "m2"}], _catalog(),
                    SUBSTATION, EXPRESS)
+    # a line with second circuits is one branch: every circuit moves to the regulator bus, and the
+    # regulator takes the ampacity of them all
+    two, _ = ng.apply_items(FILES, [{"step": "reconductor", "line": "m2", "linecode": "3P_OH_B", "circuits": 2}],
+                            _catalog(), SUBSTATION, EXPRESS)
+    files2 = dict(FILES, **two)
+    net2 = ng.read_network(_text(files2))
+    assert [x["name"] for x in ng.circuits(net2, net2["line_of"]["m2_ng1"])] == ["m2", "m2_ng1"]
+    assert ng.regulator_choice(net2, _groups(net2), {"load_c1": 0.92, "load_h3": 0.93}, SUBSTATION)[0][0]["line"] == "m2"
+    reg2, rows2 = ng.apply_items(files2, [{"step": "regulator", "line": "m2"}], _catalog(), SUBSTATION, EXPRESS)
+    assert reg2["Lines.dss"].count("bus1=c_ngreg1.1.2.3 bus2=d.1.2.3") == 2 and "bus1=c.1.2.3 bus2=d" not in reg2["Lines.dss"]
+    assert math.isclose(rows2[0]["kva"], 2 * 200.0 * 12.47 / math.sqrt(3.0))
+    assert rows2[0]["changed"][:2] == [("line", "m2"), ("line", "m2_ng1")]
+    after2 = ng.read_network(_text(dict(files2, **reg2)))
+    assert not [ln["name"] for ln in after2["extra_lines"] if {ln["b1"], ln["b2"]} != {"c_ngreg1", "d"}]
+    assert ng.regulator_choice(after2, _groups(after2), {"load_c1": 0.92, "load_h3": 0.93}, SUBSTATION) == ([], [])
+    # a new feeder that opens the branch opens every circuit of it, and the cut at a bus names the first
+    cut, rows2 = ng.apply_items(files2, [{"step": "new_feeder", "cut_bus": "d"}], _catalog(), SUBSTATION, EXPRESS)
+    assert cut["Lines.dss"].count("bus1=c.1.2.3 bus2=d.1.2.3 switch=n enabled=n") == 2 and rows2[0]["was"] == "m2 (bus d)"
+    opened = ng.read_network(_text(dict(files2, **cut)))
+    assert opened["parent"]["d"][1]["name"] == "ng_express_2" and not opened["extra_lines"]
+    # the branch is one candidate of a new feeder, with the sum of its currents
+    table = {1: {"head": _amps(230.0, 210.0, 205.0), "m2": _amps(40.0, 35.0, 30.0), "m2_ng1": _amps(40.0, 35.0, 30.0)}}
+    groups2 = ng.head_groups(net2, [_head(_amps(230.0, 210.0, 205.0))], table, "largest_phase")
+    found, _ = ng.new_feeder_choice(net2, groups2, _rows(net2, {"head": 230.0}), table, _catalog(), dict(NG, open_point="bus"),
+                                    LIMITS, EXPRESS, ng.new_state())
+    assert ng.public(found[0]) == {"step": "new_feeder", "cut_bus": "d"} and "amps=[80.0, 70.0, 60.0]" in found[0]["_detail"]
+    # a lateral whose first line has a second circuit: both change phase, and both give its current
+    lat2, _ = ng.apply_items(FILES, [{"step": "reconductor", "line": "lc", "linecode": "1P_OH_X", "circuits": 2}],
+                             _catalog(), SUBSTATION, EXPRESS)
+    files3 = dict(FILES, **lat2)
+    net3 = ng.read_network(_text(files3))
+    assert next(x for x in ng.single_phase_laterals(net3) if x["root"] == "h")["firsts"] == ["lc", "lc_ng1"]
+    moved, _ = ng.apply_items(files3, [{"step": "rebalance_phases", "lateral": "h", "to_phase": 2}], _catalog(),
+                              SUBSTATION, EXPRESS)
+    assert moved["Lines.dss"].count("bus1=y.2 bus2=h.2") == 2 and "bus1=y.1 bus2=h.1" not in moved["Lines.dss"]
+    at3 = {1: {"head": _amps(220.0, 150.0, 180.0), "lc": {1: 15.0}, "lc_ng1": {1: 15.0}, "fz1": {1: 45.0}}}
+    items3 = ng.rebalance_moves(net3, ng.head_groups(net3, [_head(_amps(220.0, 150.0, 180.0))], at3, "largest_phase"), at3)
+    assert [(i["lateral"], i["to_phase"], i["_peak"]) for i in items3] == [("h", 2, 30.0)]
     # the transformers of a regulator are never replaced by the transformer step
     rows = pl.transformer_rows(after, {"ngreg1_1": (5000.0, 2), "t1": (10.0, 2)}, DATES)
     assert ng.transformer_items(after, rows, _catalog(), NG, LIMITS) == []

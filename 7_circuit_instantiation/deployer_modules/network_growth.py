@@ -163,6 +163,15 @@ def orientation(net, ln):
     return None
 
 
+def circuits(net, ln):
+    """The enabled lines of the branch of ln: ln and every line between the same two
+    buses (its second circuits, or the line they were added to), the line whose name
+    carries no _ng<j> suffix first."""
+    pair = {ln["b1"], ln["b2"]}
+    members = [x for x in net["lines"] if x["enabled"] and {x["b1"], x["b2"]} == pair]
+    return sorted(members, key=lambda x: (base_name(x["name"].lower()) != x["name"].lower(), x["name"].lower()))
+
+
 def mv_path(net, bus):
     """The lines from the source bus to the medium-voltage bus bus, source side first,
     passing a line regulator; None when the walk crosses another transformer."""
@@ -368,13 +377,15 @@ def _fed_by(net, group):
 def single_phase_laterals(net):
     """The laterals a rebalancing may move: those of growth.find_laterals whose
     medium-voltage lines are all single-phase on one phase node. Each lateral gains
-    node, mv_lines and first (its first line)."""
+    node, mv_lines, first (its first line) and firsts (the names of the first line and
+    of its second circuits, which together carry the lateral's current)."""
     out = []
     for lat in growth.find_laterals(net):
         mv_lines = [ln for ln in lat["lines"] if ln["b1"] in net["mv"] and ln["b2"] in net["mv"]]
         nodes = {tuple(_nodes(ln["bus1"], ln["phases"])) for ln in mv_lines}
         if mv_lines and all(ln["phases"] == 1 for ln in mv_lines) and len(nodes) == 1 and len(next(iter(nodes))) == 1:
-            out.append(dict(lat, node=next(iter(nodes))[0], mv_lines=mv_lines, first=lat["lines"][0]))
+            out.append(dict(lat, node=next(iter(nodes))[0], mv_lines=mv_lines, first=lat["lines"][0],
+                            firsts=[x["name"] for x in circuits(net, lat["lines"][0])]))
     return out
 
 
@@ -397,7 +408,7 @@ def rebalance_moves(net, groups, phase_amps):
         laterals = []
         for lat in single_phase_laterals(net):
             if lat["tap"] in fed:
-                c = at.get(lat["first"]["name"].lower(), {}).get(lat["node"])
+                c = sum(at.get(name.lower(), {}).get(lat["node"], 0.0) for name in lat["firsts"])
                 if c:
                     laterals.append({"root": lat["root"], "node": lat["node"], "from": lat["node"], "c": c})
         while True:
@@ -448,7 +459,8 @@ def new_feeder_choice(net, groups, line_rows, phase_amps, catalog, ng, limits, e
        floor 0.
     2. Candidates under open_point switch: the closed three-phase medium-voltage lines
        the head feeds with switch=y or a length of 1 m or less, the head lines and the
-       lines a control watches left out, that lie beyond every stuck line and whose
+       lines a control watches left out (a line with second circuits is one candidate
+       with the sum of their currents), that lie beyond every stuck line and whose
        current on every phase is at least what must be lost on it. With no candidate,
        the stuck line farthest from the source bus leaves the set and the search runs
        again, until candidates exist or the set is empty; an empty set with a head that
@@ -511,9 +523,11 @@ def new_feeder_choice(net, groups, line_rows, phase_amps, catalog, ng, limits, e
             if kind == "switch" and not (ln["switch"] or ln["length_m"] <= SHORT_LINE_M):
                 continue
             way = orientation(net, ln)
-            if way is None or way[0] not in fed:
+            members = circuits(net, ln)
+            if way is None or way[0] not in fed or members[0] is not ln:
                 continue
-            found.append({"line": ln["name"], "up": way[0], "down": way[1], "amps": amps_of(ln["name"]),
+            total = {p: sum(amps_of(x["name"])[p] for x in members) for p in (1, 2, 3)}
+            found.append({"line": ln["name"], "up": way[0], "down": way[1], "amps": total,
                           "length": path_length_m(net, way[1]) or 0.0})
         return found
 
@@ -688,13 +702,18 @@ def customer_path(net, customer):
 
 
 def regulator_choice(net, groups, under, substation):
-    """One line regulator, as ([item], [note]). The step applies when customers are
+    """One line regulator, as ([item], [note]). The regulator is built at the upstream
+    end of its line: a new bus, the upstream end of the line and of its second circuits
+    moved to it, and per phase one single-phase two-winding transformer whose kVA is the
+    summed normamps of those circuits x base kV / sqrt(3). The step applies when customers are
     under the band (under: {customer: lowest voltage}). Per head group, the customers
     under the band it feeds; the group with the most is taken, the first head on a tie.
     The line is the deepest medium-voltage line on the path of every one of them
     (customer_path). The step does not apply to a head whose line found this way starts
-    at the source bus or already carries a regulator; the next head is tried. A
-    substation folder without a RegControl makes the step not apply."""
+    at the source bus or already carries a regulator; the next head is tried. A line
+    with second circuits is named by the line they were added to, and the regulator
+    takes them all. A substation folder without a RegControl makes the step not
+    apply."""
     if not under:
         return [], []
     if not substation.get("regcontrol"):
@@ -722,7 +741,7 @@ def regulator_choice(net, groups, under, substation):
                 common = common[:n]
         if not common:
             continue
-        ln = net["line_of"][common[-1].lower()]
+        ln = circuits(net, net["line_of"][common[-1].lower()])[0]
         up = orientation(net, ln)[0]
         if up == net["source"] or _REG_BUS.search(up):
             continue
@@ -896,11 +915,11 @@ def _apply_rebalance(files, net, item):
                                  f"lateral of the circuit")
     old, new = lat["node"], int(item["to_phase"])
     buses = {b for b in lat["buses"] if b in net["mv"]}
-    first = lat["first"]["name"].lower()
+    firsts = {name.lower() for name in lat["firsts"]}
     for fname in sorted(files.lines):
         for i, line in enumerate(files.lines[fname]):
             m = _NEW_RE.match(line)
-            is_first = bool(m) and m.group(1).lower() == "line" and m.group(2).lower() == first
+            is_first = bool(m) and m.group(1).lower() == "line" and m.group(2).lower() in firsts
 
             def swap(t):
                 bare = t.group(3).split(".")[0].lower()
@@ -927,18 +946,20 @@ def _apply_new_feeder(files, net, item, express):
         step = net["parent"].get(down)
         if step is None or step[0] != "line":
             raise NetworkGrowthError(f"bus {item['cut_bus']} of item {public(item)} is not fed by a line of the circuit")
-        ln, way = step[1], (step[2], down)
+        ln, way = circuits(net, step[1])[0], (step[2], down)
         was = f"{ln['name']} (bus {down})"
     length = path_length_m(net, way[1])
     if length is None:
         raise NetworkGrowthError(f"the open point of item {public(item)} is not at medium voltage")
+    for member in circuits(net, ln):                       # the line and its second circuits are opened
+        fname, index = _element(files, "line", member["name"], item)
+        files.set(fname, index, _set_prop(files.lines[fname][index], "enabled", "n"))
+        for other in sorted(files.lines):                  # a Fuse on an opened line goes out with it
+            for i, line in enumerate(files.lines[other]):
+                if re.match(r"(?i)^\s*new\s+(fuse|recloser|relay)\.", line) and re.search(
+                        rf"(?i)\bmonitoredobj\s*=\s*line\.{re.escape(member['name'])}(\s|$)", line):
+                    files.set(other, i, _set_prop(line, "enabled", "n"))
     fname, index = _element(files, "line", ln["name"], item)
-    files.set(fname, index, _set_prop(files.lines[fname][index], "enabled", "n"))
-    for other in sorted(files.lines):                      # a Fuse on the opened line goes out with it
-        for i, line in enumerate(files.lines[other]):
-            if re.match(r"(?i)^\s*new\s+(fuse|recloser|relay)\.", line) and re.search(
-                    rf"(?i)\bmonitoredobj\s*=\s*line\.{re.escape(ln['name'])}(\s|$)", line):
-                files.set(other, i, _set_prop(line, "enabled", "n"))
     k = max(k for k, _ in head_lines(files.text())) + 1
     name = f"{_EXPRESS}{k}"
     files.append(fname, [f"New Line.{name} Units=m Length={length!r} bus1={net['source']}.1.2.3 bus2={way[1]}.1.2.3 "
@@ -1056,13 +1077,20 @@ def _apply_regulator(files, net, item, substation):
                                  f"carries a regulator, or has no rating")
     k = 1 + max([int(_REG_NAME.match(t["name"]).group(1)) for t in net["transformers"] if is_regulator(t["name"])],
                 default=0)
+    members = circuits(net, ln)
+    ln = members[0]
     end = "bus1" if ln["b1"] == up else "bus2"
     spec = ln[end]
     new_bus = f"{spec.split('.')[0]}_ngreg{k}"
-    fname, index = _element(files, "line", ln["name"], item)
-    files.set(fname, index, _set_prop(files.lines[fname][index], end, ".".join([new_bus] + spec.split(".")[1:])))
+    amps = 0.0
+    for member in members:                                 # the line and its second circuits
+        m_end = "bus1" if member["b1"] == up else "bus2"
+        fname, index = _element(files, "line", member["name"], item)
+        files.set(fname, index, _set_prop(files.lines[fname][index], m_end,
+                                          ".".join([new_bus] + member[m_end].split(".")[1:])))
+        amps += (net["linecodes"].get(member["linecode"]) or {}).get("normamps") or 0.0
     kv = net["base_kv"] / math.sqrt(3.0)
-    kva = code["normamps"] * kv
+    kva = amps * kv
     nodes = _nodes(spec, ln["phases"])
     statements = []
     for p in nodes:
