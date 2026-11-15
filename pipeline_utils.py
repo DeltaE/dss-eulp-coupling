@@ -656,6 +656,8 @@ def growth_settings(raw, topology_id=None):
             _growth_fail(f"{key}.factor", entry.get("factor"), "a number above 0")
         if "peak_factor" in entry and (not _number(entry["peak_factor"]) or entry["peak_factor"] <= 0):
             _growth_fail(f"{key}.peak_factor", entry["peak_factor"], "a number above 0, or no peak_factor key")
+    if not isinstance(g.get("der_resize_with_growth"), bool):
+        _growth_fail("der_resize_with_growth", g.get("der_resize_with_growth"), "true or false")
     limits = g.get("planning_limits")
     if not isinstance(limits, dict):
         _growth_fail("planning_limits", limits, "a map")

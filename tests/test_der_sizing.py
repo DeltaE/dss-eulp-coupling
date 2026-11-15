@@ -19,10 +19,12 @@ import sys
 import yaml
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation", "deployer_modules"))
 from der_sizing import (FT2_TO_M2, annual_yield, der_choice, der_number, der_switch, der_value,  # noqa: E402
                         pick, pick_hosts, pv_kw_roof_and_use, roof_area_m2, segment_count, standby_pct,
                         storage_size)
+from growth import der_use_factor  # noqa: E402
 
 BASES = [f"load_{i:03d}" for i in range(40)]
 
@@ -167,6 +169,31 @@ def test_window_choices_and_helpers():
     assert loadshape_building("res_kw_9312-North_pu") == ("res", "9312-North")
     assert loadshape_building("com_kw_12815_pu") == ("com", "12815")
     assert day_peak([1.0] * 96 + [3.0] * 96) == 3.0 and day_peak([1.0] * 96 + [3.0] * 96, 0) == 1.0
+
+
+def test_sizes_under_load_growth():
+    """der_resize_with_growth: an existing host keeps the size of a run without growth
+    unless the setting is true; a new host is sized on its grown use in both cases."""
+    new = {"load_9_gh1"}
+    factor = 1.03 ** 10
+    assert der_use_factor("load_1", factor, new, False) == 1.0
+    assert der_use_factor("load_1", factor, new, True) == factor
+    assert der_use_factor("load_9_gh1", factor, new, False) == factor
+    assert der_use_factor("load_9_gh1", factor, new, True) == factor
+    # the use cap binds (a large roof): the size follows the use that sizes it
+    use, yld = 12000.0, 1500.0
+    without = pv_kw_roof_and_use(400.0, 0.5, 0.2, 1.0, use, yld)[0]
+    assert without == 8.0
+    existing_off = pv_kw_roof_and_use(400.0, 0.5, 0.2, 1.0, use * der_use_factor("load_1", factor, new, False), yld)
+    existing_on = pv_kw_roof_and_use(400.0, 0.5, 0.2, 1.0, use * der_use_factor("load_1", factor, new, True), yld)
+    new_host = pv_kw_roof_and_use(400.0, 0.5, 0.2, 1.0, use * der_use_factor("load_9_gh1", factor, new, False), yld)
+    assert existing_off[0] == without                                     # the size of a run without growth
+    assert math.isclose(existing_on[0], 8.0 * factor) and new_host == existing_on
+    # the roof binds: the size is the roof's under both values
+    small_roof = [pv_kw_roof_and_use(20.0, 0.5, 0.2, 1.0, use * f, yld) for f in (1.0, factor)]
+    assert small_roof[0][0] == small_roof[1][0] == 2.0 and small_roof[1][3]
+    # the storage size follows the PV size
+    assert storage_size(existing_off[0], 1.0, 0.5, 100.0, 2.0) == storage_size(without, 1.0, 0.5, 100.0, 2.0)
 
 
 if __name__ == "__main__":

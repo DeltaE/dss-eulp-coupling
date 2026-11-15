@@ -1020,6 +1020,14 @@ def pick_new(items, share, name, seed):
     return order[:int(round(float(share) * len(order)))]
 
 
+def der_use_factor(base, factor, new_customers, resize):
+    """The factor on the annual electricity use that sizes the PV and storage of host
+    base (der_resize_with_growth in growth.yaml). A host among new_customers is sized on
+    its own use, its building's annual use x factor. An existing host keeps the size of
+    a run without growth (1) unless resize is true (factor)."""
+    return float(factor) if resize or base in new_customers else 1.0
+
+
 def customer_factors(feeder_plan, bases, segment_of):
     """{base: factor on kW and kvar of its Load lines} for the existing customers bases
     of one feeder of the plan: the factor of its segment, 1 for a customer of neither

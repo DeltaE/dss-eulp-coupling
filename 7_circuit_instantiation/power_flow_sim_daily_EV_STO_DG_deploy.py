@@ -219,8 +219,11 @@ Load growth (growth_years above 0 in growth.yaml)
   their office among the existing businesses, so every draw over the existing cars has
   the size and the values of a run without growth. The PV and storage hosts among the
   new loads follow the existing hosts of each segment.
-- Sizes: a host's annual use is multiplied by its factor (growth.factors); the roof is
-  unchanged.
+- Sizes (der_resize_with_growth in growth.yaml, growth.der_use_factor): a host among the
+  new customers is sized on its building's annual use x its factor (growth.factors). An
+  existing host is sized on its annual use without the factor, so it keeps the size of
+  a run without growth; with der_resize_with_growth true its annual use is multiplied
+  by its factor too. The roof is unchanged.
 - Planning limits (planning_limits.py; reported, nothing is built or moved): one Monitor
   per enabled Line (mode 0) and per Transformer (mode 1) in Monitors_Loading.dss,
   redirected before the first Solve of the final solve only. After the solve:
@@ -1491,8 +1494,12 @@ if DER_HOST_LIST:
     for b in DER_HOST_LIST:
         seg = HOST_SEGMENT[b]
         bldg_of_host = building_of(b, seg, bldg_map)
-        if GROWTH is not None:  # load growth: the grown annual use; the roof is unchanged
-            bldg_of_host["annual_use_kwh"] *= GROWTH["factors"][b]
+        if GROWTH is not None:
+            # load growth (der_resize_with_growth): a new host on its grown annual use, an
+            # existing host on its use without growth unless the setting is true; the
+            # roof is unchanged
+            bldg_of_host["annual_use_kwh"] *= growth_rules.der_use_factor(
+                b, GROWTH["factors"][b], NEW_CUSTOMERS, GROWTH_SETTINGS["der_resize_with_growth"])
         DER_ROWS[b] = host_sizes(b, seg, bldg_of_host, annual_yield_kwh_per_kw)
         DER_ROWS[b]["units"] = len(der_units(b))
         DER_ROWS[b]["legs"] = DER_ROWS[b]["units"] > 1

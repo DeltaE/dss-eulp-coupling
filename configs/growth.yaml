@@ -144,6 +144,16 @@ named_load_bus: seeded
 # ASSUMPTION: a factor set here is the caller's own value and has no source in this file.
 load_factors: []
 
+# PV and storage of existing hosts under load growth. false: an existing host is sized on its
+# building's annual electricity use without its growth factor, so it has the size of a run
+# without growth. true: every host is sized on the use of the planning year (annual use x
+# the host's factor; the roof limit is unchanged). A host among the new customers is sized
+# on its own use in both cases: its building's annual use x its factor.
+# ASSUMPTION: a system installed before the planning year keeps its size while its
+# building's use changes. true fits a study where all systems are bought in the planning
+# year; it moves every existing PV and storage size with the use rates.
+der_resize_with_growth: false
+
 # Planning limits, reported for the grown circuit only. Nothing is built, replaced or moved.
 planning_limits:
   # repository | range_a | range_b | [low, high] in per unit. repository is voltage_band of

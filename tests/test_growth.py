@@ -71,6 +71,8 @@ def test_tracked_defaults_are_growth_off():
     assert growth_rates(g) == MODERATE
     assert growth_infill_share(g, "NC_GSO_urban_uhs13_1247") == 1.0
     assert g["network_growth"]["mode"] == "off"
+    assert g["der_resize_with_growth"] is False and g["named_load_mv_line_m"] == 269.0
+    assert growth_settings(_with(der_resize_with_growth=True))["der_resize_with_growth"] is True
     assert "growth.yaml" in SETTINGS_FILES
     assert planning_band(g, {"voltage_band": {"low_pu": 0.95, "high_pu": 1.05}}) == (0.95, 1.05)
 
@@ -105,7 +107,8 @@ def test_every_bad_growth_value_stops():
         {"named_loads": [{"feeder": "f", "type": "Hospital", "count": 1, "year": 1, "kw": 5}]},
         {"named_loads": [{"feeder": "f", "type": "Hospital", "count": 1, "year": 1, "bus": ""}]},
         {"named_load_bus": "nearest"}, {"named_load_mv_line_m": 0}, {"named_load_mv_line_m": "269"},
-        {"named_load_mv_line_m": None},
+        {"named_load_mv_line_m": None}, {"der_resize_with_growth": "false"}, {"der_resize_with_growth": 0},
+        {"der_resize_with_growth": None},
         {"load_factors": [{"feeder": "f", "load": "x"}]},
         {"load_factors": [{"feeder": "f", "load": "x", "factor": 1.1, "peak_factor": 0}]},
         {"load_factors": [{"feeder": "f", "factor": 1.1}]},
