@@ -55,6 +55,14 @@ through `PIPELINE_SETTINGS_DIR`.
 
 Under `peak_day_rule: given` the folder also holds `given_days.csv`, one simulated day per
 feeder and season (columns `Feeder`, `Season`, `Month`, `Day`; README, "Peak-day rules").
+Under `peak_day_rule: per_substation` every circuit of the case runs on the peak day of the sum
+of the case's circuits, so all circuits of the substation share one window.
+
+With `growth_years` above 0 in `growth.yaml`, the tracked `network_growth.mode` is `as_needed`:
+the run grows its network where the planning limits call for it (README, "Network growth"). A
+caller that wants the limits reported and nothing built sets `network_growth.mode: "off"`.
+`network_growth.carry_forward` names the `network_growth_built.yaml` of an earlier planning year
+or of the other season of the same case, as an absolute path or relative to the settings folder.
 
 ## Adding a new topology
 
