@@ -965,6 +965,9 @@ def _apply_reconductor(files, net, item, catalog, heads):
             raise NetworkGrowthError("the circuit has no LineCodes file for a LineCode new to it")
         files.append(target, [entry["statement"]])
         code = entry["linecode"]
+        # the items of one round share the network: the code is now one of the circuit's
+        net["linecodes"][code.lower()] = {"normamps": entry["normamps"], "nphases": None, "z1": None,
+                                          "units": "none"}
     for member in members:
         fname, index = _element(files, "line", member["name"], item)
         files.set(fname, index, _set_prop(files.lines[fname][index], "linecode", code))

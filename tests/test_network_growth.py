@@ -662,6 +662,11 @@ def test_reconductor_statements():
                                                     "Xmatrix=(0.5 ) normamps=400.0\n")
     assert (rows[0]["was"], rows[0]["now"], rows[0]["count_before"], rows[0]["count"], rows[0]["length_m"]) == \
         ("3P_OH_A", "3P_OH_C", 1, 1, 300.0)
+    # two lines of one round that take the same new code: its statement is appended once
+    both = [item, dict(item, line="m3")]
+    changed, rows = ng.apply_items(FILES, both, catalog, SUBSTATION, EXPRESS)
+    assert changed["LineCodes.dss"].count("New Linecode.3P_OH_C ") == 1
+    assert changed["Lines.dss"].count("Linecode=3P_OH_C") == 2 and [r["element"] for r in rows] == ["m2", "m3"]
     # second circuits: the same buses and length, named <line>_ng<j>
     two = {"step": "reconductor", "line": "m2", "linecode": "3P_OH_B", "circuits": 3}
     changed, rows = ng.apply_items(FILES, [two], catalog, SUBSTATION, EXPRESS)
