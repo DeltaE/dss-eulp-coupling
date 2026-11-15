@@ -33,6 +33,17 @@ Outputs, all under <work_root>/growth/
   longer horizon may place differently.
 - growth_customers.csv, growth_blocks.csv, growth_named_loads.csv, growth_factors.csv,
   growth_summary.csv (columns in docs/outputs.md).
+- network_catalog.json, with network growth on (network_growth.mode other than "off"):
+  what the network growth steps of the Phase 7 deploy may use. Per feeder of the case,
+  the LineCodes in use by lines longer than 1 m in the SMART-DS feeder folders of
+  network_growth.catalog, by phases, voltage level and construction, with normamps and
+  the LineCode statement, and the transformer ratings in use by phases and winding
+  voltages, with one statement each (network_growth.inventory, build_catalog); and the
+  transformers and the RegControl settings of the topology's substation folder
+  (network_growth.substation_record). region is every feeder folder under the folder
+  that holds the substation folder, substation the feeder folders of the substation
+  folder, feeder each feeder alone. An item of carry_forward or planned whose feeder is
+  not in the case is printed and left out.
 
 A building new to a feeder (a named load whose building no load of the feeder uses) is
 added to what Phases 5a onward read, under the loadshape name com_kw_g<bldg_id>_pu: one
@@ -67,11 +78,12 @@ REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 from pipeline_utils import (GROWTH_PLAN_DIR, GROWTH_PLAN_FILE, growth_infill_share, growth_on, growth_rates,
                             growth_settings, load_config, load_feeder_registry, load_growth,
-                            resolve_config_path, resolve_work_path)
+                            network_growth_items, network_growth_on, resolve_config_path, resolve_work_path)
 
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation" / "deployer_modules"))
 import growth
+import network_growth
 
 GROWTH_ROW = re.compile(r",com_g\d+\.parquet\s*$")
 TYPE_COL, AREA_COL, ZONE_COL = "in.comstock_building_type", "in.sqft", "in.building_america_climate_zone"
@@ -138,6 +150,63 @@ def number(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def dss_texts(folder):
+    """{file name, lower case: text} of the .dss files of folder."""
+    return {fn.lower(): (Path(folder) / fn).read_text(encoding="utf-8")
+            for fn in sorted(os.listdir(folder)) if fn.lower().endswith(".dss")}
+
+
+def feeder_folders(substation_dir):
+    """The feeder folders of a substation folder, sorted: its sub-folders that hold
+    Lines.dss and LineCodes.dss."""
+    out = []
+    for name in sorted(os.listdir(substation_dir)):
+        child = Path(substation_dir) / name
+        if child.is_dir() and {"lines.dss", "linecodes.dss"} <= {fn.lower() for fn in os.listdir(child)}:
+            out.append(child)
+    return out
+
+
+def write_catalog(g, cfg, feeders, out_dir):
+    """Write <out_dir>/network_catalog.json for the feeders of the case (module
+    docstring) and print the items of carry_forward and planned left out."""
+    scope = g["network_growth"]["catalog"]
+    substation_dir = resolve_config_path(cfg["smart_ds_root"])
+    if scope == "region":
+        folders = [f for sub in sorted(p for p in substation_dir.parent.iterdir() if p.is_dir())
+                   for f in feeder_folders(sub)]
+    elif scope == "substation":
+        folders = feeder_folders(substation_dir)
+    else:
+        folders = []
+    inventories = {}
+
+    def inventory(folder):
+        key = str(Path(folder).resolve())
+        if key not in inventories:
+            inventories[key] = network_growth.inventory(dss_texts(folder))
+        return inventories[key]
+
+    catalog = {"catalog": scope, "feeder_folders": len(folders) if folders else 1,
+               "substation": network_growth.substation_record(dss_texts(substation_dir)), "feeders": {}}
+    for feeder_dir in feeders:
+        own = str(Path(feeder_dir).resolve())
+        others = [inventory(f) for f in folders if str(Path(f).resolve()) != own]
+        catalog["feeders"][feeder_dir.name] = network_growth.build_catalog(inventory(feeder_dir), others)
+    path = os.path.join(out_dir, network_growth.CATALOG_FILE)
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(catalog, f, indent=1)
+        f.write("\n")
+    names = [f.name for f in feeders]
+    for item in network_growth_items(g):
+        if item["feeder"] not in names:
+            print(f"[growth] network growth item left out, its feeder is not in the case: {item}")
+    reg = catalog["substation"]["regcontrol"]
+    print(f"[growth] network growth catalog written: {path}; catalog {scope}, {catalog['feeder_folders']} feeder "
+          f"folders; substation transformers {[u['kva'] for u in catalog['substation']['transformers']]} kVA, "
+          f"RegControl {reg if reg else 'none'}")
 
 
 def main():
@@ -461,6 +530,8 @@ def main():
     write_lines(summary_path, summary_lines, new_summary)
     print(f"[growth] plan written: {os.path.join(out_dir, GROWTH_PLAN_FILE)}; buildings new to a feeder: "
           f"{len(new_final)} ({', '.join(sorted(new_final)) or 'none'})")
+    if network_growth_on(g):
+        write_catalog(g, cfg, feeders, out_dir)
 
 
 if __name__ == "__main__":

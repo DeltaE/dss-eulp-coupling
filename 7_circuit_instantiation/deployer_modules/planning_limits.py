@@ -4,7 +4,8 @@ planning_limits.py
 ------------------
 The planning limits of a grown circuit (planning_limits in configs/growth.yaml), as
 functions that need no OpenDSS. The Phase 7 deploy calls them, with growth on only,
-after the final solve of the window. They report; nothing is built, replaced or moved.
+after every solve of the window. They report; network growth (network_growth.py) reads
+the same tables to decide what to build.
 
 - loading_monitor_lines: one Monitor per enabled Line (mode 0: voltages and currents,
   terminal 1) and per Transformer (mode 1, terminal 1, P and Q). The deploy solves
@@ -13,8 +14,11 @@ after the final solve of the window. They report; nothing is built, replaced or 
 - line_rows, transformer_rows: every Line with its peak current over all steps against
   the normamps of its LineCode, every Transformer with its peak kVA against the kVA of
   its first winding.
-- head_series, head_rating: the feeder-head kVA per step from the export of Monitor m2,
-  and the rating of the head line, as Phase 8 computes them.
+- head_lines, head_series, head_rows: the heads of a circuit (the line Monitor m1
+  watches and the line of every Monitor h<k>m1), the head kVA per step from the export
+  of a mode 1 Monitor as Phase 8 computes it, and one row per head with its loading by
+  kVA and by largest phase current (heads.csv).
+- read_phase_currents: the phase currents of every monitored line at given steps.
 - voltage_rows, limit_rows: the rows of planning_limits.csv.
 - block_rows: the block table with the lowest voltage at each block's customers and the
   highest loading on the lines from the source bus to its attach bus.
@@ -94,6 +98,20 @@ def read_loading(circuit, line_monitors, transformer_monitors):
     return lines, transformers
 
 
+def read_phase_currents(circuit, line_monitors, steps):
+    """{step: {line, lower case: [amps of each conductor of terminal 1]}} at the given
+    steps (from 1), read from the mode 0 Monitors of a solved circuit."""
+    out = {int(s): {} for s in steps}
+    mon = circuit.Monitors
+    for name, element in line_monitors.items():
+        mon.Name = name
+        cols = [i for i, h in enumerate((str(h).strip() for h in mon.Header), start=1) if _I_RE.match(h)]
+        series = [np.abs(np.asarray(mon.Channel(i), dtype=float)) for i in cols]
+        for s in out:
+            out[s][element.lower()] = [float(a[s - 1]) for a in series]
+    return out
+
+
 def step_date(step, dates):
     """The date (text) of step (from 1) in a run of 96 steps per date of dates; empty
     without a step."""
@@ -160,24 +178,81 @@ def head_series(frame):
     return np.sqrt(p ** 2 + q ** 2), p, q
 
 
-def head_rating(net, master_text):
-    """(kVA, line) of the feeder head, as Phase 8 computes feeder_head_kva: the normamps
-    of the LineCode of the Line that Monitor m1 of Master.dss watches x the basekV of
-    the circuit x sqrt(3). (None, line) when a piece is missing."""
-    line = base_kv = None
+def head_lines(master_text):
+    """[(k, line name)] of the heads of a circuit, by head number: the line Monitor m1
+    of Master.dss watches is head 1, the line Monitor h<k>m1 watches is head k. A head is
+    the first line of a path from the source bus: the line of m1, every express line of
+    a new feeder and every second circuit of such a line (network_growth.py)."""
+    out = {}
     for raw in master_text.splitlines():
-        st = raw.split("!", 1)[0].strip()
-        m = re.search(r"(?i)\bnew\s+monitor\.m1\b.*\belement\s*=\s*line\.(\S+)", st)
-        if m and line is None:
-            line = m.group(1)
-        m = re.search(r"(?i)\bnew\s+circuit\..*\bbasekv\s*=\s*(\S+)", st)
-        if m and base_kv is None:
-            base_kv = float(m.group(1))
-    found = next((ln for ln in net["lines"] if line and ln["name"].lower() == line.lower()), None)
-    code = net["linecodes"].get(found["linecode"]) if found else None
-    if not code or code["normamps"] is None or base_kv is None:
-        return None, line
-    return code["normamps"] * base_kv * math.sqrt(3.0), line
+        st = raw.split("!", 1)[0]
+        m = re.search(r"(?i)\bnew\s+monitor\.(m1|h(\d+)m1)\b.*\belement\s*=\s*line\.(\S+)", st)
+        if m:
+            out.setdefault(int(m.group(2)) if m.group(2) else 1, m.group(3))
+    return sorted(out.items())
+
+
+def head_rows(net, heads, exports, dates):
+    """One row per head for heads.csv. heads: head_lines; exports: {k: (frame of the
+    export of its mode 0 Monitor, frame of the export of its mode 1 Monitor)}. Columns:
+    head, line, linecode, normamps, rating_kva (normamps x the circuit's base kV x
+    sqrt(3), as Phase 8 computes feeder_head_kva), peak_kva, kva_percent, kva_step,
+    kva_date, peak_phase_amps (the largest phase current over all steps), phase_percent
+    (over normamps), phase_step, phase_date, and amps_1, amps_2, amps_3, the current of
+    each phase node at that step. A head without a rated LineCode or a base kV keeps its
+    peaks and has no percent."""
+    rows = []
+    for k, name in heads:
+        ln = next((x for x in net["lines"] if x["name"].lower() == name.lower()), None)
+        code = net["linecodes"].get(ln["linecode"]) if ln else None
+        normamps = code["normamps"] if code else None
+        rating = normamps * net["base_kv"] * math.sqrt(3.0) if normamps is not None and net["base_kv"] else None
+        m1, m2 = exports[k]
+        kva = head_series(m2)[0]
+        peak_kva, kva_step = float(np.max(kva)), int(np.argmax(kva)) + 1
+        cols = [c for c in m1.columns if _I_RE.match(str(c).strip())]
+        amps = np.abs(m1[cols].astype(float).to_numpy()).T
+        top = amps.max(axis=0)
+        peak_amps, amp_step = float(top.max()), int(top.argmax()) + 1
+        nodes = [int(n) for n in str(ln["bus1"]).split(".")[1:] if n.isdigit() and int(n) != 0] if ln else []
+        nodes = nodes or list(range(1, len(cols) + 1))
+        at = {node: float(amps[i][amp_step - 1]) for i, node in enumerate(nodes[:len(cols)])}
+        rows.append({
+            "head": k, "line": name, "linecode": ln["linecode"] if ln else "", "normamps": normamps,
+            "rating_kva": rating, "peak_kva": peak_kva,
+            "kva_percent": 100.0 * peak_kva / rating if rating else None, "kva_step": kva_step,
+            "kva_date": step_date(kva_step, dates), "peak_phase_amps": peak_amps,
+            "phase_percent": 100.0 * peak_amps / normamps if normamps else None, "phase_step": amp_step,
+            "phase_date": step_date(amp_step, dates), "amps_1": at.get(1), "amps_2": at.get(2),
+            "amps_3": at.get(3)})
+    return rows
+
+
+def head_totals(m1_frames, m2_frames):
+    """The circuit totals of several heads, as two frames with the columns of the first
+    head's Monitor exports. Mode 1 (m2_frames: S and Ang per phase): per phase P = the
+    sum of S x cos(Ang) and Q = the sum of S x sin(Ang) over the heads, written back as
+    S and Ang in degrees. Mode 0 (m1_frames: V, VAngle, I and IAngle per phase): per
+    phase the currents of the heads added as phasors; the voltages are those of the
+    first head, since every head starts at the source bus."""
+    def total(frames, magnitude, angle):
+        out = frames[0].copy()
+        cols = {str(c).strip(): c for c in out.columns}
+        for name in sorted(cols):
+            m = magnitude.match(name)
+            ang = cols.get(f"{angle}{m.group(1)}") if m else None
+            if ang is None:
+                continue
+            re_part = im_part = 0.0
+            for f in frames:
+                rad = np.deg2rad(f[ang].astype(float).to_numpy())
+                re_part = re_part + f[cols[name]].astype(float).to_numpy() * np.cos(rad)
+                im_part = im_part + f[cols[name]].astype(float).to_numpy() * np.sin(rad)
+            out[cols[name]] = np.hypot(re_part, im_part)
+            out[ang] = np.degrees(np.arctan2(im_part, re_part))
+        return out
+
+    return total(m1_frames, _I_RE, "IAngle"), total(m2_frames, _S_RE, "Ang")
 
 
 def voltage_rows(frame, low, high, dates):
@@ -205,12 +280,14 @@ def voltage_rows(frame, low, high, dates):
             row("voltage_high", f"{high} pu", above, hi)]
 
 
-def limit_rows(lines, transformers, head_kva, head_rating_kva, head_line, limits, dates):
-    """The line, head and transformer rows of planning_limits.csv. lines and
+def limit_rows(lines, transformers, heads, limits, dates):
+    """The line, head, head_phase and transformer rows of planning_limits.csv. lines and
     transformers are the rows of line_rows and transformer_rows; a short or disabled
-    Line and an element without a rating are not checked. head_kva is the feeder-head
-    kVA per step. limits: planning_limits of growth.yaml. worst_value is a percent of
-    the rating."""
+    Line and an element without a rating are not checked. heads are the rows of
+    head_rows: the row head tests each head's peak kVA over its rating, the row
+    head_phase its largest phase current over the normamps of its LineCode, both against
+    head_limit_percent; with several heads both count the heads and give the worst.
+    limits: planning_limits of growth.yaml. worst_value is a percent of the rating."""
     def worst_of(rows, key, limit):
         checked = [r for r in rows if r["loading_percent"] is not None]
         over = [r for r in checked if r["loading_percent"] > limit]
@@ -221,20 +298,27 @@ def limit_rows(lines, transformers, head_kva, head_rating_kva, head_line, limits
                 "worst_step": top["peak_step"] if top else None,
                 "worst_date": top["peak_date"] if top else ""}
 
-    out = [{"limit": "line", "setting": f"{limits['line_limit_percent']} percent of normamps",
-            **worst_of([r for r in lines if r["enabled"] and not r["short"]], "line", limits["line_limit_percent"])}]
-    head = {"limit": "head", "setting": f"{limits['head_limit_percent']} percent of feeder_head_kva",
-            "elements_checked": 0, "elements_over": 0, "worst_element": head_line or "", "worst_value": None,
-            "worst_step": None, "worst_date": ""}
-    if head_rating_kva:
-        step = int(np.argmax(head_kva)) + 1
-        percent = 100.0 * float(np.max(head_kva)) / head_rating_kva
-        head.update({"elements_checked": 1, "elements_over": int(percent > limits["head_limit_percent"]),
-                     "worst_value": percent, "worst_step": step, "worst_date": step_date(step, dates)})
-    out.append(head)
-    out.append({"limit": "transformer", "setting": f"{limits['transformer_limit_percent']} percent of kVA",
-                **worst_of(transformers, "transformer", limits["transformer_limit_percent"])})
-    return out
+    def head_row(limit, setting, percent, step, date):
+        row = {"limit": limit, "setting": setting, "elements_checked": 0, "elements_over": 0,
+               "worst_element": heads[0]["line"] if heads else "", "worst_value": None, "worst_step": None,
+               "worst_date": ""}
+        checked = [h for h in heads if h[percent] is not None]
+        if checked:
+            top = max(checked, key=lambda h: h[percent])
+            row.update({"elements_checked": len(checked),
+                        "elements_over": sum(1 for h in checked if h[percent] > limits["head_limit_percent"]),
+                        "worst_element": top["line"], "worst_value": top[percent], "worst_step": top[step],
+                        "worst_date": top[date]})
+        return row
+
+    return [{"limit": "line", "setting": f"{limits['line_limit_percent']} percent of normamps",
+             **worst_of([r for r in lines if r["enabled"] and not r["short"]], "line", limits["line_limit_percent"])},
+            head_row("head", f"{limits['head_limit_percent']} percent of feeder_head_kva", "kva_percent",
+                     "kva_step", "kva_date"),
+            head_row("head_phase", f"{limits['head_limit_percent']} percent of normamps, largest phase",
+                     "phase_percent", "phase_step", "phase_date"),
+            {"limit": "transformer", "setting": f"{limits['transformer_limit_percent']} percent of kVA",
+             **worst_of(transformers, "transformer", limits["transformer_limit_percent"])}]
 
 
 def block_rows(blocks, units, net, frame, line_table, low, high, line_limit):

@@ -70,7 +70,7 @@ def test_tracked_defaults_are_growth_off():
     assert g["growth_years"] == 0 and not growth_on(g)
     assert growth_rates(g) == MODERATE
     assert growth_infill_share(g, "NC_GSO_urban_uhs13_1247") == 1.0
-    assert g["network_growth"]["mode"] == "off"
+    assert g["network_growth"]["mode"] == "as_needed"           # with growth_years 0 nothing of it runs
     assert g["der_resize_with_growth"] is False and g["named_load_mv_line_m"] == 269.0
     assert growth_settings(_with(der_resize_with_growth=True))["der_resize_with_growth"] is True
     assert "growth.yaml" in SETTINGS_FILES
@@ -126,11 +126,12 @@ def test_every_bad_growth_value_stops():
 
 
 def test_off_is_read_as_text():
-    """off without quotes is a boolean in YAML; only the text "off" is accepted."""
+    """off without quotes is a boolean in YAML; the mode is read as text, "off" in quotes."""
     assert yaml.safe_load("mode: off")["mode"] is False
     assert yaml.safe_load('mode: "off"')["mode"] == "off"
-    assert _stops(growth_settings, _with(network_growth=yaml.safe_load("mode: off")))
-    assert not _stops(growth_settings, _with(network_growth=yaml.safe_load('mode: "off"')))
+    assert _stops(growth_settings, _with(network_growth__mode=yaml.safe_load("mode: off")["mode"]))
+    assert not _stops(growth_settings, _with(network_growth__mode=yaml.safe_load('mode: "off"')["mode"]))
+    assert growth_settings(_with(network_growth__mode="off"))["network_growth"]["mode"] == "off"
 
 
 def test_growth_merge_strict_keys_and_open_maps(tmp_path):

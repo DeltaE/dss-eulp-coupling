@@ -97,11 +97,15 @@ def test_loading_percentages_and_the_short_flag():
     assert math.isclose(trs["t3"]["loading_percent"], 50.0) and trs["t3"]["new"] == 1
     assert trs["t3"]["peak_date"] == "2018-06-17" and trs["t2"]["loading_percent"] is None
 
-    head_kva = np.array([1000.0, 9000.0, 4000.0])
-    rating, head_line = pl.head_rating(net, MASTER)
-    assert head_line == "head" and math.isclose(rating, 400.0 * 12.47 * math.sqrt(3.0))
-    out = {r["limit"]: r for r in pl.limit_rows(list(rows.values()), list(trs.values()), head_kva, rating,
-                                                head_line, LIMITS, DATES)}
+    # the head: the line Monitor m1 watches, its kVA from the mode 1 export and its phase currents from the
+    # mode 0 export
+    m2 = pd.DataFrame({" S1 (kVA)": [1000.0, 9000.0, 4000.0], " Ang1": [0.0, 0.0, 0.0]})
+    m1 = pd.DataFrame({" I1": [100.0, 300.0, 200.0], " I2": [90.0, 280.0, 320.0], " I3": [80.0, 270.0, 190.0]})
+    assert pl.head_lines(MASTER) == [(1, "head")]
+    heads = pl.head_rows(net, pl.head_lines(MASTER), {1: (m1, m2)}, DATES)
+    rating = heads[0]["rating_kva"]
+    assert heads[0]["line"] == "head" and math.isclose(rating, 400.0 * 12.47 * math.sqrt(3.0))
+    out = {r["limit"]: r for r in pl.limit_rows(list(rows.values()), list(trs.values()), heads, LIMITS, DATES)}
     # the short line (250 percent) is left out of the line limit; the worst is main2
     assert out["line"]["elements_checked"] == 3 and out["line"]["elements_over"] == 1
     assert out["line"]["worst_element"] == "main2" and math.isclose(out["line"]["worst_value"], 102.5)
@@ -110,15 +114,24 @@ def test_loading_percentages_and_the_short_flag():
     assert out["transformer"]["worst_element"] == "t1"
     assert out["head"]["elements_checked"] == 1 and out["head"]["elements_over"] == 1
     assert math.isclose(out["head"]["worst_value"], 100.0 * 9000.0 / rating) and out["head"]["worst_step"] == 2
+    assert out["head"]["worst_element"] == "head" and out["head"]["worst_date"] == "2018-06-16"
+    # the same head by its largest phase current: 320 A of 400 A on phase 2 at step 3
+    assert [r["limit"] for r in pl.limit_rows([], [], heads, LIMITS, DATES)] == ["line", "head", "head_phase",
+                                                                                 "transformer"]
+    assert out["head_phase"]["elements_over"] == 0 and math.isclose(out["head_phase"]["worst_value"], 80.0)
+    assert out["head_phase"]["worst_step"] == 3 and out["head_phase"]["setting"] == \
+        "100 percent of normamps, largest phase"
+    assert (heads[0]["amps_1"], heads[0]["amps_2"], heads[0]["amps_3"]) == (200.0, 320.0, 190.0)
     # each limit is a setting: at 75 percent the head line of 75 percent is not over, main2 still is
-    tight = {r["limit"]: r for r in pl.limit_rows(list(rows.values()), list(trs.values()), head_kva, rating,
-                                                  head_line, dict(LIMITS, line_limit_percent=75,
-                                                                  transformer_limit_percent=40,
-                                                                  head_limit_percent=200), DATES)}
+    tight = {r["limit"]: r for r in pl.limit_rows(list(rows.values()), list(trs.values()), heads,
+                                                  dict(LIMITS, line_limit_percent=75, transformer_limit_percent=40,
+                                                       head_limit_percent=200), DATES)}
     assert tight["line"]["elements_over"] == 1 and tight["transformer"]["elements_over"] == 2
     assert tight["head"]["elements_over"] == 0
-    loose = pl.limit_rows(list(rows.values()), list(trs.values()), head_kva, None, None, LIMITS, DATES)[1]
+    no_rating = [dict(heads[0], rating_kva=None, kva_percent=None, phase_percent=None)]
+    loose = pl.limit_rows(list(rows.values()), list(trs.values()), no_rating, LIMITS, DATES)[1]
     assert loose["elements_checked"] == 0 and loose["worst_value"] is None    # no rating: nothing to check
+    assert loose["worst_element"] == "head" and pl.limit_rows([], [], [], LIMITS, DATES)[1]["worst_element"] == ""
 
 
 def test_head_series_as_phase_8():

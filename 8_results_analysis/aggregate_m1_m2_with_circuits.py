@@ -22,7 +22,20 @@ Created on Tue Nov 11 20:35:25 2025
 # head power of the case's circuits summed step by step against the sum of the kVA of the
 # transformers in the topology's substation folder (the folder that holds the feeder
 # folders), with coincident (1 when every circuit of the mix has the same window dates) and
-# windows (the first date of each circuit's window). With growth off nothing is added.
+# windows (the first date of each circuit's window), and the substation units as records
+# (units_existing, unit_kva, units_in_all, units_added; network_growth.substation_units).
+# With growth off nothing is added.
+# With network growth on (network_growth.mode other than "off" in growth.yaml) the deploy
+# may add heads to a circuit (a new feeder, a second circuit of a head line), each with
+# Monitors h<k>m1 and h<k>m2. feeder_head_kva is then the sum of the ratings of the heads and
+# the data rows of aggregate_m1.csv and aggregate_m2.csv hold the sum over the heads
+# (planning_limits.head_totals), so every reader of the data rows sees the whole circuit; one
+# extra set of rows per head carries row_type head and the head's number in the column head.
+# The summary rows and circuit_summary.csv get heads and network_growth_rounds, and this
+# script writes network_growth_summary.csv (one row per circuit folder: what was built, as
+# quantities) and network_growth_built.yaml (the items of every circuit folder, in the format
+# network_growth.carry_forward reads). The ModifiedCircuitData/round_<round>/ folders the
+# deploy keeps are left out of every count.
 
 import os
 import re
@@ -34,6 +47,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import STEPS_PER_DAY, WINDOW_DAYS_FILE, resolve_work_path
 from pipeline_utils import growth_on, growth_settings, load_config, load_growth, resolve_config_path
+from pipeline_utils import network_growth_on
 
 def _read_dss_text(path: Path) -> str:
     try:
@@ -78,6 +92,9 @@ def _find_dss_file(dss_files, name: str):
     return min(matches, key=lambda p: len(str(p)))
 
 def _feeder_head_kva(dss_files):
+    """The rating of the feeder head: normamps of the LineCode of the Line that Monitor m1
+    watches x base kV x sqrt(3). With more heads (the Lines of Monitors h<k>m1, network
+    growth), the sum of the ratings of the heads."""
     master_path = _find_dss_file(dss_files, "Master.dss")
     lines_path = _find_dss_file(dss_files, "Lines.dss")
     linecodes_path = _find_dss_file(dss_files, "LineCodes.dss")
@@ -85,17 +102,27 @@ def _feeder_head_kva(dss_files):
         return None
 
     monitor_line_name = None
+    more_heads = []
     base_kv = None
     for command in _iter_dss_commands(_read_dss_text(master_path)):
         if re.search(r"\bnew\s+monitor\.m1\b", command, re.IGNORECASE):
             element = _dss_value(command, "element")
             if element and element.lower().startswith("line."):
                 monitor_line_name = element.split(".", 1)[1]
+        if re.search(r"\bnew\s+monitor\.h\d+m1\b", command, re.IGNORECASE):
+            element = _dss_value(command, "element")
+            if element and element.lower().startswith("line."):
+                more_heads.append(element.split(".", 1)[1])
         if re.search(r"\bnew\s+circuit\.", command, re.IGNORECASE):
             base_kv = _float_or_none(_dss_value(command, "basekv"))
     if not (monitor_line_name and base_kv is not None):
         return None
+    first = _head_line_kva(monitor_line_name, base_kv, lines_path, linecodes_path)
+    if first is None or not more_heads:
+        return first
+    return first + sum(_head_line_kva(name, base_kv, lines_path, linecodes_path) or 0.0 for name in more_heads)
 
+def _head_line_kva(monitor_line_name, base_kv, lines_path, linecodes_path):
     linecode_name = None
     for command in _iter_dss_commands(_read_dss_text(lines_path)):
         m = re.search(r"\bnew\s+line\.([^\s]+)", command, re.IGNORECASE)
@@ -136,6 +163,8 @@ if __name__ == "__main__":
     ROOT = Path(resolve_work_path("7_circuit_instantiation"))
     # Load growth (growth.yaml): with growth on, the planning limits of every circuit
     GROWTH = growth_settings(load_growth())
+    NETWORK_GROWTH = network_growth_on(GROWTH)  # the tables and totals of network growth
+    growth_summary_rows, growth_built_items = [], []
     mix_power = {}  # {mix: [(circuit folder, head kW per step, head kvar per step)]}
     mix_windows = {}  # {mix: [the dates of each circuit's window]}, in the order of mix_power
     if growth_on(GROWTH):
@@ -143,6 +172,7 @@ if __name__ == "__main__":
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation',
                                         'deployer_modules'))
         import planning_limits
+        import network_growth
 
     # Accumulators
     m1_frames = []
@@ -202,7 +232,7 @@ if __name__ == "__main__":
         m2_path = max(m2_big, key=lambda p: p.stat().st_size)
 
         # ---- Parse DSS files for counts + feeder head thermal capacity ----
-        dss_files = list(mcd.rglob("*.dss"))
+        dss_files = [p for p in mcd.rglob("*.dss") if not p.relative_to(mcd).parts[0].startswith("round_")]
 
         load_names = set()
         storage_names = set()
@@ -264,6 +294,58 @@ if __name__ == "__main__":
             for _, limit_row in limits_frame.iterrows():
                 day_x_steps[f"limit_{limit_row['limit']}_over"] = limit_row["elements_over"]
                 day_x_steps[f"limit_{limit_row['limit']}_worst"] = limit_row["worst_value"]
+        heads = [(1, "")]
+        if NETWORK_GROWTH:
+            # Network growth: the heads of the circuit and what the deploy built in it
+            rounds_path = mcd / "network_growth_rounds.csv"
+            if not (rounds_path.is_file() and (mcd / "network_growth.csv").is_file()
+                    and (mcd / network_growth.BUILT_FILE).is_file()):
+                problems.append(f"{circuit_dir.name}  # No network growth tables (network_growth.mode "
+                                f"{GROWTH['network_growth']['mode']})")
+                continue
+            heads = planning_limits.head_lines(_read_dss_text(_find_dss_file(dss_files, "Master.dss")))
+            rounds_frame = pd.read_csv(rounds_path, dtype=str, keep_default_na=False)
+            built_frame = pd.read_csv(mcd / "network_growth.csv")
+            used = rounds_frame[rounds_frame["round"].str.isdigit() & (rounds_frame["round"] != "0")
+                                & (rounds_frame["converged"] == "1")]
+            day_x_steps = dict(day_x_steps, heads=len(heads), network_growth_rounds=len(used))
+            growth_built_items.extend(network_growth.read_built(mcd / network_growth.BUILT_FILE))
+
+            def by_value(frame, amount):
+                """<value of now>:<sum of amount>, one per value, joined by ;"""
+                sums = {}
+                for value, x in zip(frame["now"], amount):
+                    sums[str(value)] = sums.get(str(value), 0.0) + float(x)
+                return ";".join(f"{value}:{format(sums[value], '.6g')}" for value in sorted(sums))
+
+            by_step = {step: built_frame[built_frame["step"] == step] for step in network_growth.ITEM_STEPS}
+            feeders_new, lines_built = by_step["new_feeder"], by_step["reconductor"]
+            trs_built, regs, moved = by_step["service_transformer"], by_step["regulator"], by_step["rebalance_phases"]
+            recoded = lines_built[lines_built["was"].astype(str).str.lower() != lines_built["now"].astype(str).str.lower()]
+            added_km = (lines_built["count"] - lines_built["count_before"]) * lines_built["length_m"] / 1000.0
+            replaced = trs_built[trs_built["was"].astype(float) != trs_built["now"].astype(float)] \
+                if len(trs_built) else trs_built
+            growth_summary_rows.append({
+                "circuit_folder": circuit_dir.name, "substation": substation, "feeder": feeder, "scenario": scenario,
+                "rounds": len(used), "planned_items": int((built_frame["round"].astype(str) == "planned").sum()),
+                "items": len(built_frame), "heads": len(heads),
+                "new_feeders": len(feeders_new), "express_km": feeders_new["length_m"].sum() / 1000.0,
+                "express_km_by_code": by_value(feeders_new, feeders_new["length_m"] / 1000.0),
+                "rebuilt_km": (recoded["count_before"] * recoded["length_m"]).sum() / 1000.0,
+                "rebuilt_km_by_code": by_value(recoded, recoded["count_before"] * recoded["length_m"] / 1000.0),
+                "second_circuit_km": added_km.sum(),
+                "second_circuit_km_by_code": by_value(lines_built[added_km > 0], added_km[added_km > 0]),
+                "transformers_replaced": int(replaced["count_before"].sum()),
+                "transformers_replaced_by_kva": by_value(replaced, replaced["count_before"]),
+                "parallel_units": int((trs_built["count"] - trs_built["count_before"]).sum()),
+                "parallel_units_by_kva": by_value(trs_built[trs_built["count"] > trs_built["count_before"]],
+                                                  (trs_built["count"] - trs_built["count_before"])[
+                                                      trs_built["count"] > trs_built["count_before"]]),
+                "regulators": len(regs), "regulator_units": int(regs["count"].sum()),
+                "regulator_kva": (regs["count"] * regs["kva"]).sum(),
+                "laterals_moved": len(moved), "laterals_moved_km": moved["length_m"].sum() / 1000.0,
+                "limits_over": ";".join(f"{r['limit']}:{r['elements_over']}" for _, r in limits_frame.iterrows()
+                                        if r["limit"] != "voltage_band" and r["elements_over"] > 0)})
             # The dates of the circuit's window: window_days.csv, or with one day the date
             # of the planning limits (every step of a one-day run is on day X)
             if window_days is not None:
@@ -289,6 +371,16 @@ if __name__ == "__main__":
         try:
             df_m1 = pd.read_csv(m1_path)
             df_m2 = pd.read_csv(m2_path)
+            head_raw = {}
+            if len(heads) > 1:
+                # Network growth: the data rows hold the sum over the heads
+                prefix = m1_path.name[:m1_path.name.lower().rindex("_mon_m1")]
+                for head_k, _ in heads:
+                    mon = "" if head_k == 1 else f"h{head_k}"
+                    head_raw[head_k] = (pd.read_csv(mcd / f"{prefix}_Mon_{mon}m1_1.csv"),
+                                        pd.read_csv(mcd / f"{prefix}_Mon_{mon}m2_1.csv"))
+                df_m1, df_m2 = planning_limits.head_totals([pair[0] for pair in head_raw.values()],
+                                                           [pair[1] for pair in head_raw.values()])
 
             # Add identifiers
             for df in (df_m1, df_m2):
@@ -407,6 +499,26 @@ if __name__ == "__main__":
 
             df_m1 = pd.concat([df_m1, pd.DataFrame([summary_base])], ignore_index=True)
             df_m2 = pd.concat([df_m2, pd.DataFrame([summary_base])], ignore_index=True)
+            # Network growth: with several heads, one extra set of rows per head (row_type head)
+            for head_k, pair in head_raw.items():
+                head_frames = []
+                for df in pair:
+                    df["circuit_folder"] = circuit_dir.name
+                    df["substation"] = substation
+                    df["feeder"] = feeder
+                    df["scenario"] = scenario
+                    df["timestep"] = range(1, len(df) + 1)
+                    if window_days is not None:
+                        day = (df["timestep"] - 1) // STEPS_PER_DAY
+                        df["date"] = window_days["date"].to_numpy()[day]
+                        df["day_index"] = window_days["day_index"].astype(int).to_numpy()[day]
+                        df["day_type"] = window_days["day_type"].to_numpy()[day]
+                    df = insert_timestep_next_to(add_pq_totals(df))
+                    df["row_type"] = "head"
+                    df["head"] = head_k
+                    head_frames.append(df)
+                df_m1 = pd.concat([df_m1, head_frames[0]], ignore_index=True)
+                df_m2 = pd.concat([df_m2, head_frames[1]], ignore_index=True)
 
             m1_frames.append(df_m1)
             m2_frames.append(df_m2)
@@ -432,6 +544,11 @@ if __name__ == "__main__":
         sub_rows = planning_limits.substation_rows(mix_power, rating,
                                                    GROWTH["planning_limits"]["substation_limit_percent"],
                                                    mix_windows)
+        # Substation units, as records: the power flow is unchanged
+        sub_record = network_growth.substation_record({"transformers.dss": _read_dss_text(tr_path) if tr_path else ""})
+        for row in sub_rows:
+            row.update(network_growth.substation_units(sub_record, row["peak_kva"], row["over"],
+                                                       GROWTH["network_growth"]["sizing_percent"], NETWORK_GROWTH))
         pd.DataFrame(sub_rows).to_csv(ROOT / "substation_limits.csv", index=False)
         by_mix = {r["scenario"]: r for r in sub_rows}
         for row in summary_rows:
@@ -449,6 +566,9 @@ if __name__ == "__main__":
         pd.concat(m2_frames, ignore_index=True).to_csv(out_m2, index=False)
     if summary_rows:
         pd.DataFrame(summary_rows).to_csv(out_summary, index=False)
+    if NETWORK_GROWTH and growth_summary_rows:
+        pd.DataFrame(growth_summary_rows).to_csv(ROOT / "network_growth_summary.csv", index=False)
+        network_growth.write_built(ROOT / network_growth.BUILT_FILE, growth_built_items)
     if problems:
         out_problems.write_text("\n".join(problems) + "\n", encoding="utf-8")
 
