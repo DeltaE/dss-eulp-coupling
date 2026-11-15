@@ -294,6 +294,12 @@ if __name__ == "__main__":
             for _, limit_row in limits_frame.iterrows():
                 day_x_steps[f"limit_{limit_row['limit']}_over"] = limit_row["elements_over"]
                 day_x_steps[f"limit_{limit_row['limit']}_worst"] = limit_row["worst_value"]
+            # The dates of the circuit's window: window_days.csv, or with one day the date
+            # of the planning limits (every step of a one-day run is on day X)
+            if window_days is not None:
+                circuit_dates = list(window_days["date"])
+            else:
+                circuit_dates = [d for d in limits_frame["worst_date"].dropna().astype(str) if d][:1]
         heads = [(1, "")]
         if NETWORK_GROWTH:
             # Network growth: the heads of the circuit and what the deploy built in it
@@ -346,12 +352,6 @@ if __name__ == "__main__":
                 "laterals_moved": len(moved), "laterals_moved_km": moved["length_m"].sum() / 1000.0,
                 "limits_over": ";".join(f"{r['limit']}:{r['elements_over']}" for _, r in limits_frame.iterrows()
                                         if r["limit"] != "voltage_band" and r["elements_over"] > 0)})
-            # The dates of the circuit's window: window_days.csv, or with one day the date
-            # of the planning limits (every step of a one-day run is on day X)
-            if window_days is not None:
-                circuit_dates = list(window_days["date"])
-            else:
-                circuit_dates = [d for d in limits_frame["worst_date"].dropna().astype(str) if d][:1]
 
         # Record a clean, time-independent summary row for this circuit
         summary_rows.append({
