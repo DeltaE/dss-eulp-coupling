@@ -21,7 +21,8 @@ Created on Tue Nov 11 20:35:25 2025
 # substation_percent and substation_over; substation_limits.csv gets one row per mix: the
 # head power of the case's circuits summed step by step against the sum of the kVA of the
 # transformers in the topology's substation folder (the folder that holds the feeder
-# folders). With growth off nothing is added.
+# folders), with coincident (1 when every circuit of the mix has the same window dates) and
+# windows (the first date of each circuit's window). With growth off nothing is added.
 
 import os
 import re
@@ -136,6 +137,7 @@ if __name__ == "__main__":
     # Load growth (growth.yaml): with growth on, the planning limits of every circuit
     GROWTH = growth_settings(load_growth())
     mix_power = {}  # {mix: [(circuit folder, head kW per step, head kvar per step)]}
+    mix_windows = {}  # {mix: [the dates of each circuit's window]}, in the order of mix_power
     if growth_on(GROWTH):
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation'))
         sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation',
@@ -258,9 +260,16 @@ if __name__ == "__main__":
                                 f"{GROWTH['growth_years']})")
                 continue
             day_x_steps = dict(day_x_steps, growth_years=GROWTH["growth_years"])
-            for _, limit_row in pd.read_csv(limits_path).iterrows():
+            limits_frame = pd.read_csv(limits_path)
+            for _, limit_row in limits_frame.iterrows():
                 day_x_steps[f"limit_{limit_row['limit']}_over"] = limit_row["elements_over"]
                 day_x_steps[f"limit_{limit_row['limit']}_worst"] = limit_row["worst_value"]
+            # The dates of the circuit's window: window_days.csv, or with one day the date
+            # of the planning limits (every step of a one-day run is on day X)
+            if window_days is not None:
+                circuit_dates = list(window_days["date"])
+            else:
+                circuit_dates = [d for d in limits_frame["worst_date"].dropna().astype(str) if d][:1]
 
         # Record a clean, time-independent summary row for this circuit
         summary_rows.append({
@@ -357,6 +366,7 @@ if __name__ == "__main__":
             if growth_on(GROWTH):
                 mix_power.setdefault(scenario, []).append(
                     (circuit_dir.name, df_m2["P_3ph (kW)"].to_numpy(), df_m2["Q_3ph (kVAr)"].to_numpy()))
+                mix_windows.setdefault(scenario, []).append(circuit_dates)
 
             # Try to place 'timestep' next to a time column ('hour', 'time', 'Time', 't(sec)')
             def insert_timestep_next_to(df):
@@ -420,7 +430,8 @@ if __name__ == "__main__":
         if rating is None:
             print(f"Substation rating not found in {substation_dir}: rating and percent left empty.")
         sub_rows = planning_limits.substation_rows(mix_power, rating,
-                                                   GROWTH["planning_limits"]["substation_limit_percent"])
+                                                   GROWTH["planning_limits"]["substation_limit_percent"],
+                                                   mix_windows)
         pd.DataFrame(sub_rows).to_csv(ROOT / "substation_limits.csv", index=False)
         by_mix = {r["scenario"]: r for r in sub_rows}
         for row in summary_rows:

@@ -278,20 +278,29 @@ def substation_rating(transformers_text):
     return float(sum(kva)) if kva else None
 
 
-def substation_rows(mix_power, rating, limit):
+def substation_rows(mix_power, rating, limit, windows=None):
     """One row per mix for substation_limits.csv. mix_power: {mix: [(circuit, p, q)]},
     p and q the head kW and kvar per step of each circuit of the case. The head power is
     summed step by step over the circuits (P and Q apart, by step number), then taken as
     kVA. Columns: scenario, circuits, rating_kva, limit_percent, peak_kva, peak_step,
-    percent, over. Without a rating, rating_kva, percent and over stay empty."""
+    percent, over. Without a rating, rating_kva, percent and over stay empty.
+    windows, when given: {mix: [the dates of each circuit's window, in the order of
+    mix_power]}; it adds coincident (1 when every circuit of the mix has the same window
+    dates, else 0: the sum then adds step i of windows on different dates) and windows
+    (the first date of each circuit's window, joined by ;)."""
     rows = []
     for mix, parts in mix_power.items():
         n = min(len(p) for _, p, _ in parts)
         kva = np.hypot(sum(np.asarray(p[:n], dtype=float) for _, p, _ in parts),
                        sum(np.asarray(q[:n], dtype=float) for _, _, q in parts))
         peak = float(kva.max())
-        rows.append({"scenario": mix, "circuits": len(parts), "rating_kva": rating, "limit_percent": limit,
-                     "peak_kva": peak, "peak_step": int(kva.argmax()) + 1,
-                     "percent": 100.0 * peak / rating if rating else None,
-                     "over": int(100.0 * peak / rating > limit) if rating else None})
+        row = {"scenario": mix, "circuits": len(parts), "rating_kva": rating, "limit_percent": limit,
+               "peak_kva": peak, "peak_step": int(kva.argmax()) + 1,
+               "percent": 100.0 * peak / rating if rating else None,
+               "over": int(100.0 * peak / rating > limit) if rating else None}
+        if windows is not None:
+            dates = [list(d) for d in windows[mix]]
+            row["coincident"] = int(all(d == dates[0] for d in dates))
+            row["windows"] = ";".join(d[0] if d else "" for d in dates)
+        rows.append(row)
     return rows

@@ -105,6 +105,13 @@ from the plan of phase growth (<work_root>/growth/growth_plan.json):
   and its b is added to every step of the feeder curve (growth.stretch on the whole
   year of its building's curve in its group).
 - Step 6 cuts every mix on day X under per_circuit too; the baseline check does not run.
+With peak_day_rule: per_substation, steps 1 to 4 run as above, and:
+- Day X of every feeder of the case, per season, is the peak day of the sum of the mix
+  curves of the case's feeders, added step by step (pipeline_utils.shared_peak_day; the
+  grown curves with growth on), so all circuits of the substation share one day. Peak_kW
+  of a feeder's row is that feeder's own highest value on the day.
+- Step 6 cuts every mix on day X, 100 % baseline included; the baseline check does not
+  run.
 """
 
 import argparse
@@ -121,6 +128,7 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from pipeline_utils import (heating_label_unit, load_config, load_feeder_registry, load_mixes,
                             peak_day_rule, read_given_days, resolve_config_path, resolve_work_path)
+from pipeline_utils import shared_peak_day
 from pipeline_utils import WINDOW_YEAR, horizon_days, window_dates
 from pipeline_utils import growth_on, growth_settings, load_growth, read_growth_plan
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '7_circuit_instantiation'))
@@ -308,7 +316,7 @@ def run_mix(mix_name):
     """Find day X for every feeder and season of mix_name, then cut its profiles (see
     the module docstring)."""
     rule = peak_day_rule(cfg)
-    if rule not in ("per_circuit", "given"):
+    if rule not in ("per_circuit", "given", "per_substation"):
         print(f"[mix_days] peak_day_rule is {rule}: mix {mix_name} skipped, nothing written.")
         return
     mixes = load_mixes(cfg["mixes_file"])
@@ -530,8 +538,26 @@ def run_mix(mix_name):
                 day_rows.append([feeder, season, mix_name, month, day, peak_kw])
                 print(f"[mix_days] {mix_name} {feeder} {season}: day X {month:02d}-{day:02d} "
                       f"(given), Peak_kW {peak_kw:.2f}")
+    if rule == "per_substation":
+        # One day for all feeders of the case: the peak day of the sum of their mix curves.
+        with_curve = [feeder_dir.name for feeder_dir in feeders if feeder_dir.name in mix_curves]
+        shared = {season: shared_peak_day([mix_curves[f]["demand"].to_numpy() for f in with_curve], months)
+                  for season, months in (("winter", WINTER_MONTHS), ("summer", SUMMER_MONTHS))}
+        for feeder in with_curve:
+            for season in ("winter", "summer"):
+                if shared[season] is None:
+                    continue
+                month, day, sum_kw = shared[season]
+                curve = mix_curves[feeder]
+                on_day = curve[(curve["time"].dt.month == month) & (curve["time"].dt.day == day)]
+                peak_kw = on_day["demand"].max()
+                day_x[(feeder, season)] = on_day["time"].iloc[0].date()
+                day_rows.append([feeder, season, mix_name, month, day, peak_kw])
+                print(f"[mix_days] {mix_name} {feeder} {season}: day X {month:02d}-{day:02d} "
+                      f"(per_substation, peak of the sum of {len(with_curve)} feeders {sum_kw:.2f} kW), "
+                      f"Peak_kW {peak_kw:.2f}")
     # Under per_circuit, day X is the mix curve's peak day of each feeder and season.
-    for feeder in (df_peak_mix["Feeder"].unique() if given is None else []):
+    for feeder in (df_peak_mix["Feeder"].unique() if rule == "per_circuit" else []):
         for season, months in (("winter", WINTER_MONTHS), ("summer", SUMMER_MONTHS)):
             peak = season_peak_row(df_peak_mix, feeder, months)
             if peak is None:
@@ -555,8 +581,8 @@ def run_mix(mix_name):
     print(f"[mix_days] {mix_name}: {n_buildings} buildings, {n_count_diff} with a load count "
           f"different from REAL_LOAD_COUNT. Written: {days_path}")
 
-    # 6) Baseline check, or the cut on day X (every mix under peak_day_rule given, and
-    # with load growth on)
+    # 6) Baseline check, or the cut on day X (every mix under peak_day_rule given and
+    # per_substation, and with load growth on)
     if rule == "per_circuit" and is_baseline_only(shares) and plan is None:
         peak_days_path = resolve_work_path("5b_profile_generation", STR_STATE + "_peak_days.csv")
         ref = pd.read_csv(peak_days_path, dtype=str, keep_default_na=False)

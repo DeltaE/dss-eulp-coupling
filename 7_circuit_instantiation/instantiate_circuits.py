@@ -113,7 +113,7 @@ HP_BASELINE_ROOT = Path(resolve_work_path("7_circuit_instantiation", STATE + '_4
 HP_DM_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_6_profhp_dm'))
 HP_UN_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_7_profhp_un'))
 # peak_day_rule (pipeline_config.yaml): with per_circuit, a circuit whose mix is not
-# 100 % baseline, and with given, every circuit, reads the three profhp roots under
+# 100 % baseline, and with given or per_substation, every circuit, reads the three profhp roots under
 # <work_root>/mix_days/<mix>/ (phase mix_days) instead (pipeline_utils.uses_mix_days).
 PEAK_DAY_RULE = peak_day_rule(cfg)
 # heating_label_unit (pipeline_config.yaml): building or customer, the unit the heating

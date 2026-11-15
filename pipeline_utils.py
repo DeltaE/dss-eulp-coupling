@@ -88,7 +88,7 @@ def load_mixes(path):
         return json.load(f) if suffix == ".json" else yaml.safe_load(f)
 
 
-PEAK_DAY_RULES = ("per_group", "per_circuit", "given")
+PEAK_DAY_RULES = ("per_group", "per_circuit", "given", "per_substation")
 
 
 def peak_day_rule(cfg):
@@ -166,11 +166,32 @@ def read_given_days(folder):
 
 def uses_mix_days(rule, baseline_only, growth=False):
     """Whether a circuit reads its day and profiles from <work_root>/mix_days/<mix>/:
-    always under peak_day_rule given, and under per_circuit for a mix that is not 100 %
-    baseline. With growth on (growth_years above 0 in growth.yaml) every mix under
-    per_circuit does, 100 % baseline included, because its day is the peak day of the
-    grown curve."""
-    return rule == "given" or (rule == "per_circuit" and (growth or not baseline_only))
+    always under peak_day_rule given and per_substation, and under per_circuit for a mix
+    that is not 100 % baseline. With growth on (growth_years above 0 in growth.yaml)
+    every mix under per_circuit does, 100 % baseline included, because its day is the
+    peak day of the grown curve."""
+    return rule in ("given", "per_substation") or (rule == "per_circuit" and (growth or not baseline_only))
+
+
+def shared_peak_day(curves, months):
+    """(month, day, peak) of the peak day of the sum of curves (peak_day_rule
+    per_substation): each curve holds a 365-day year of STEPS_PER_DAY values a day from
+    1 January, and the curves are added step by step. The day is the one whose highest
+    summed value is the highest among the days whose month is in months, the first such
+    day of the year on a tie; peak is that value. None when no day of those months is
+    whole in every curve."""
+    best = None
+    if not curves:
+        return best
+    days = min(len(c) for c in curves) // STEPS_PER_DAY
+    for d in range(days):
+        date = datetime.date(WINDOW_YEAR, 1, 1) + datetime.timedelta(days=d)
+        if date.month not in months:
+            continue
+        top = max(sum(float(c[i]) for c in curves) for i in range(d * STEPS_PER_DAY, (d + 1) * STEPS_PER_DAY))
+        if best is None or top > best[2]:
+            best = (date.month, date.day, top)
+    return best
 
 
 # The multi-day window (horizon_days in pipeline_config.yaml): horizon_days consecutive

@@ -46,9 +46,10 @@ Inputs
 - <work_root>/5b_profile_generation/<STATE>_peak_days.csv: each feeder's baseline
   winter and summer peak day (Phase 5b).
 - With peak_day_rule: per_circuit in pipeline_config.yaml, for a circuit whose mix is
-  not 100 % baseline, and with given, for every circuit:
+  not 100 % baseline, and with given or per_substation, for every circuit:
   <work_root>/mix_days/<STATE>_circuit_days.csv, the circuit's day per feeder, season
-  and mix (phase mix_days: its own peak day or the given day), and the mix's shares in
+  and mix (phase mix_days: its own peak day, the given day, or under per_substation
+  the peak day of the sum of the case's feeders), and the mix's shares in
   <work_root>/7_circuit_instantiation/mixes.<ext>, the workspace copy of the mixes
   file (ext yaml, yml or json). The mix is the part of the circuit folder name after
   _circuit_<n>_.
@@ -829,11 +830,11 @@ def simulated_day(feeder, season):
     Return (month, day) of the simulated day of feeder for season: the feeder's
     baseline peak day for that season in <work_root>/5b_profile_generation/<STATE>_peak_days.csv.
     With peak_day_rule per_circuit and a circuit mix that is not 100 % baseline, and with
-    given for every circuit mix, the date is the row of the feeder, season and mix in
-    <work_root>/mix_days/<STATE>_circuit_days.csv instead (pipeline_utils.uses_mix_days).
-    The records hold no year. Stops if the season or the peak day is missing, or under
-    per_circuit or given if the circuit's mix is not in the workspace copy of the mixes
-    file.
+    given or per_substation for every circuit mix, the date is the row of the feeder,
+    season and mix in <work_root>/mix_days/<STATE>_circuit_days.csv instead
+    (pipeline_utils.uses_mix_days). The records hold no year. Stops if the season or the
+    peak day is missing, or under per_circuit, given or per_substation if the circuit's
+    mix is not in the workspace copy of the mixes file.
     """
     if season not in ("summer", "winter"):
         print(f"[FAIL] scenario_assignments.json season is {season!r}; expected summer or winter.")
@@ -841,7 +842,7 @@ def simulated_day(feeder, season):
     peak_days_path = os.path.join(CFG["work_root"], "5b_profile_generation",
                                   f"{CFG['state']}_peak_days.csv")
     mix_name = None
-    if PEAK_DAY_RULE in ("per_circuit", "given"):
+    if PEAK_DAY_RULE in ("per_circuit", "given", "per_substation"):
         m_mix = re.match(r"^.*_circuit_\d+_(.+)$", CIRCUIT_FOLDER)
         mixes_dir = os.path.join(CFG["work_root"], "7_circuit_instantiation")
         mixes_path = next((os.path.join(mixes_dir, f"mixes{ext}") for ext in (".yaml", ".yml", ".json")

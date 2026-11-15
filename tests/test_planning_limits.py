@@ -189,6 +189,14 @@ def test_substation_rating_and_rows():
     assert rows["baseline"]["peak_kva"] == 10000.0 and rows["baseline"]["peak_step"] == 2
     assert rows["baseline"]["percent"] == 25.0 and rows["baseline"]["over"] == 0 and rows["baseline"]["circuits"] == 2
     assert rows["stress"]["percent"] == 125.0 and rows["stress"]["over"] == 1
+    assert "coincident" not in rows["baseline"]
+    # the windows of the circuits of a mix: coincident 1 when every circuit has the same dates
+    windows = {"baseline": [["2018-07-10", "2018-07-11"], ["2018-07-10", "2018-07-11"]],
+               "stress": [["2018-07-10", "2018-07-11"], ["2018-07-17", "2018-07-18"]]}
+    rows = {r["scenario"]: r for r in pl.substation_rows(power, 40000.0, 100, windows)}
+    assert (rows["baseline"]["coincident"], rows["baseline"]["windows"]) == (1, "2018-07-10;2018-07-10")
+    assert (rows["stress"]["coincident"], rows["stress"]["windows"]) == (0, "2018-07-10;2018-07-17")
+    assert rows["stress"]["percent"] == 125.0                       # the sum still adds step i of each window
     empty = pl.substation_rows(power, None, 100)[0]
     assert empty["rating_kva"] is None and empty["percent"] is None and empty["over"] is None
     assert empty["peak_kva"] == 10000.0
