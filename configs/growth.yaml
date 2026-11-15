@@ -191,7 +191,7 @@ planning_limits:
 # The run reports what it built as quantities; it holds no costs. Nothing is drawn: the same
 # inputs give the same outputs. The rules are in README.md, section "Network growth".
 # Sources of the kinds of step and their order: NREL DISCO documentation, Upgrade Cost
-# Analysis, https://nrel.github.io/disco/analysis-workflows/upgrade-cost-analysis.html
+# Analysis, https://natlabrockies.github.io/disco/analysis-workflows/upgrade-cost-analysis.html
 # (thermal upgrades before voltage upgrades; a higher-rated item of similar configuration from
 # a catalog, else similar equipment in parallel; a new regulator on a common upstream node of
 # the buses with violations); City of Riverside Public Utilities, Distribution Design Manual,
