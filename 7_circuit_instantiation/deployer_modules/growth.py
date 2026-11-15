@@ -18,11 +18,18 @@ curves. Per circuit (one SMART-DS feeder):
 - Counts (counts). New homes = round(H x ((1 + households / 100) ^ years - 1)), H the
   circuit's homes. Companion businesses by the companions setting. The infill share
   splits both between infill and extension blocks.
-- Infill. Each infill home is a copy of one existing home, the first n of one seeded
-  order of the homes; each infill companion a copy of one business of the pool
-  (companion_pool). A copy copies its customer's connection (copy_customer).
+- The plan is built year by year (year_additions, plan_years), in one seeded sequence
+  per circuit: the plan of a horizon is the state after its last year, so a longer
+  horizon holds every unit of a shorter one. Year t adds what the counts at t years
+  hold beyond what earlier years added.
+- Infill. Each infill home is a copy of one existing home, the next position of one
+  seeded order of the homes; each companion a copy of one business drawn for it
+  (companion_candidates, companion_draw). A copy copies its customer's connection
+  (copy_customer).
 - Blocks. A block is a copy of one of the circuit's laterals (find_laterals), attached
-  at a three-phase medium-voltage bus (place_blocks).
+  at a three-phase medium-voltage bus (attach_bus). Block homes and block companions
+  wait until a lateral fits; those still waiting at the horizon arrive as infill copies
+  marked waiting.
 - Named loads. Loads of one ComStock building type, each on a three-phase
   medium-voltage bus, connected like the existing customer of the nearest size
   (connect_named).
@@ -32,9 +39,10 @@ offset of "<substation>|<feeder>" (growth_seed). Every draw has its own name on 
 seed (draw), so adding a draw never moves another. Counts are computed, never drawn:
 the seeds only choose which customer or lateral is copied and where it attaches.
 
-New names: <template name>_g<unit>, the unit being one infill copy, one block, one
-companion or one named load, numbered from 1 in plan order. A load keeps its _<n> leg
-suffix after the _g<unit> part, so the name of a new customer never ends in _<digits>.
+New names: <template name>_g<unit>, the unit being one infill home (h<position in the
+home order>), one block (b<k>), one companion (c<k>) or one named load (n<entry>x<j>).
+A load keeps its _<n> leg suffix after the _g<unit> part, so the name of a new customer
+never ends in _<digits>.
 """
 
 import math
@@ -120,6 +128,20 @@ def counts(homes, businesses, rates, years, companions, national, share):
     return {"new_homes": new_homes, "companions": n_comp, "infill_homes": infill_homes,
             "block_homes": new_homes - infill_homes, "infill_companions": infill_comp,
             "block_companions": n_comp - infill_comp}
+
+
+def year_additions(homes, businesses, rates, years, companions, national, share):
+    """What each year adds, [{count: n}] for year 1 to years. With C(t) the six counts
+    of counts at t years, year t adds max(0, C(t) - what earlier years added) of each,
+    so a count that never falls from one year to the next sums to its value at the
+    horizon."""
+    added, out = {}, []
+    for t in range(1, int(years) + 1):
+        c = counts(homes, businesses, rates, t, companions, national, share)
+        step = {key: max(0, value - added.get(key, 0)) for key, value in c.items()}
+        added = {key: added.get(key, 0) + step[key] for key in c}
+        out.append(step)
+    return out
 
 
 def stretch_coefficients(peak, mean, factor, peak_factor):
@@ -492,20 +514,31 @@ def copy_customer(net, base, unit, connection, at=None, own_transformer=False):
 
 
 # ---------------------------------------------------------------------------
-# The companion pool
+# Companions
 # ---------------------------------------------------------------------------
-def companion_pool(businesses, buildings, companions, excluded_types):
-    """(pool, bound, mean): the businesses a companion may copy. buildings: {business:
-    {"type", "sqft"}} for the businesses whose building is known. mean is the mean floor
-    area of the circuit's businesses with a known building (excluded types included),
-    bound = companions x mean. The pool leaves out the excluded ComStock types, the
-    businesses above bound and those without a known building. Sorted."""
+def mean_floor_area(businesses, buildings):
+    """The mean floor area of the circuit's businesses with a known building (buildings:
+    {business: {"type", "sqft"}}), the excluded types included; 0 without one."""
     areas = [buildings[b]["sqft"] for b in businesses if b in buildings]
-    mean = sum(areas) / len(areas) if areas else 0.0
-    bound = companions * mean
-    pool = sorted(b for b in businesses if b in buildings and buildings[b]["type"] not in excluded_types
-                  and buildings[b]["sqft"] <= bound)
-    return pool, bound, mean
+    return sum(areas) / len(areas) if areas else 0.0
+
+
+def companion_candidates(k, businesses, buildings, excluded_types, mean):
+    """(pool, bound) of the k-th companion of a circuit (k from 1): the sorted
+    businesses with a known building, a type outside excluded_types and a floor area no
+    larger than bound = k x mean, mean the circuit's mean floor area per business. The
+    bound grows with k, so no copy is larger than the companion count times the mean."""
+    bound = k * mean
+    return sorted(b for b in businesses if b in buildings and buildings[b]["type"] not in excluded_types
+                  and buildings[b]["sqft"] <= bound), bound
+
+
+def companion_draw(k, pool, copied, seed):
+    """The business the k-th companion copies: one seeded draw called companion_<k>
+    among pool, leaving out the businesses in copied (those earlier companions copied)
+    while any other is left. None for an empty pool."""
+    fresh = [b for b in pool if b not in copied] or list(pool)
+    return fresh[draw(f"companion_{k}", seed).randrange(len(fresh))] if fresh else None
 
 
 # ---------------------------------------------------------------------------
@@ -592,31 +625,62 @@ def attach_bus(candidates, xy, centre, bearing, radius, earlier):
     return best[1] if best else None
 
 
-def eligible_templates(laterals, homes_left, companions_left, pool):
+def eligible_templates(laterals, homes_waiting, companions_waiting, placed, businesses, buildings,
+                       excluded_types, mean):
     """The laterals that fit: homes-only and mixed laterals with no more homes than
-    homes_left; a mixed lateral also needs no more businesses than companions_left, each
-    of them in pool."""
-    pool = set(pool)
+    homes_waiting. A mixed lateral also needs no more businesses than companions_waiting,
+    each with a known building, a type outside excluded_types and a floor area no larger
+    than (placed + b) x mean, placed being the companions placed so far and b the
+    lateral's businesses (companion_candidates at the index of its last business)."""
+    businesses = set(businesses)
     out = []
     for lat in laterals:
-        if lat["kind"] not in ("homes", "mixed") or lat["homes"] > homes_left:
+        if lat["kind"] not in ("homes", "mixed") or lat["homes"] > homes_waiting:
             continue
         if lat["kind"] == "mixed":
-            biz = [b for b in lat["customers"] if b in pool]
-            if lat["businesses"] > companions_left or len(biz) != lat["businesses"]:
+            members = [b for b in lat["customers"] if b in businesses]
+            pool, _ = companion_candidates(placed + lat["businesses"], members, buildings, excluded_types, mean)
+            if lat["businesses"] > companions_waiting or len(pool) != lat["businesses"]:
                 continue
         out.append(lat)
     return out
 
 
-def place_blocks(net, laterals, block_homes, block_companions, pool, seed, given_buses=()):
-    """Place blocks one after another until no template fits. Returns (blocks,
-    remainder_homes, companions_left). Block k (from 1): a seeded draw
-    (block_template_<k>) among eligible_templates; it attaches at the next unused bus of
-    given_buses, else at attach_bus along the seeded bearing block_bearing_<k>. A block
-    without an attach bus is not built: its homes join the remainder and placement goes
-    on. Each block: k, template (the lateral), attach (None when not built), given,
-    bearing_deg, radius_m. remainder_homes are the block homes that arrive as infill."""
+def plan_years(net, laterals, additions, home_order, businesses, buildings, excluded_types, seed,
+               given_buses=()):
+    """The growth plan of one circuit as a list of events in plan order, built year by
+    year from additions (year_additions). The events of the first N years are the plan
+    of horizon N apart from the waiting events, so plans nest across horizons.
+
+    Inside year t, in this order:
+    1. The year's infill homes take the next positions of home_order (the seeded order
+       of the homes; past its end it starts again).
+    2. The year's infill companions are the next companions.
+    3. The year's block homes join the waiting homes and its block companions the
+       waiting companions. While a template is eligible (eligible_templates), block k (k
+       runs over the whole plan) is one seeded draw (block_template_<k>) among them; it
+       attaches at the next unused bus of given_buses, else at attach_bus along the
+       seeded bearing block_bearing_<k>. A built block takes its homes and businesses
+       off the waiting lists; the businesses of a mixed lateral are the next companions.
+       A block without an attach bus is not built: its homes leave the waiting list and
+       arrive as infill homes at the next positions, marked remainder.
+    4. Once a block is built, the waiting companions are dealt to the built blocks: the
+       j-th dealt companion of the circuit goes to block ((j - 1) mod B) + 1 in build
+       order, B being the blocks built when it is dealt.
+    At the end of the last year the homes still waiting arrive as infill homes and the
+    companions still waiting as the next companions, both marked remainder and waiting.
+
+    The k-th companion (k counts infill companions, the businesses of mixed laterals
+    and dealt companions as they arrive) copies companion_draw of companion_candidates;
+    an empty pool leaves it without a template.
+
+    Events, each with year:
+    - home: position, template, remainder, waiting;
+    - companion: k, template (None when the pool is empty), block (the block it is dealt
+      to, else None), pool (its size), bound, remainder, waiting;
+    - block: k, template (the lateral), attach (None when not built), given,
+      bearing_deg, radius_m, companions (the k of each business of a built mixed
+      lateral, in the order of its customers)."""
     xy = project(net["coords"])
     centre = load_centre(net, xy)
     candidates = three_phase_mv_buses(net)
@@ -624,30 +688,74 @@ def place_blocks(net, laterals, block_homes, block_companions, pool, seed, given
     for b in given:
         if b not in candidates:
             raise GrowthError(f"block_attach_buses: {b} is not a three-phase medium-voltage bus of the feeder")
-    blocks, earlier, remainder = [], [], 0
-    homes_left, companions_left, k = block_homes, block_companions, 0
-    while True:
-        fits = eligible_templates(laterals, homes_left, companions_left, pool)
-        if not fits:
-            break
-        k += 1
-        lat = fits[draw(f"block_template_{k}", seed).randrange(len(fits))]
-        bearing = draw(f"block_bearing_{k}", seed).random() * 2.0 * math.pi
-        radius = lateral_radius(lat, xy)
-        block = {"k": k, "template": lat, "given": False, "bearing_deg": math.degrees(bearing),
-                 "radius_m": radius, "attach": None}
-        if given:
-            block["attach"], block["given"] = given.pop(0), True
-        else:
-            block["attach"] = attach_bus(candidates, xy, centre, bearing, radius, earlier)
-        homes_left -= lat["homes"]
-        if block["attach"] is None:
-            remainder += lat["homes"]
-        else:
-            companions_left -= lat["businesses"]
+    mean = mean_floor_area(businesses, buildings)
+    events, built, earlier, copied = [], [], [], set()
+    state = {"position": 0, "k": 0, "blocks": 0, "dealt": 0}
+
+    def home(year, remainder=False, waiting=False):
+        if not home_order:
+            return
+        state["position"] += 1
+        events.append({"event": "home", "year": year, "position": state["position"],
+                       "template": take(home_order, state["position"])[-1],
+                       "remainder": remainder, "waiting": waiting})
+
+    def companion(year, block=None, remainder=False, waiting=False):
+        state["k"] += 1
+        pool, bound = companion_candidates(state["k"], businesses, buildings, excluded_types, mean)
+        template = companion_draw(state["k"], pool, copied, seed)
+        if template is not None:
+            copied.add(template)
+        events.append({"event": "companion", "year": year, "k": state["k"], "template": template,
+                       "block": block, "pool": len(pool), "bound": bound, "remainder": remainder,
+                       "waiting": waiting})
+
+    homes_waiting = companions_waiting = 0
+    for year, add in enumerate(additions, start=1):
+        for _ in range(add["infill_homes"]):
+            home(year)
+        for _ in range(add["infill_companions"]):
+            companion(year)
+        homes_waiting += add["block_homes"]
+        companions_waiting += add["block_companions"]
+        while True:
+            fits = eligible_templates(laterals, homes_waiting, companions_waiting, state["k"], businesses,
+                                      buildings, excluded_types, mean)
+            if not fits:
+                break
+            state["blocks"] += 1
+            n = state["blocks"]
+            lat = fits[draw(f"block_template_{n}", seed).randrange(len(fits))]
+            bearing = draw(f"block_bearing_{n}", seed).random() * 2.0 * math.pi
+            radius = lateral_radius(lat, xy)
+            block = {"event": "block", "year": year, "k": n, "template": lat, "given": False,
+                     "bearing_deg": math.degrees(bearing), "radius_m": radius, "attach": None, "companions": []}
+            if given:
+                block["attach"], block["given"] = given.pop(0), True
+            else:
+                block["attach"] = attach_bus(candidates, xy, centre, bearing, radius, earlier)
+            events.append(block)
+            homes_waiting -= lat["homes"]
+            if block["attach"] is None:
+                for _ in range(lat["homes"]):
+                    home(year, remainder=True)
+                continue
+            members = [b for b in lat["customers"] if b in set(businesses)]
+            block["companions"] = [state["k"] + i for i in range(1, len(members) + 1)]
+            state["k"] += len(members)
+            copied.update(members)
+            companions_waiting -= lat["businesses"]
             earlier.append((block["attach"], radius))
-        blocks.append(block)
-    return blocks, remainder + homes_left, companions_left
+            built.append(block)
+        while built and companions_waiting:
+            state["dealt"] += 1
+            companions_waiting -= 1
+            companion(year, block=built[(state["dealt"] - 1) % len(built)]["k"])
+    for _ in range(homes_waiting):
+        home(len(additions), remainder=True, waiting=True)
+    for _ in range(companions_waiting):
+        companion(len(additions), remainder=True, waiting=True)
+    return events
 
 
 def copy_lateral(net, lateral, unit, attach):

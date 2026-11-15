@@ -24,9 +24,13 @@ Inputs
 
 Outputs, all under <work_root>/growth/
 - growth_plan.json: the merged settings and, per feeder, its seed, factors, counts,
-  the units (one per infill copy, block, companion or named load, each with its new
-  Line and Transformer statements, its new Load lines, its new bus coordinates and its
-  new customers), the loadshapes new to the feeder and their constant kvar over kW.
+  the units (one per infill copy, block, companion or named load, each with the year it
+  arrives, its new Line and Transformer statements, its new Load lines, its new bus
+  coordinates and its new customers), the loadshapes new to the feeder and their
+  constant kvar over kW. The plan is built year by year (growth.plan_years), so the
+  plan of a longer horizon holds every unit of a shorter one; the units marked waiting
+  (homes and companions still waiting for a block at the horizon) are the only ones a
+  longer horizon may place differently.
 - growth_customers.csv, growth_blocks.csv, growth_named_loads.csv, growth_factors.csv,
   growth_summary.csv (columns in docs/outputs.md).
 
@@ -196,8 +200,11 @@ def main():
         zone = sorted(zones, key=lambda z: (-zones[z], z))[0] if zones else ""
 
         n = growth.counts(len(homes), len(businesses), rates, years, g["companions"], g["companions_national"], share)
-        pool, bound, mean_area = growth.companion_pool(businesses, buildings, n["companions"],
-                                                       g["companion_excluded_types"])
+        additions = growth.year_additions(len(homes), len(businesses), rates, years, g["companions"],
+                                          g["companions_national"], share)
+        mean_area = growth.mean_floor_area(businesses, buildings)
+        pool, bound = growth.companion_candidates(n["companions"], businesses, buildings,
+                                                  g["companion_excluded_types"], mean_area)
 
         load_factors = {}
         for i, entry in enumerate(g["load_factors"]):
@@ -215,19 +222,21 @@ def main():
 
         units = []
 
-        def add_unit(label, kind, elements, customers, remainder=False, shift=None):
+        def add_unit(label, kind, elements, customers, year, remainder=False, waiting=False, shift=None):
             coords = growth.shifted_coords(net, elements["buses"], *(shift or (None, None)))
-            units.append({"unit": label, "kind": kind, "remainder": remainder, "lines": elements["lines"],
+            units.append({"unit": label, "kind": kind, "year": year, "remainder": remainder, "waiting": waiting,
+                          "lines": elements["lines"],
                           "transformers": elements["transformers"], "loads": elements["loads"],
                           "coords": {b: list(xy) for b, xy in sorted(coords.items())}, "customers": customers})
 
-        def customer_row(label, kind, new_base, template, elements, remainder=False, building="", btype="",
-                         shape=None):
+        def customer_row(label, kind, new_base, template, elements, year, remainder=False, waiting=False,
+                         building="", btype="", shape=None):
             seg = cust[template]["segment"]
             loads = [ld for ld in elements["loads"] if ld["base"] == new_base]
             info = buildings.get(template, {})
             t_customers.append({
-                "Feeder": feeder, "unit": label, "name": new_base, "kind": kind, "remainder": int(remainder),
+                "Feeder": feeder, "unit": label, "name": new_base, "kind": kind, "year": year,
+                "remainder": int(remainder), "waiting": int(waiting),
                 "copied_customer": template, "building": building or info.get("bldg_id", ""), "segment": seg,
                 "type": btype or info.get("type", ""), "factor": factors[seg],
                 "bus": loads[0]["bus1"].split(".")[0] if loads else "",
@@ -238,7 +247,7 @@ def main():
             return {"name": new_base, "template": template, "segment": seg, "factor": factors[seg],
                     "shape": shape or sorted(cust[template]["shapes"])[0]}
 
-        def copy_one(label, kind, template, remainder=False, at=None):
+        def copy_one(label, kind, template, year, remainder=False, waiting=False, at=None):
             conn = growth.customer_connection(net, template, tr_map, served)
             elements = growth.copy_customer(net, template, label, conn, at=at, own_transformer=at is not None)
             shift = None
@@ -246,68 +255,71 @@ def main():
                 up = conn["up"] if elements["pattern"] == "mv_line" else conn["transformer"]["windings"][0][1]
                 shift = (up, at)
             new_base = growth.new_name(template, label)
-            add_unit(label, kind, elements, [customer_row(label, kind, new_base, template, elements, remainder)],
-                     remainder, shift)
+            add_unit(label, kind, elements,
+                     [customer_row(label, kind, new_base, template, elements, year, remainder, waiting)],
+                     year, remainder, waiting, shift)
 
-        # 1. Infill homes: the first n of one seeded order of the circuit's homes
+        # 1 to 5. The plan, year by year (growth.plan_years): infill homes, companions and
+        # blocks in the order they arrive
         home_order = growth.seeded_order(homes, "infill_homes", seed)
-        for i, template in enumerate(growth.take(home_order, n["infill_homes"]), start=1):
-            copy_one(f"h{i}", "infill", template)
-
-        # 2. Blocks
+        laterals = growth.find_laterals(net)
         try:
-            blocks, remainder, companions_left = growth.place_blocks(
-                net, growth.find_laterals(net), n["block_homes"], n["block_companions"], pool, seed,
-                g["block_attach_buses"].get(feeder, []))
+            events = growth.plan_years(net, laterals, additions, home_order, businesses, buildings,
+                                       g["companion_excluded_types"], seed, g["block_attach_buses"].get(feeder, []))
         except growth.GrowthError as e:
             fail(f"{feeder}: {e}.")
-        built = [b for b in blocks if b["attach"] is not None]
-        for blk in blocks:
-            lat = blk["template"]
-            label = f"b{blk['k']}"
-            row = {"Feeder": feeder, "block": blk["k"], "unit": label if blk["attach"] else "",
-                   "built": int(blk["attach"] is not None), "template_root": lat["root"], "template_tap": lat["tap"],
-                   "kind": lat["kind"], "homes": lat["homes"], "businesses": lat["businesses"],
-                   "attach_bus": blk["attach"] or "", "attach_given": int(blk["given"]),
-                   "bearing_deg": "" if blk["given"] else blk["bearing_deg"], "radius_m": blk["radius_m"],
-                   "lines": len(lat["lines"]), "transformers": len(lat["transformers"]),
-                   "customers": len(lat["customers"]), "companions_dealt": 0,
-                   "attach_distance_m": growth.path_length_m(net, blk["attach"]) if blk["attach"] else ""}
-            blk["row"] = row
-            t_blocks.append(row)
-            if blk["attach"] is None:
-                continue
-            elements = growth.copy_lateral(net, lat, label, blk["attach"])
-            elements["transformer_of"] = {}
-            for base in lat["customers"]:
-                names_tr = {tr_map.get(ld["name"]) for ld in cust[base]["loads"]}
-                tr_name = names_tr.pop() if len(names_tr) == 1 else None
-                elements["transformer_of"][growth.new_name(base, label)] = growth.new_name(tr_name, label) if tr_name else ""
-            add_unit(label, "block", elements,
-                     [customer_row(label, "block", growth.new_name(base, label), base, elements)
-                      for base in lat["customers"]], shift=(lat["tap"], blk["attach"]))
-
-        # 3. Block companions still due, dealt to the blocks in build order
-        if built:
-            dealt = growth.take(growth.seeded_order(pool, "block_companions", seed), companions_left)
-            for i, template in enumerate(dealt, start=1):
-                blk = built[(i - 1) % len(built)]
-                blk["row"]["companions_dealt"] += 1
-                copy_one(f"d{i}", "companion", template, at=blk["attach"])
-            n_block_companions, extra_infill = len(dealt), 0
-        else:
-            n_block_companions, extra_infill = 0, companions_left
-
-        # 4. Block homes that no block took: infill homes, next in the same order
-        for i, template in enumerate(growth.take(home_order, n["infill_homes"] + remainder)[n["infill_homes"]:],
-                                     start=n["infill_homes"] + 1):
-            copy_one(f"h{i}", "infill", template, remainder=True)
-
-        # 5. Infill companions (and the block companions when no block is built)
-        order = growth.seeded_order(pool, "infill_companions", seed)
-        infill_companions = growth.take(order, n["infill_companions"] + extra_infill)
-        for i, template in enumerate(infill_companions, start=1):
-            copy_one(f"c{i}", "companion", template, remainder=i > n["infill_companions"])
+        block_rows = {}
+        tally = {"blocks_drawn": 0, "blocks_built": 0, "block_homes_built": 0, "block_businesses_built": 0,
+                 "remainder_homes": 0, "waiting_homes": 0, "block_companions_dealt": 0,
+                 "infill_companions_placed": 0, "waiting_companions": 0, "companions_not_placed": 0}
+        for ev in events:
+            if ev["event"] == "home":
+                tally["remainder_homes"] += int(ev["remainder"])
+                tally["waiting_homes"] += int(ev["waiting"])
+                copy_one(f"h{ev['position']}", "infill", ev["template"], ev["year"], ev["remainder"], ev["waiting"])
+            elif ev["event"] == "companion":
+                tally["waiting_companions"] += int(ev["waiting"])
+                if ev["template"] is None:
+                    tally["companions_not_placed"] += 1
+                    continue
+                if ev["block"] is None:
+                    tally["infill_companions_placed"] += 1
+                    copy_one(f"c{ev['k']}", "companion", ev["template"], ev["year"], ev["remainder"], ev["waiting"])
+                else:
+                    tally["block_companions_dealt"] += 1
+                    block_rows[ev["block"]]["companions_dealt"] += 1
+                    copy_one(f"c{ev['k']}", "companion", ev["template"], ev["year"],
+                             at=block_rows[ev["block"]]["attach_bus"])
+            else:
+                lat = ev["template"]
+                label = f"b{ev['k']}"
+                row = {"Feeder": feeder, "block": ev["k"], "year": ev["year"], "unit": label if ev["attach"] else "",
+                       "built": int(ev["attach"] is not None), "template_root": lat["root"],
+                       "template_tap": lat["tap"],
+                       "kind": lat["kind"], "homes": lat["homes"], "businesses": lat["businesses"],
+                       "attach_bus": ev["attach"] or "", "attach_given": int(ev["given"]),
+                       "bearing_deg": "" if ev["given"] else ev["bearing_deg"], "radius_m": ev["radius_m"],
+                       "lines": len(lat["lines"]), "transformers": len(lat["transformers"]),
+                       "customers": len(lat["customers"]), "companions_dealt": 0,
+                       "attach_distance_m": growth.path_length_m(net, ev["attach"]) if ev["attach"] else ""}
+                block_rows[ev["k"]] = row
+                t_blocks.append(row)
+                tally["blocks_drawn"] += 1
+                if ev["attach"] is None:
+                    continue
+                tally["blocks_built"] += 1
+                tally["block_homes_built"] += lat["homes"]
+                tally["block_businesses_built"] += lat["businesses"]
+                elements = growth.copy_lateral(net, lat, label, ev["attach"])
+                elements["transformer_of"] = {}
+                for base in lat["customers"]:
+                    names_tr = {tr_map.get(ld["name"]) for ld in cust[base]["loads"]}
+                    tr_name = names_tr.pop() if len(names_tr) == 1 else None
+                    elements["transformer_of"][growth.new_name(base, label)] = \
+                        growth.new_name(tr_name, label) if tr_name else ""
+                add_unit(label, "block", elements,
+                         [customer_row(label, "block", growth.new_name(base, label), base, elements, ev["year"])
+                          for base in lat["customers"]], ev["year"], shift=(lat["tap"], ev["attach"]))
 
         # 6. Named loads
         new_shapes, n_named = {}, 0
@@ -366,8 +378,9 @@ def main():
                 up = conn["up"] if elements["pattern"] == "mv_line" else conn["transformer"]["windings"][0][1]
                 new_base = growth.new_name(template, label)
                 add_unit(label, "named", elements,
-                         [customer_row(label, "named", new_base, template, elements, building=bldg,
-                                       btype=entry["type"], shape=shape)], shift=(up, bus))
+                         [customer_row(label, "named", new_base, template, elements, int(entry["year"]),
+                                       building=bldg, btype=entry["type"], shape=shape)],
+                         int(entry["year"]), shift=(up, bus))
                 n_named += 1
                 t_named.append({
                     "Feeder": feeder, "entry": e, "number": j, "unit": label, "name": new_base, "type": entry["type"],
@@ -394,19 +407,14 @@ def main():
             "companions_rule": g["companions"], "infill_share": share, **n,
             "mean_floor_area_ft2": mean_area, "floor_area_bound_ft2": bound,
             "businesses_with_building": len(buildings), "pool": len(pool),
-            "laterals": len(growth.find_laterals(net)), "blocks_drawn": len(blocks), "blocks_built": len(built),
-            "block_homes_built": sum(b["template"]["homes"] for b in built),
-            "block_businesses_built": sum(b["template"]["businesses"] for b in built),
-            "remainder_homes": remainder, "block_companions_dealt": n_block_companions,
-            "infill_companions_placed": len(infill_companions),
-            "companions_not_placed": n["companions"] - sum(b["template"]["businesses"] for b in built)
-            - n_block_companions - len(infill_companions),
+            "laterals": len(laterals), **tally,
             "named_loads": n_named, "new_customers": sum(len(u["customers"]) for u in units),
             "climate_zone": zone, "seed": seed})
         print(f"[growth] {feeder}: {len(homes)} homes, {len(businesses)} businesses; new homes {n['new_homes']} "
-              f"(infill {n['infill_homes']}, blocks {n['block_homes']}, remainder {remainder}), companions "
-              f"{n['companions']}, blocks built {len(built)} of {len(blocks)}, named loads {n_named}, "
-              f"units {len(units)}")
+              f"(infill {n['infill_homes']}, blocks {n['block_homes']}, remainder {tally['remainder_homes']}, "
+              f"of them waiting {tally['waiting_homes']}), companions {n['companions']} (waiting "
+              f"{tally['waiting_companions']}), blocks built {tally['blocks_built']} of {tally['blocks_drawn']}, "
+              f"named loads {n_named}, units {len(units)}")
 
     out_dir = resolve_work_path(GROWTH_PLAN_DIR)
     os.makedirs(out_dir, exist_ok=True)
@@ -414,10 +422,12 @@ def main():
         json.dump(plan, f, indent=1)
         f.write("\n")
     tables = (("growth_customers.csv", t_customers, [
-                  "Feeder", "unit", "name", "kind", "remainder", "copied_customer", "building", "segment", "type",
+                  "Feeder", "unit", "name", "kind", "year", "remainder", "waiting", "copied_customer", "building",
+                  "segment", "type",
                   "factor", "bus", "transformer", "pattern", "new_lines", "new_transformers"]),
               ("growth_blocks.csv", t_blocks, [
-                  "Feeder", "block", "unit", "built", "template_root", "template_tap", "kind", "homes", "businesses",
+                  "Feeder", "block", "year", "unit", "built", "template_root", "template_tap", "kind", "homes",
+                  "businesses",
                   "attach_bus", "attach_given", "bearing_deg", "radius_m", "lines", "transformers", "customers",
                   "companions_dealt", "attach_distance_m"]),
               ("growth_named_loads.csv", t_named, [
