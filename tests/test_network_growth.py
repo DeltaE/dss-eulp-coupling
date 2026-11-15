@@ -908,14 +908,14 @@ def test_order_of_the_steps():
 def test_substation_units():
     nc = {"transformers": [{"name": "t", "kva": 40000.0}]}
     tx = {"transformers": [{"name": "t", "kva": 16000.0}]}
-    # ceil(82,916 / (40,000 x 0.75)) = 3 units in all; ceil(18,776 / (16,000 x 0.75)) = 2
-    assert ng.substation_units(nc, 82916.0, 1, 75, True) == {"units_existing": 1, "unit_kva": 40000.0,
+    # ceil(85,000 / (40,000 x 0.75)) = 3 units in all; ceil(19,000 / (16,000 x 0.75)) = 2
+    assert ng.substation_units(nc, 85000.0, 1, 75, True) == {"units_existing": 1, "unit_kva": 40000.0,
                                                               "units_in_all": 3, "units_added": 2}
-    assert ng.substation_units(tx, 18776.0, 1, 75, True) == {"units_existing": 1, "unit_kva": 16000.0,
+    assert ng.substation_units(tx, 19000.0, 1, 75, True) == {"units_existing": 1, "unit_kva": 16000.0,
                                                               "units_in_all": 2, "units_added": 1}
     # within the limit: the existing units; under mode "off" the last two columns stay empty
     assert ng.substation_units(nc, 30000.0, 0, 75, True)["units_added"] == 0
-    assert ng.substation_units(nc, 82916.0, 1, 75, False) == {"units_existing": 1, "unit_kva": 40000.0,
+    assert ng.substation_units(nc, 85000.0, 1, 75, False) == {"units_existing": 1, "unit_kva": 40000.0,
                                                                "units_in_all": None, "units_added": None}
     # a new unit copies the largest; never fewer than the existing units
     two = {"transformers": [{"name": "a", "kva": 10000.0}, {"name": "b", "kva": 20000.0}]}
