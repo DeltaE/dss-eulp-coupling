@@ -639,6 +639,9 @@ def growth_settings(raw, topology_id=None):
             _growth_fail(f"{key}.bus", entry["bus"], "a bus name, or no bus key")
     if g.get("named_load_bus") not in GROWTH_NAMED_BUS:
         _growth_fail("named_load_bus", g.get("named_load_bus"), "one of " + ", ".join(GROWTH_NAMED_BUS))
+    value = g.get("named_load_mv_line_m")
+    if not _number(value) or value <= 0:
+        _growth_fail("named_load_mv_line_m", value, "a number of metres above 0")
     factors = g.get("load_factors")
     if not isinstance(factors, list):
         _growth_fail("load_factors", factors, "a list of {feeder, load, factor, peak_factor}")

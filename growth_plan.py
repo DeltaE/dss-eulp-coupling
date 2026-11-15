@@ -48,7 +48,8 @@ block_attach_buses or named_loads bus that is not a three-phase medium-voltage b
 named load whose type has no building in the Phase 4 selection and none in the Phase 1
 metadata of the state in the most common climate zone of the feeder's businesses (or
 metadata without the zone column); a feeder without a business to copy a named load's
-connection from.
+connection from; a named load that has to connect at medium voltage on a feeder without a
+rated three-phase medium-voltage LineCode.
 """
 
 import argparse
@@ -186,6 +187,9 @@ def main():
         businesses = sorted(b for b, c in cust.items() if c["segment"] == "commercial")
         others = sorted(b for b, c in cust.items() if c["segment"] is None)
         tr_map, served = growth.transformer_map(net, texts)
+        # the lines that feed the feeder's own medium-voltage customers (named loads, pattern mv_new)
+        mv_lines = [conn["line"] for conn in (growth.customer_connection(net, b, tr_map, served)
+                                              for b in sorted(cust)) if conn["pattern"] == "mv_line"]
 
         # The building of each business, from the Phase 4 selection
         buildings, zones, own_ids = {}, Counter(), {}
@@ -374,7 +378,12 @@ def main():
                         new_summary.append([fields[c] for c in summary_header])
                 else:
                     ratio_used = ""
-                elements = growth.connect_named(net, label, template, conn, bus, peak_kva, shape)
+                try:
+                    elements = growth.connect_named(net, label, template, conn, bus, peak_kva, shape, mv_lines,
+                                                    g["named_load_mv_line_m"])
+                except growth.GrowthError as err:
+                    fail(f"named_loads[{e - 1}]: {err}.")
+                mv = elements["mv"] or {}
                 up = conn["up"] if elements["pattern"] == "mv_line" else conn["transformer"]["windings"][0][1]
                 new_base = growth.new_name(template, label)
                 add_unit(label, "named", elements,
@@ -390,7 +399,11 @@ def main():
                     "template_kw": cust[template]["kw"], "pattern": elements["pattern"], "peak_kw": peak_kw,
                     "kvar_per_kw_template": ratio, "kvar_per_kw_constant": ratio_used, "peak_kva": peak_kva,
                     "transformer": elements["transformer"], "transformer_kva": elements["transformer_kva"] or "",
-                    "transformer_large_enough": int(elements["large_enough"]), "factor": factors["commercial"]})
+                    "transformer_large_enough": int(elements["large_enough"]), "factor": factors["commercial"],
+                    "mv_linecode": mv.get("linecode", ""), "mv_normamps": mv.get("normamps", ""),
+                    "mv_peak_amps": mv.get("peak_amps", ""),
+                    "mv_code_carries_load": int(mv["carries"]) if mv else "",
+                    "mv_line_m": mv.get("length_m", ""), "mv_line_rule": mv.get("length_rule", "")})
 
         tag = circuit_of.get(feeder, "")
         plan["feeders"][feeder] = {
@@ -434,7 +447,8 @@ def main():
                   "Feeder", "entry", "number", "unit", "name", "type", "bldg_id", "drawn_from", "candidates", "zone",
                   "new_to_feeder", "loadshape", "bus", "bus_rule", "bus_impedance_ohm", "template", "template_kw",
                   "pattern", "peak_kw", "kvar_per_kw_template", "kvar_per_kw_constant", "peak_kva", "transformer",
-                  "transformer_kva", "transformer_large_enough", "factor"]),
+                  "transformer_kva", "transformer_large_enough", "factor", "mv_linecode", "mv_normamps",
+                  "mv_peak_amps", "mv_code_carries_load", "mv_line_m", "mv_line_rule"]),
               ("growth_factors.csv", t_factors, ["Feeder", "customer", "segment", "factor", "peak_factor"]),
               ("growth_summary.csv", t_summary, list(t_summary[0]) if t_summary else ["Feeder"]))
     for name, rows, columns in tables:

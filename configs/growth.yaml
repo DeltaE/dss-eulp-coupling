@@ -111,8 +111,24 @@ block_attach_buses: {}
 
 # Loads added by name. Each entry: {feeder, type, count, year, bus}. type is a ComStock
 # building type; the load is present when year is at or below growth_years; bus is optional
-# and must be a three-phase medium-voltage bus of the feeder.
+# and must be a three-phase medium-voltage bus of the feeder. A named load is connected like
+# the existing business of the nearest size. When that business sits behind a service
+# transformer and no transformer of the feeder is large enough for the new load, the load
+# connects at medium voltage: one new three-phase line from its bus to a new bus of its own.
 named_loads: []
+# Length in metres of that new line on a feeder that has no medium-voltage customer. A feeder
+# that has one takes the median length of the lines that feed its own.
+# ASSUMPTION: 269.0 m is the median length of the eight lines that feed the medium-voltage
+# customers of SMART-DS feeders uhs13_1247--udt4015 and uhs13_1247--udt4819 (74 to 638 m). It
+# is used on a feeder that has none; a longer line lowers the voltage at the new load.
+# ASSUMPTION: the new line is overhead and takes the smallest three-phase medium-voltage
+# LineCode of the feeder that carries the load. The SMART-DS Greensboro feeders serve their
+# medium-voltage customers this way, each on a three-phase overhead line of the smallest
+# three-phase medium-voltage overhead code of its feeder; a larger code raises the voltage at
+# the new load a little.
+# Source of the feeders: NREL, SMART-DS Synthetic Electrical Network Data OpenDSS Models for
+# SFO, GSO, and AUS, Open Energy Data Initiative, https://data.openei.org/submissions/2981
+named_load_mv_line_m: 269.0
 # Bus of a named load without bus: seeded | strongest | weakest (lowest or highest
 # positive-sequence impedance magnitude from the source bus along the path).
 named_load_bus: seeded

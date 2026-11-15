@@ -104,7 +104,8 @@ def test_every_bad_growth_value_stops():
         {"named_loads": [{"feeder": "f", "type": "Hospital", "count": 1}]},
         {"named_loads": [{"feeder": "f", "type": "Hospital", "count": 1, "year": 1, "kw": 5}]},
         {"named_loads": [{"feeder": "f", "type": "Hospital", "count": 1, "year": 1, "bus": ""}]},
-        {"named_load_bus": "nearest"},
+        {"named_load_bus": "nearest"}, {"named_load_mv_line_m": 0}, {"named_load_mv_line_m": "269"},
+        {"named_load_mv_line_m": None},
         {"load_factors": [{"feeder": "f", "load": "x"}]},
         {"load_factors": [{"feeder": "f", "load": "x", "factor": 1.1, "peak_factor": 0}]},
         {"load_factors": [{"feeder": "f", "factor": 1.1}]},
@@ -650,6 +651,76 @@ def test_named_load_rules():
     new = growth.connect_named(net, "n1x2", template, conn, "c", 5200.0, "com_kw_10_pu")
     assert new["pattern"] == "mv_line" and new["transformers"] == []
     assert new["lines"][0].startswith("New Line.mvc_gn1x2 Units=km Length=0.03 bus1=c.1.2.3 bus2=m1_gn1x2.1.2.3")
+
+
+def test_named_load_at_medium_voltage():
+    """A named load whose template sits behind a service transformer and that no transformer
+    of the feeder can carry connects at medium voltage on a new line and bus of its own."""
+    net, tr_map, served = _net()
+    assert net["base_kv"] == 12.47
+    mv_lines = [growth.customer_connection(net, b, tr_map, served)["line"] for b in ("load_m1",)]
+    template, conn = growth.named_template(net, 140.0, tr_map, served)
+    assert template == "load_c1" and conn["pattern"] == "transformer"
+    # a load a transformer can carry keeps the transformer pattern
+    kept = growth.connect_named(net, "n1x1", template, conn, "a", 420.0, "com_kw_g77_pu", mv_lines, 269.0)
+    assert kept["pattern"] == "transformer" and kept["large_enough"] and kept["mv"] is None
+    assert kept == growth.connect_named(net, "n1x1", template, conn, "a", 420.0, "com_kw_g77_pu")
+    # above every rating (500 kVA): pattern mv_new, the feeder's median length (one customer, 30 m)
+    new = growth.connect_named(net, "n1x1", template, conn, "a", 600.0, "com_kw_g77_pu", mv_lines, 269.0)
+    assert new["pattern"] == "mv_new" and new["transformers"] == [] and new["transformer"] == ""
+    assert not new["large_enough"] and new["transformer_kva"] is None
+    assert new["lines"] == ["New Line.s4_gn1x1 Units=m Length=30.0 bus1=a.1.2.3 bus2=c1_gn1x1.1.2.3 switch=n "
+                            "enabled=y phases=3 Linecode=3P"]
+    assert new["loads"] == [{"name": "load_c1_gn1x1", "template": "load_c1", "bus1": "c1_gn1x1.1.2.3",
+                             "base": "load_c1_gn1x1", "yearly": "com_kw_g77_pu", "mv_new": 12.47,
+                             "templates": ["load_c1"]}]
+    assert new["buses"] == {"c1_gn1x1": "c1"}
+    mv = new["mv"]
+    assert math.isclose(mv["peak_amps"], 600.0 / (math.sqrt(3.0) * 12.47))
+    # no overhead code on this feeder: the choice is over all three-phase medium-voltage codes
+    assert (mv["linecode"], mv["normamps"], mv["carries"], mv["length_m"], mv["length_rule"]) == \
+        ("3P", 400.0, True, 30.0, "feeder_median")
+    # the new line reads back as a three-phase medium-voltage line of 30 m
+    line = growth.read_feeder(dict(TEXTS, **{"lines.dss": LINES + new["lines"][0] + "\n"}))["lines"][-1]
+    assert (line["b1"], line["b2"], line["phases"], line["length_m"], line["linecode"]) == \
+        ("a", "c1_gn1x1", 3, 30.0, "3p")
+    # a feeder without a medium-voltage customer takes named_load_mv_line_m
+    assert growth.mv_new_line(net, [], 600.0, 269.0)["length_m"] == 269.0
+    assert growth.mv_new_line(net, [], 600.0, 269.0)["length_rule"] == "named_load_mv_line_m"
+    two = growth.mv_new_line(net, [{"length_m": 100.0}, {"length_m": 300.0}], 600.0, 269.0)
+    assert two["length_m"] == 200.0 and two["length_rule"] == "feeder_median"
+    # overhead codes: the smallest normamps at or above the peak current; the largest when none is
+    codes = LINECODES + (
+        "New Linecode.3P_OH_A units=km nphases=3 Rmatrix=(0.2 ) Xmatrix=(0.6 ) normamps=20.0\n"
+        "New Linecode.3P_OH_B units=km nphases=3 Rmatrix=(0.2 ) Xmatrix=(0.6 ) normamps=30.0\n"
+        "New Linecode.3P_UG_C units=km nphases=3 Rmatrix=(0.2 ) Xmatrix=(0.6 ) normamps=28.0\n")
+    lines = LINES.replace("bus2=b.1.2.3 switch=n enabled=y phases=3 Linecode=3P", "bus2=b.1.2.3 switch=n "
+                          "enabled=y phases=3 Linecode=3P_OH_A")
+    lines = lines.replace("bus2=c.1.2.3 switch=n enabled=y phases=3 Linecode=3P", "bus2=c.1.2.3 switch=n "
+                          "enabled=y phases=3 Linecode=3P_OH_B")
+    lines = lines.replace("bus2=m1.1.2.3 switch=n enabled=y phases=3 Linecode=3P", "bus2=m1.1.2.3 switch=n "
+                          "enabled=y phases=3 Linecode=3P_UG_C")
+    oh = growth.read_feeder(dict(TEXTS, **{"lines.dss": lines, "linecodes.dss": codes}))
+    pick = growth.mv_new_line(oh, [], 600.0, 269.0)                      # 27.8 A: above A, the UG code is no choice
+    assert (pick["linecode"], pick["normamps"], pick["carries"]) == ("3P_OH_B", 30.0, True)
+    pick = growth.mv_new_line(oh, [], 400.0, 269.0)                      # 18.5 A
+    assert (pick["linecode"], pick["normamps"], pick["carries"]) == ("3P_OH_A", 20.0, True)
+    pick = growth.mv_new_line(oh, [], 700.0, 269.0)                      # 32.4 A: none carries it
+    assert (pick["linecode"], pick["normamps"], pick["carries"]) == ("3P_OH_B", 30.0, False)
+    assert _raises(growth.mv_new_line, dict(net, base_kv=None), [], 600.0, 269.0)
+    # a medium-voltage template keeps the copy of its own line
+    template, conn = growth.named_template(net, 5000.0, tr_map, served)
+    new = growth.connect_named(net, "n1x2", template, conn, "c", 9000.0, "com_kw_10_pu", mv_lines, 269.0)
+    assert new["pattern"] == "mv_line" and new["mv"] is None
+    assert new["lines"][0].startswith("New Line.mvc_gn1x2 Units=km Length=0.03 bus1=c.1.2.3 bus2=m1_gn1x2.1.2.3")
+    # the Load line Phase 7b writes for pattern mv_new
+    text = growth.mv_load_line("New Load.load_c1 conn=wye bus1=c1.1.2.3 kV=0.48 Vminpu=0.8 Vmaxpu=1.2 model=1 "
+                               "kW=1 kvar=1 Phases=3 daily=com_kw_11_pu", "load_c1_gn1x1", "c1_gn1x1.1.2.3", 12.47,
+                               0.5 * 1.25, 1.25, "com_kw_g77_pu")
+    assert text == ("New Load.load_c1_gn1x1 conn=wye bus1=c1_gn1x1.1.2.3 kV=12.47 Vminpu=0.8 Vmaxpu=1.2 model=1 "
+                    "kW=0.625 kvar=1.25 Phases=3 daily=com_kw_g77_pu")
+    load = growth.read_feeder(dict(TEXTS, **{"loads.dss": text.replace("daily=", "yearly=")}))["loads"][0]
+    assert (load["bus"], load["kv"], load["phases"], load["base"]) == ("c1_gn1x1", 12.47, 3, "load_c1_gn1x1")
 
 
 def test_named_candidates_and_stops():

@@ -32,7 +32,9 @@ curves. Per circuit (one SMART-DS feeder):
   marked waiting.
 - Named loads. Loads of one ComStock building type, each on a three-phase
   medium-voltage bus, connected like the existing customer of the nearest size
-  (connect_named).
+  (connect_named). When that customer sits behind a service transformer and no
+  transformer of the feeder is large enough, the load connects at medium voltage on a
+  new line and bus of its own (mv_new_line).
 
 Seeds: one growth seed per circuit, random_seed of pipeline_config.yaml plus the sha256
 offset of "<substation>|<feeder>" (growth_seed). Every draw has its own name on that
@@ -48,6 +50,7 @@ never ends in _<digits>.
 import math
 import random
 import re
+import statistics
 
 from heating_split import _stable_seed_offset, load_segment
 from ev_control import _PROP_RE, _array, _bus, _logical_lines, service_transformers
@@ -228,7 +231,8 @@ def read_feeder(texts):
     """The network of one feeder. texts: {file name, lower case: text} with lines.dss,
     transformers.dss, loads.dss and master.dss (linecodes.dss and buscoords.dss when
     present). Returns a dict:
-    - source: the source bus of New Circuit (lower case, no nodes);
+    - source: the source bus of New Circuit (lower case, no nodes); base_kv: its basekV
+      (None when not written);
     - lines: one dict per New Line (name, text, bus1, bus2 as written, b1, b2 lower case
       without nodes, phases, length_m, linecode, switch, enabled);
     - transformers: one dict per New Transformer (name, text, windings [(bus as written,
@@ -291,11 +295,13 @@ def read_feeder(texts):
                       "bus": _bus(d.get("bus1", "")), "kv": float(d["kv"]) if "kv" in d else None,
                       "phases": int(d.get("phases", 3)), "kw": float(d.get("kw", 0.0)),
                       "kvar": float(d.get("kvar", 0.0)), "yearly": d.get("yearly")})
-    source = None
+    source = base_kv = None
     for st in _logical_lines(texts.get("master.dss", "")):
         m = re.match(r"(?i)^new\s+circuit\.\S+\s*(.*)$", st)
         if m:
-            source = _bus(dict(_props(m.group(1))).get("bus1", "sourcebus"))
+            d = dict(_props(m.group(1)))
+            source = _bus(d.get("bus1", "sourcebus"))
+            base_kv = float(d["basekv"]) if "basekv" in d else None
             break
     if source is None:
         raise GrowthError("Master.dss has no New Circuit line")
@@ -345,7 +351,7 @@ def read_feeder(texts):
             if kind == "line" and bus in mv:
                 mv.add(other)
             queue.append(other)
-    return {"source": source, "lines": lines, "transformers": transformers, "loads": loads,
+    return {"source": source, "base_kv": base_kv, "lines": lines, "transformers": transformers, "loads": loads,
             "customers": customers, "parent": parent, "children": children, "mv": mv,
             "extra_lines": extra, "linecodes": read_linecodes(texts.get("linecodes.dss", "")),
             "coords": read_coords(texts.get("buscoords.dss", ""))}
@@ -893,22 +899,85 @@ def pick_transformer(net, like, peak_kva):
     return largest[0], False
 
 
-def connect_named(net, unit, template, connection, bus, peak_kva, shape):
+def mv_new_line(net, mv_lines, peak_kva, default_length_m):
+    """The LineCode and length of the new line of a named load that connects at medium
+    voltage. mv_lines: the lines that feed the feeder's own medium-voltage customers.
+    - LineCode: among the LineCodes of the feeder's three-phase medium-voltage lines
+      longer than 1 m whose name holds _OH_ (overhead in SMART-DS names), the one with
+      the smallest normamps at or above the load's peak current, peak_kva / (sqrt(3) x
+      base kV), the first name on a tie; the largest when none is at or above it
+      (carries False); over all three-phase medium-voltage LineCodes of lines longer
+      than 1 m when the feeder has no overhead one.
+    - Length: the median length of mv_lines (rule feeder_median); on a feeder without a
+      medium-voltage customer, default_length_m (rule named_load_mv_line_m).
+    Returns {linecode (as written in Lines.dss), normamps, peak_amps, carries, length_m,
+    length_rule}. Raises GrowthError when the feeder has no rated three-phase
+    medium-voltage LineCode or no base kV."""
+    if not net["base_kv"]:
+        raise GrowthError("Master.dss gives no basekV for a load at medium voltage")
+    written = {}
+    for ln in net["lines"]:
+        code = net["linecodes"].get(ln["linecode"])
+        if (ln["phases"] == 3 and ln["length_m"] > 1.0 and ln["b1"] in net["mv"] and ln["b2"] in net["mv"]
+                and code and code["normamps"] is not None):
+            written.setdefault(ln["linecode"], re.search(r"(?i)\blinecode=(\S+)", ln["text"]).group(1))
+    codes = sorted((net["linecodes"][c]["normamps"], c) for c in written)
+    overhead = [t for t in codes if "_oh_" in t[1]]
+    codes = overhead or codes
+    if not codes:
+        raise GrowthError("the feeder has no rated three-phase medium-voltage LineCode for a load at medium voltage")
+    peak_amps = peak_kva / (math.sqrt(3.0) * net["base_kv"])
+    fits = [t for t in codes if t[0] >= peak_amps]
+    amps, code = fits[0] if fits else [t for t in codes if t[0] == codes[-1][0]][0]
+    lengths = [ln["length_m"] for ln in mv_lines]
+    return {"linecode": written[code], "normamps": amps, "peak_amps": peak_amps, "carries": bool(fits),
+            "length_m": statistics.median(lengths) if lengths else float(default_length_m),
+            "length_rule": "feeder_median" if lengths else "named_load_mv_line_m"}
+
+
+def mv_load_line(template_text, name, bus1, kv, kw, kvar, shape):
+    """The Load line of a customer connected at medium voltage with no line to copy: one
+    three-phase wye load at kv on bus1, with the model, Vminpu and Vmaxpu of
+    template_text (a New Load line) and daily loadshape shape."""
+    d = {k.lower(): v for k, v in _PROP_RE.findall(template_text)}
+    kept = " ".join(f"{key}={d[key.lower()]}" for key in ("Vminpu", "Vmaxpu", "model") if key.lower() in d)
+    return (f"New Load.{name} conn=wye bus1={bus1} kV={format(kv, '.10g')} {kept} kW={format(kw, '.10g')} "
+            f"kvar={format(kvar, '.10g')} Phases=3 daily={shape}")
+
+
+def connect_named(net, unit, template, connection, bus, peak_kva, shape, mv_lines=(), mv_line_m=None):
     """The new elements of a named load as unit on bus (a three-phase medium-voltage
     bus), with the Load lines of template under loadshape shape:
     - a medium-voltage template: a copy of its line from bus to a new load bus;
     - a template behind a service transformer: a transformer (pick_transformer on
-      peak_kva) from bus and a copy of the template's secondary lines to a new load bus.
-    Returns the elements with pattern, transformer, transformer_kva and large_enough."""
+      peak_kva) from bus and a copy of the template's secondary lines to a new load bus;
+    - the same template when no transformer is large enough: pattern mv_new, one new
+      three-phase line (mv_new_line with mv_lines and mv_line_m) from bus to a new bus
+      of its own and one three-phase Load line at the circuit's base kV on that bus
+      (nodes .1.2.3). Its load entry carries mv_new (the kV) and templates (the
+      template's Load lines, whose kW and kvar it carries whole).
+    Returns the elements with pattern, transformer, transformer_kva, large_enough and
+    mv (the dict of mv_new_line, None for another pattern)."""
     c = net["customers"][template]
     if connection["pattern"] == "mv_line":
         busmap = _new_buses([c["bus"]], unit)
         busmap[connection["up"]] = bus
         out = copy_elements(net, unit, [connection["line"]], [], [template], busmap, shape=shape)
-        return dict(out, pattern="mv_line", transformer="", transformer_kva=None, large_enough=True)
+        return dict(out, pattern="mv_line", transformer="", transformer_kva=None, large_enough=True, mv=None)
     like = connection["transformer"]
     lines, top = connection["lines"], like["windings"][-1][1]
     donor, enough = pick_transformer(net, like, peak_kva)
+    if not enough:
+        mv = mv_new_line(net, mv_lines, peak_kva, mv_line_m)
+        new_bus = f"{c['bus']}_g{unit}"
+        line = (f"New Line.{new_name(connection['line']['name'], unit)} Units=m Length={mv['length_m']!r} "
+                f"bus1={bus}.1.2.3 bus2={new_bus}.1.2.3 switch=n enabled=y phases=3 Linecode={mv['linecode']}")
+        first = c["loads"][0]
+        load = {"name": new_name(template, unit), "template": first["name"], "bus1": f"{new_bus}.1.2.3",
+                "base": new_name(template, unit), "yearly": shape, "mv_new": net["base_kv"],
+                "templates": [ld["name"] for ld in c["loads"]]}
+        return {"lines": [line], "transformers": [], "loads": [load], "buses": {new_bus: c["bus"]},
+                "pattern": "mv_new", "transformer": "", "transformer_kva": None, "large_enough": False, "mv": mv}
     busmap = _new_buses(sorted({ln["b1"] for ln in lines} | {ln["b2"] for ln in lines}), unit)
     out = copy_elements(net, unit, lines, [], [template], busmap, shape=shape)
     # the new transformer feeds the upstream end of the copied secondary from bus
@@ -918,7 +987,7 @@ def connect_named(net, unit, template, connection, bus, peak_kva, shape):
     name = new_name(donor["name"], unit)
     out["transformers"] = [copy_text(donor["text"], "transformer", name, tr_buses)]
     return dict(out, pattern="transformer", transformer=name, transformer_kva=donor["windings"][0][3],
-                large_enough=enough)
+                large_enough=enough, mv=None)
 
 
 # ---------------------------------------------------------------------------
