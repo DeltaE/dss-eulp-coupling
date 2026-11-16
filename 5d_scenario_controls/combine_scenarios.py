@@ -75,6 +75,19 @@ folders = [
     PARQUET_DATA_ROOT / eulp_parquet_folder(cfg, "residential")
 ]
 
+# The case's own buildings: per Parquet_Folder, the building ids (Parquet_File before the
+# first "-") of the two Phase 5b files that get_scenario_csv_controls.py reads. Parquets of
+# other buildings in the shared download folders are left out.
+case_buildings = {}
+for base in (f"{STATE}_required_parquets_per_feeder", f"{STATE}_parquet_and_bldgs"):
+    listed_path = resolve_work_path("5b_profile_generation", f"{base}.csv")
+    if not os.path.exists(listed_path):
+        print(f"[FAIL] Phase 5b file not found: {listed_path}")
+        sys.exit(1)
+    listed = pd.read_csv(listed_path, usecols=["Parquet_Folder", "Parquet_File"], dtype=str)
+    for listed_folder, listed_file in zip(listed["Parquet_Folder"], listed["Parquet_File"]):
+        case_buildings.setdefault(listed_folder, set()).add(str(listed_file).split("-")[0])
+
 # We'll keep partial results in a dict: 
 # keys = (folder, building_id, scenario_id), value = sum of demand
 sum_demand_dict = {}
@@ -107,6 +120,8 @@ for folder_path in folders:
             print('happens? 2')
             continue
         building_id, scenario_id = parts
+        if building_id not in case_buildings.get(folder, set()):
+            continue  # not a building of the case
 
         # If residential and scenario not in residential_names, skip
         # If commercial and scenario not in commercial_names, skip
