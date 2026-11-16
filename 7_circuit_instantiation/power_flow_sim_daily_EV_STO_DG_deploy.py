@@ -224,7 +224,8 @@ Load growth (growth_years above 0 in growth.yaml)
   new customers is sized on its building's annual use x its factor (growth.factors). An
   existing host is sized on its annual use without the factor, so it keeps the size of
   a run without growth; with der_resize_with_growth true its annual use is multiplied
-  by its factor too. The roof is unchanged.
+  by its factor too. The roof is unchanged. Under peak_ratio the day X peak takes the
+  same factor as the annual use.
 - Planning limits (planning_limits.py): one Monitor
   per enabled Line (mode 0) and per Transformer (mode 1) in Monitors_Loading.dss,
   redirected before the first Solve of the final solve only. After the solve:
@@ -1455,10 +1456,12 @@ def pv_annual_yield():
         values = [float(r[PV_KW_COLUMN]) / 1000 for r in reader]
     return annual_yield(values, IRR_INTERVAL_H)
 
-def host_sizes(base, seg, bldg, yld):
+def host_sizes(base, seg, bldg, yld, use_factor=1.0):
     """The der_hosts.csv row of host base of segment seg: the building's roof by
     floor_stories and by metadata, and PV kW (Pmpp), inverter kVA and storage kW, kWh
-    and kVA under the segment's pv_rule (step 4 of the module docstring)."""
+    and kVA under the segment's pv_rule (step 4 of the module docstring). Under
+    peak_ratio the peak is the day X peak of peak_kw_for_load x use_factor, the factor
+    on the host's annual use under load growth (growth.der_use_factor; 1 without growth)."""
     p = SIZE[seg]
     roof_fs = roof_area_m2(seg, "floor_stories", bldg["floor_ft2"], bldg["stories"], bldg["roof_column"],
                            p["roof_tilt_deg"])
@@ -1472,7 +1475,7 @@ def host_sizes(base, seg, bldg, yld):
            "roof_used_m2": None, "pv_cap_roof_kw": None, "pv_cap_use_kw": None, "roof_binds": None,
            "peak_kw": None}
     if PV_RULE[seg] == "peak_ratio":
-        pk = peak_kw_for_load(base)
+        pk = peak_kw_for_load(base) * use_factor
         row["peak_kw"] = pk
         row["pv_kw"] = max(PV_MIN_KW, round(PV_KW_PER_PEAK * pk, 1))
         row["storage_kw"] = max(STORAGE_MIN_KW, round(STORAGE_KW_PER_PEAK * pk, 3))
@@ -1522,13 +1525,15 @@ if DER_HOST_LIST:
     for b in DER_HOST_LIST:
         seg = HOST_SEGMENT[b]
         bldg_of_host = building_of(b, seg, bldg_map)
+        use_factor = 1.0
         if GROWTH is not None:
             # load growth (der_resize_with_growth): a new host on its grown annual use, an
             # existing host on its use without growth unless the setting is true; the
-            # roof is unchanged
-            bldg_of_host["annual_use_kwh"] *= growth_rules.der_use_factor(
+            # roof is unchanged. Under peak_ratio the day X peak takes the same factor.
+            use_factor = growth_rules.der_use_factor(
                 b, GROWTH["factors"][b], NEW_CUSTOMERS, GROWTH_SETTINGS["der_resize_with_growth"])
-        DER_ROWS[b] = host_sizes(b, seg, bldg_of_host, annual_yield_kwh_per_kw)
+            bldg_of_host["annual_use_kwh"] *= use_factor
+        DER_ROWS[b] = host_sizes(b, seg, bldg_of_host, annual_yield_kwh_per_kw, use_factor)
         DER_ROWS[b]["units"] = len(der_units(b))
         DER_ROWS[b]["legs"] = DER_ROWS[b]["units"] > 1
 der_cols = ["base", "segment", "pv_host", "storage_host", "loadshape", "bldg_id", "floor_area_ft2", "stories",

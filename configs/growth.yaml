@@ -226,7 +226,9 @@ network_growth:
   # XHL 0.01 and %LoadLoss 0.01, the values of the regulator of the IEEE 13 node test case
   # distributed with OpenDSS,
   # https://github.com/dss-extensions/electricdss-tst/blob/master/Version8/Distrib/IEEETestCases/13Bus/IEEE13Nodeckt.dss
-  # with the ampacity of its line and the vreg, band and ptratio of the substation regulator
+  # with the ampacity of its line (on a line of 1 m or less, a switch, fuse or recloser, the
+  # largest of that and the summed ampacity of each medium-voltage branch longer than 1 m at
+  # either end of the line) and the vreg, band and ptratio of the substation regulator
   # of its SMART-DS topology, read from the substation folder in every run. A regulator with
   # line-drop compensation holds a different voltage downstream.
   steps: [new_feeder, reconductor, service_transformer, regulator]

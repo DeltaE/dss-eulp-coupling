@@ -18,7 +18,9 @@ Created on Tue Nov 11 20:35:25 2025
 # ModifiedCircuitData/planning_limits.csv. The summary rows and circuit_summary.csv then
 # also get growth_years, limit_<limit>_over and limit_<limit>_worst for each row of that
 # file (voltage_band, voltage_low, voltage_high, line, head, transformer), and
-# substation_percent and substation_over; substation_limits.csv gets one row per mix: the
+# substation_percent and substation_over, and n_loads_new, n_evs_new, n_storage_new and
+# n_pv_new beside n_loads, n_evs, n_storage and n_pv: the elements of each count whose
+# customer is a new customer of the run (new_counts); substation_limits.csv gets one row per mix: the
 # head power of the case's circuits summed step by step against the sum of the kVA of the
 # transformers in the topology's substation folder (the folder that holds the feeder
 # folders), with coincident (1 when every circuit of the mix has the same window dates) and
@@ -37,6 +39,7 @@ Created on Tue Nov 11 20:35:25 2025
 # network_growth.carry_forward reads). The ModifiedCircuitData/round_<round>/ folders the
 # deploy keeps are left out of every count.
 
+import json
 import os
 import re
 import sys
@@ -159,6 +162,118 @@ SIZE_THRESHOLD_BYTES = 1024  # set to 1000 if you prefer decimal kB
 M1_RE = re.compile(r"(?<![0-9A-Za-z])m1(?![0-9A-Za-z])", re.IGNORECASE)
 M2_RE = re.compile(r"(?<![0-9A-Za-z])m2(?![0-9A-Za-z])", re.IGNORECASE)
 
+
+def count_names(dss_files):
+    """The element names, lower case, that the counts n_loads, n_storage, n_pv and n_evs
+    count in the .dss files dss_files, as (loads, storage, pv, evs): every New Load but the
+    battery standby Loads standby_storage_<unit>, every New Storage and New PVSystem, and
+    as EVs the Loads and Storage whose name or statement holds a name hint of EV_HINTS."""
+    load_names = set()
+    storage_names = set()
+    pv_names = set()
+    ev_names = set()
+
+    for dss in dss_files:
+        text = _read_dss_text(dss)
+
+        for raw in text.splitlines():
+            # strip comments (// or !) and whitespace
+            core = _strip_dss_comment(raw)
+            if not core:
+                continue
+            line = core.lower()
+
+            # Count loads / storage / PV / EVs (heuristic for EV names)
+            mload = re.search(r"\bnew\s+load\.([^\s=]+)", line)
+            if mload and not mload.group(1).startswith("standby_storage_"):
+                nm = mload.group(1)
+                load_names.add(nm)
+                if any(h in nm for h in EV_HINTS) or any(h in line for h in EV_HINTS):
+                    ev_names.add(nm)
+
+            msto = re.search(r"\bnew\s+storage\.([^\s=]+)", line)
+            if msto:
+                nm = msto.group(1)
+                storage_names.add(nm)
+                if any(h in nm for h in EV_HINTS) or any(h in line for h in EV_HINTS):
+                    ev_names.add(nm)
+
+            mpv = re.search(r"\bnew\s+pvsystem\.([^\s=]+)", line)
+            if mpv:
+                pv_names.add(mpv.group(1))
+    return load_names, storage_names, pv_names, ev_names
+
+
+_LEG_RE = re.compile(r"_[0-9]+$")
+_EV_WORK_RE = re.compile(r"^ev([uc])_w(\d+)_")
+_EV_HOME_RE = re.compile(r"^ev[uc]_(.+)_[12]$")
+_DER_RE = re.compile(r"^(storage|pv)_(.+)$")
+
+
+def element_customer(name, der_bases, car_hosts):
+    """The customer, a load base name in lower case, of the element name (lower case) of
+    count_names, mapped through the records the Phase 7 deploy writes and else by its
+    naming rule:
+    - storage_<base> and pv_<base>, with the leg suffix _1 or _2 when the host has legs:
+      the host base of der_hosts.csv (der_bases), else the name without prefix and suffix;
+    - EVu_w<i>_<office>_<leg> (EVc_w<i>_), the loads of a work car at its office: the home
+      host of car EVu_<i> (EVc_<i>), car_hosts {(u or c, i): host} from
+      EVControl/ev_cars.csv; None when the car is not there;
+    - EVu_<host>_<leg> (EVc_), the loads of a car at home: host;
+    - any other load, <base>_<n> or <base>: base, the deploy's base name (the name
+      without its _<n> suffix, as peak_kw_for_load takes it)."""
+    m = _DER_RE.match(name)
+    if m:
+        return m.group(2) if m.group(2) in der_bases else _LEG_RE.sub("", m.group(2))
+    m = _EV_WORK_RE.match(name)
+    if m:
+        return car_hosts.get((m.group(1), int(m.group(2))))
+    m = _EV_HOME_RE.match(name)
+    if m:
+        return m.group(1)
+    return _LEG_RE.sub("", name)
+
+
+def new_counts(names, new_customers, der_bases, car_hosts):
+    """{n_loads_new, n_evs_new, n_storage_new, n_pv_new}: of names, the (loads, storage, pv,
+    evs) of count_names, the elements whose customer (element_customer) is in
+    new_customers (growth.new_customers of scenario_assignments.json, lower case)."""
+    loads, storage, pv, evs = names
+
+    def count(group):
+        return sum(1 for nm in group if element_customer(nm, der_bases, car_hosts) in new_customers)
+
+    return {"n_loads_new": count(loads), "n_evs_new": count(evs), "n_storage_new": count(storage),
+            "n_pv_new": count(pv)}
+
+
+def customer_records(circuit_dir):
+    """(new_customers, der_bases, car_hosts) of a circuit folder, all lower case:
+    growth.new_customers of scenario_assignments.json; the host bases of
+    ModifiedCircuitData/der_hosts.csv (empty when absent); {(u or c, i): home host} of the
+    cars of EVControl/ev_cars.csv, else of the deploy's host lists (ev_loads_uncontrolled
+    and ev_loads_controlled of scenario_assignments.json, then those of its growth key)."""
+    with open(circuit_dir / "scenario_assignments.json", encoding="utf-8") as f:
+        assign = json.load(f)
+    grown = assign.get("growth") or {}
+    new_customers = {str(c).lower() for c in grown.get("new_customers", [])}
+    der_path = circuit_dir / "ModifiedCircuitData" / "der_hosts.csv"
+    der_bases = set(pd.read_csv(der_path, dtype=str)["base"].str.lower()) if der_path.is_file() else set()
+    cars_path = circuit_dir / "EVControl" / "ev_cars.csv"
+    car_hosts = {}
+    if cars_path.is_file():
+        cars = pd.read_csv(cars_path, dtype=str, keep_default_na=False)
+        for car, host in zip(cars["car"], cars["host"]):
+            m = re.match(r"(?i)^ev([uc])_(\d+)$", car)
+            if m:
+                car_hosts[(m.group(1).lower(), int(m.group(2)))] = host.lower()
+    else:
+        for group, key in (("u", "ev_loads_uncontrolled"), ("c", "ev_loads_controlled")):
+            hosts = list(assign.get(key) or []) + list(grown.get(key) or [])
+            car_hosts.update({(group, i): str(h).lower() for i, h in enumerate(hosts)})
+    return new_customers, der_bases, car_hosts
+
+
 if __name__ == "__main__":
     ROOT = Path(resolve_work_path("7_circuit_instantiation"))
     # Load growth (growth.yaml): with growth on, the planning limits of every circuit
@@ -234,44 +349,21 @@ if __name__ == "__main__":
         # ---- Parse DSS files for counts + feeder head thermal capacity ----
         dss_files = [p for p in mcd.rglob("*.dss") if not p.relative_to(mcd).parts[0].startswith("round_")]
 
-        load_names = set()
-        storage_names = set()
-        pv_names = set()
-        ev_names = set()
-
-        for dss in dss_files:
-            text = _read_dss_text(dss)
-
-            for raw in text.splitlines():
-                # strip comments (// or !) and whitespace
-                core = _strip_dss_comment(raw)
-                if not core:
-                    continue
-                line = core.lower()
-
-                # Count loads / storage / PV / EVs (heuristic for EV names)
-                mload = re.search(r"\bnew\s+load\.([^\s=]+)", line)
-                if mload and not mload.group(1).startswith("standby_storage_"):
-                    nm = mload.group(1)
-                    load_names.add(nm)
-                    if any(h in nm for h in EV_HINTS) or any(h in line for h in EV_HINTS):
-                        ev_names.add(nm)
-
-                msto = re.search(r"\bnew\s+storage\.([^\s=]+)", line)
-                if msto:
-                    nm = msto.group(1)
-                    storage_names.add(nm)
-                    if any(h in nm for h in EV_HINTS) or any(h in line for h in EV_HINTS):
-                        ev_names.add(nm)
-
-                mpv = re.search(r"\bnew\s+pvsystem\.([^\s=]+)", line)
-                if mpv:
-                    pv_names.add(mpv.group(1))
+        load_names, storage_names, pv_names, ev_names = count_names(dss_files)
 
         n_loads = len(load_names)
         n_storage = len(storage_names)
         n_pv = len(pv_names)
         n_evs = len(ev_names)
+        # Load growth: how many of each count belong to the new customers of the run
+        counts_new = {}
+        if growth_on(GROWTH):
+            if not (circuit_dir / "scenario_assignments.json").is_file():
+                problems.append(f"{circuit_dir.name}  # No scenario_assignments.json (growth_years "
+                                f"{GROWTH['growth_years']})")
+                continue
+            counts_new = new_counts((load_names, storage_names, pv_names, ev_names),
+                                    *customer_records(circuit_dir))
         feeder_head_kva = _feeder_head_kva(dss_files)
 
         # The window of a horizon of more than one day (written by the Phase 7 deploy)
@@ -363,6 +455,7 @@ if __name__ == "__main__":
             "n_evs": n_evs,
             "n_storage": n_storage,
             "n_pv": n_pv,
+            **counts_new,
             "feeder_head_kva": feeder_head_kva,
             **day_x_steps
         })
@@ -489,6 +582,7 @@ if __name__ == "__main__":
                 "n_evs": n_evs,
                 "n_storage": n_storage,
                 "n_pv": n_pv,
+                **counts_new,
                 "feeder_head_kva": feeder_head_kva,
                 "row_type": "summary",
                 "timestep": 0,  # clearly outside real time series

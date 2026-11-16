@@ -196,6 +196,36 @@ def test_sizes_under_load_growth():
     assert storage_size(existing_off[0], 1.0, 0.5, 100.0, 2.0) == storage_size(without, 1.0, 0.5, 100.0, 2.0)
 
 
+def test_peak_ratio_under_load_growth():
+    """pv_rule peak_ratio with load growth: the peak that sizes a host is its day X peak x
+    the factor of its annual use (der_use_factor), as the deploy's host_sizes takes it: an
+    existing host keeps the peak of a run without growth unless der_resize_with_growth is
+    true; a new host is sized on its grown peak in both cases."""
+    from der_sizing import day_peak
+    new = {"load_9_gh1"}
+    factor, day_x = 1.05 ** 20, day_peak([20.0] * 96 + [40.0] * 96 + [10.0] * 96, 1)
+    assert day_x == 40.0
+    with open(os.path.join(REPO_ROOT, "pipeline_config.yaml"), encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    pv_per, pv_min = der_number(cfg, "pv_kw_per_peak_kw"), der_number(cfg, "pv_min_kw")
+    st_per, st_min = der_number(cfg, "storage_kw_per_peak_kw"), der_number(cfg, "storage_min_kw")
+
+    def sizes(base, resize):
+        pk = day_x * der_use_factor(base, factor, new, resize)
+        return pk, max(pv_min, round(pv_per * pk, 1)), max(st_min, round(st_per * pk, 3))
+
+    assert sizes("load_1", False) == (40.0, max(pv_min, round(pv_per * 40.0, 1)), max(st_min, round(st_per * 40.0, 3)))
+    assert math.isclose(sizes("load_1", True)[0], 40.0 * factor)
+    assert sizes("load_9_gh1", False) == sizes("load_9_gh1", True) == sizes("load_1", True)
+    assert sizes("load_1", True)[1] > sizes("load_1", False)[1] and sizes("load_1", True)[2] > sizes("load_1", False)[2]
+    # the deploy multiplies the peak of peak_kw_for_load by the factor it puts on the annual use
+    with open(os.path.join(REPO_ROOT, "7_circuit_instantiation", "power_flow_sim_daily_EV_STO_DG_deploy.py"),
+              encoding="utf-8") as f:
+        deploy = f.read()
+    assert "pk = peak_kw_for_load(base) * use_factor" in deploy
+    assert "host_sizes(b, seg, bldg_of_host, annual_yield_kwh_per_kw, use_factor)" in deploy
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

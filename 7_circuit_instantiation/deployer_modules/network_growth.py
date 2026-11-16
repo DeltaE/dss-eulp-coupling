@@ -705,7 +705,10 @@ def regulator_choice(net, groups, under, substation):
     """One line regulator, as ([item], [note]). The regulator is built at the upstream
     end of its line: a new bus, the upstream end of the line and of its second circuits
     moved to it, and per phase one single-phase two-winding transformer whose kVA is the
-    summed normamps of those circuits x base kV / sqrt(3). The step applies when customers are
+    summed normamps of those circuits x base kV / sqrt(3); on a line of SHORT_LINE_M or
+    less (a switch, fuse or recloser) the amps are the largest of that sum and, for each
+    branch at either end bus, the summed normamps of its medium-voltage lines longer than
+    SHORT_LINE_M (_apply_regulator). The step applies when customers are
     under the band (under: {customer: lowest voltage}). Per head group, the customers
     under the band it feeds; the group with the most is taken, the first head on a tie.
     The line is the deepest medium-voltage line on the path of every one of them
@@ -1089,6 +1092,19 @@ def _apply_regulator(files, net, item, substation):
         files.set(fname, index, _set_prop(files.lines[fname][index], m_end,
                                           ".".join([new_bus] + member[m_end].split(".")[1:])))
         amps += (net["linecodes"].get(member["linecode"]) or {}).get("normamps") or 0.0
+    if ln["length_m"] <= SHORT_LINE_M:
+        # a switch, fuse or recloser: the rating is the largest of its own and, for each
+        # branch at either end bus, the summed normamps of the branch's medium-voltage lines
+        # longer than SHORT_LINE_M (the circuit as read before the regulator bus is added)
+        pair = {ln["b1"], ln["b2"]}
+        branches = {}
+        for x in net["lines"]:
+            ends = frozenset((x["b1"], x["b2"]))
+            if (x["enabled"] and ends != pair and ends & set(way) and x["length_m"] > SHORT_LINE_M
+                    and _level(net, x) == "mv"):
+                branches[ends] = branches.get(ends, 0.0) + \
+                    ((net["linecodes"].get(x["linecode"]) or {}).get("normamps") or 0.0)
+        amps = max([amps] + list(branches.values()))
     kv = net["base_kv"] / math.sqrt(3.0)
     kva = amps * kv
     nodes = _nodes(spec, ln["phases"])

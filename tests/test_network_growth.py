@@ -869,6 +869,61 @@ def test_regulator_rules_and_statements():
     assert ng.transformer_items(after, rows, _catalog(), NG, LIMITS) == []
 
 
+def _short_line_files(lines_from_to=(), more_lines=""):
+    """FILES with switch sw2 (1 m, d-e) on a 295 A code, more LineCodes, each (old, new)
+    of lines_from_to replaced in Lines.dss, and more_lines appended."""
+    codes = LINECODES + ("New Linecode.SW295 units=km nphases=3 Rmatrix=(0.01 ) Xmatrix=(0.01 ) normamps=295.0\n"
+                         "New Linecode.UG595 units=km nphases=3 Rmatrix=(0.1 ) Xmatrix=(0.1 ) normamps=595.0\n"
+                         "New Linecode.1P595 units=km nphases=1 Rmatrix=(0.1 ) Xmatrix=(0.1 ) normamps=595.0\n")
+    lines = LINES.replace("bus1=d.1.2.3 bus2=e.1.2.3 switch=y enabled=y phases=3 Linecode=3P_OH_B",
+                          "bus1=d.1.2.3 bus2=e.1.2.3 switch=y enabled=y phases=3 Linecode=SW295")
+    for old, new in lines_from_to:
+        lines = lines.replace(old, new)
+    return dict(FILES, **{"LineCodes.dss": codes, "Lines.dss": lines + more_lines})
+
+
+def _regulator_amps(files, line, drop_mv=()):
+    """The amps of the regulator built on line: its kVA / (base kV / sqrt(3)). drop_mv:
+    buses taken out of the medium-voltage set before the regulator is built."""
+    f = ng.Files(files)
+    net = ng.read_network(f.text())
+    net["mv"] -= set(drop_mv)
+    row = ng._apply_regulator(f, net, {"step": "regulator", "line": line}, SUBSTATION)
+    return row["kva"] / (12.47 / math.sqrt(3.0))
+
+
+def test_regulator_rating_on_a_short_line():
+    m3_595 = ("bus1=e.1.2.3 bus2=f.1.2.3 switch=n enabled=y phases=3 Linecode=3P_OH_A",
+              "bus1=e.1.2.3 bus2=f.1.2.3 switch=n enabled=y phases=3 Linecode=UG595")
+    lb_595 = ("bus1=d.2 bus2=g.2 switch=n enabled=y phases=1 Linecode=1P_OH_X",
+              "bus1=d.2 bus2=g.2 switch=n enabled=y phases=1 Linecode=1P595")
+    # a regulator on the 1 m switch sw2 (295 A) beside the 100 m line m3 (595 A) takes 595 A
+    files = _short_line_files([m3_595])
+    assert math.isclose(_regulator_amps(files, "sw2"), 595.0)
+    _, rows = ng.apply_items(files, [{"step": "regulator", "line": "sw2"}], _catalog(), SUBSTATION, EXPRESS)
+    assert math.isclose(rows[0]["kva"], 595.0 * 12.47 / math.sqrt(3.0))
+    # with nothing larger beside it, the switch keeps its own rating
+    assert math.isclose(_regulator_amps(_short_line_files(), "sw2"), 295.0)
+    # second circuits beside it: the branch counts with the sum of its circuits (2 x 200 A)
+    two = ng.apply_items(_short_line_files(), [{"step": "reconductor", "line": "m3", "linecode": "3P_OH_B",
+                                                "circuits": 2}], _catalog(), SUBSTATION, EXPRESS)[0]
+    files2 = dict(_short_line_files(), **two)
+    assert math.isclose(_regulator_amps(files2, "sw2"), 400.0)
+    # a branch of lines of 1 m or less is skipped
+    short = "New Line.sw4 Units=km Length=0.001 bus1=e.1.2.3 bus2=k.1.2.3 switch=y enabled=y phases=3 Linecode=UG595\n"
+    assert math.isclose(_regulator_amps(_short_line_files(more_lines=short), "sw2"), 295.0)
+    # a low-voltage branch is skipped
+    branch = "New Line.lvk Units=km Length=0.05 bus1=e.1.2.3 bus2=k.1.2.3 switch=n enabled=y phases=3 Linecode=UG595\n"
+    assert math.isclose(_regulator_amps(_short_line_files(more_lines=branch), "sw2"), 595.0)
+    assert math.isclose(_regulator_amps(_short_line_files(more_lines=branch), "sw2", drop_mv=["k"]), 295.0)
+    # a disabled branch is skipped
+    off = branch.replace("enabled=y", "enabled=n")
+    assert math.isclose(_regulator_amps(_short_line_files(more_lines=off), "sw2"), 295.0)
+    # a regulator on a line longer than 1 m keeps the rating of its line: m2 (100 A) beside lb (595 A)
+    assert math.isclose(_regulator_amps(_short_line_files([m3_595, lb_595]), "m2"), 100.0)
+    assert math.isclose(_regulator_amps(_short_line_files([lb_595]), "sw2"), 595.0)
+
+
 # ---------------------------------------------------------------------------
 # The order of the steps (N7) and the substation units (N17)
 # ---------------------------------------------------------------------------
