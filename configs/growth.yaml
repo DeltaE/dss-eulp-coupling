@@ -111,8 +111,24 @@ block_attach_buses: {}
 
 # Loads added by name. Each entry: {feeder, type, count, year, bus}. type is a ComStock
 # building type; the load is present when year is at or below growth_years; bus is optional
-# and must be a three-phase medium-voltage bus of the feeder.
+# and must be a three-phase medium-voltage bus of the feeder. A named load is connected like
+# the existing business of the nearest size. When that business sits behind a service
+# transformer and no transformer of the feeder is large enough for the new load, the load
+# connects at medium voltage: one new three-phase line from its bus to a new bus of its own.
 named_loads: []
+# Length in metres of that new line on a feeder that has no medium-voltage customer. A feeder
+# that has one takes the median length of the lines that feed its own.
+# ASSUMPTION: 269.0 m is the median length of the eight lines that feed the medium-voltage
+# customers of SMART-DS feeders uhs13_1247--udt4015 and uhs13_1247--udt4819 (74 to 638 m). It
+# is used on a feeder that has none; a longer line lowers the voltage at the new load.
+# ASSUMPTION: the new line is overhead and takes the smallest three-phase medium-voltage
+# LineCode of the feeder that carries the load. The SMART-DS Greensboro feeders serve their
+# medium-voltage customers this way, each on a three-phase overhead line of the smallest
+# three-phase medium-voltage overhead code of its feeder; a larger code raises the voltage at
+# the new load a little.
+# Source of the feeders: NREL, SMART-DS Synthetic Electrical Network Data OpenDSS Models for
+# SFO, GSO, and AUS, Open Energy Data Initiative, https://data.openei.org/submissions/2981
+named_load_mv_line_m: 269.0
 # Bus of a named load without bus: seeded | strongest | weakest (lowest or highest
 # positive-sequence impedance magnitude from the source bus along the path).
 named_load_bus: seeded
@@ -128,7 +144,18 @@ named_load_bus: seeded
 # ASSUMPTION: a factor set here is the caller's own value and has no source in this file.
 load_factors: []
 
-# Planning limits, reported for the grown circuit only. Nothing is built, replaced or moved.
+# PV and storage of existing hosts under load growth. false: an existing host is sized on its
+# building's annual electricity use without its growth factor, so it has the size of a run
+# without growth. true: every host is sized on the use of the planning year (annual use x
+# the host's factor; the roof limit is unchanged). A host among the new customers is sized
+# on its own use in both cases: its building's annual use x its factor.
+# ASSUMPTION: a system installed before the planning year keeps its size while its
+# building's use changes. true fits a study where all systems are bought in the planning
+# year; it moves every existing PV and storage size with the use rates.
+der_resize_with_growth: false
+
+# Planning limits of the grown circuit. They are reported in every run with growth on, and
+# they tell network growth (below) when the network has to grow.
 planning_limits:
   # repository | range_a | range_b | [low, high] in per unit. repository is voltage_band of
   # pipeline_config.yaml. The setting never changes the existing voltage summaries.
@@ -156,7 +183,93 @@ planning_limits:
   head_limit_percent: 100
   substation_limit_percent: 100
 
-# Network growth (new feeders, rebuilt lines). Only "off" is accepted. Keep the quotes: off
-# without quotes is a boolean in YAML.
+# Network growth: the network grows with its load. Inside one run, after the solve of the
+# grown circuit as built (round 0), the run tests the planning limits, applies one step and
+# solves again, up to max_rounds times. Expansion is a new feeder from the substation;
+# reinforcement is a rebuilt line or second circuits, a replaced or parallel service
+# transformer, a line voltage regulator. Substation transformer units are added as records.
+# The run reports what it built as quantities; it holds no costs. Nothing is drawn: the same
+# inputs give the same outputs. The rules are in README.md, section "Network growth".
+# Sources of the kinds of step and their order: NREL DISCO documentation, Upgrade Cost
+# Analysis, https://natlabrockies.github.io/disco/analysis-workflows/upgrade-cost-analysis.html
+# (thermal upgrades before voltage upgrades; a higher-rated item of similar configuration from
+# a catalog, else similar equipment in parallel; a new regulator on a common upstream node of
+# the buses with violations); City of Riverside Public Utilities, Distribution Design Manual,
+# DDM-1 Feeder Systems, section 1.2 D (line regulators, reconductoring, load transfer and a new
+# circuit as corrective actions) and sections 1.1 A and 1.2 E (sectionalizing and tie switches
+# carry load transfers),
+# https://www.tellusventure.com/downloads/riverside/DDM-1%20Feeder%20Systems%20.pdf
+# ASSUMPTION: the steps run in the fixed order of steps, capacity before voltage, so the
+# result is a rule-based plan and no least-cost plan. Another order builds other equipment.
+# ASSUMPTION: the EV charging shapes and the battery schedules are set on the circuit as built
+# (round 0) and kept in every round, so the load of a circuit is the same in every round and
+# only the network changes. A controller that sees the grown network would shift charging a
+# little.
 network_growth:
-  mode: "off"
+  # "off" | planned | as_needed. "off": the planning limits are reported and nothing is
+  # built. planned: only the items of carry_forward and planned are built. as_needed: those
+  # items first, then what the planning limits still call for. Keep the quotes on "off": off
+  # without quotes is a boolean in YAML. With growth_years 0 nothing of this block runs.
+  mode: as_needed
+  # The as-needed steps in their order; a step left out never runs.
+  #   new_feeder: one express line from the substation bus to an open point, per round, for a
+  #     head or a three-phase medium-voltage line over its limit with no larger LineCode.
+  #   reconductor: every line over its limit takes a larger LineCode of the catalog, or
+  #     second circuits.
+  #   service_transformer: every transformer over its limit takes a larger rating of the
+  #     catalog, or parallel units.
+  #   regulator: one line voltage regulator per round for customers under the voltage band.
+  # ASSUMPTION: the new feeder is one express line of the head's LineCode along the existing
+  # route from the substation bus to the open point, and it serves nothing on the way. A real
+  # route can be longer, and the voltage beyond the open point then lower.
+  # ASSUMPTION: a line regulator is one single-phase two-winding transformer per phase with
+  # XHL 0.01 and %LoadLoss 0.01, the values of the regulator of the IEEE 13 node test case
+  # distributed with OpenDSS,
+  # https://github.com/dss-extensions/electricdss-tst/blob/master/Version8/Distrib/IEEETestCases/13Bus/IEEE13Nodeckt.dss
+  # with the ampacity of its line and the vreg, band and ptratio of the substation regulator
+  # of its SMART-DS topology, read from the substation folder in every run. A regulator with
+  # line-drop compensation holds a different voltage downstream.
+  steps: [new_feeder, reconductor, service_transformer, regulator]
+  # true: before any other step, once per circuit, single-phase laterals are moved from the
+  # heaviest to the lightest phase of the head. It builds nothing.
+  # ASSUMPTION: a single-phase lateral can be moved to another phase at its tap with no change
+  # to its lines or transformers. The rule moves whole laterals only and balances the head at
+  # its peak step, so other steps of the window can end less balanced.
+  rebalance_phases: false
+  # Where a new feeder takes over: switch (an existing switch) | switch_then_bus (a switch,
+  # else any three-phase medium-voltage bus) | bus.
+  open_point: switch
+  # How a head is tested against head_limit_percent: largest_phase (its largest phase current
+  # over the normamps of its LineCode) | three_phase_kva (its kVA over normamps x base kV x
+  # sqrt(3)).
+  head_metric: largest_phase
+  # New and rebuilt equipment is sized so that the peak that called for it is at most this
+  # percent of its rating. 75: line and transformer design loading of 0.75 per unit, NREL
+  # DISCO documentation, Upgrade Cost Analysis (above); 75 percent of the thermal rating as
+  # the planning rating of conductors, Riverside DDM-1, section 1.2 J (above).
+  sizing_percent: 75
+  # Rounds of as-needed steps after round 0, a whole number, 0 or above. 5: the upgrade
+  # iteration threshold of NREL DISCO, Upgrade Cost Analysis (above).
+  max_rounds: 5
+  # The SMART-DS feeder folders whose LineCodes and transformer ratings a step may use:
+  # region (every feeder folder under the folder that holds the topology's substation
+  # folder) | substation (the feeder folders of the substation folder) | feeder (the
+  # circuit's own feeder).
+  # ASSUMPTION: a LineCode name with _OH_ is overhead and one with _UG_ underground, as
+  # SMART-DS names them; a line is rebuilt only with a code of its own phases, voltage level
+  # and construction. A feeder with other names gets second circuits where a larger code
+  # would do.
+  catalog: region
+  # Path of a network_growth_built.yaml of an earlier planning year or of the other season of
+  # the same case (absolute, or relative to the settings folder), or null. Its items for the
+  # same feeder and mix are built first, after round 0.
+  carry_forward: null
+  # Items in the format of network_growth_built.yaml, built after those of carry_forward. An
+  # item may give mix: all.
+  # ASSUMPTION: an item given here is the caller's own plan and has no source in this file.
+  planned: []
+# Substation units: substation_limits.csv records how many transformer units the substation
+# needs. The power flow is unchanged.
+# ASSUMPTION: a new substation unit copies the largest transformer of the substation folder
+# and takes the same substation_limit_percent and sizing_percent. The substation transformer
+# is in no solved circuit, so its losses and its regulator are outside the power flow.

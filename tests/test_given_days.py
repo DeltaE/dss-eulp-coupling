@@ -20,8 +20,8 @@ from pathlib import Path
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from pipeline_utils import (GIVEN_DAYS_FILE, SETTINGS_ENV, peak_day_rule,  # noqa: E402
-                            read_given_days, uses_mix_days)
+from pipeline_utils import (GIVEN_DAYS_FILE, SETTINGS_ENV, STEPS_PER_DAY, peak_day_rule,  # noqa: E402
+                            read_given_days, shared_peak_day, uses_mix_days)
 from test_caller_settings import _ensure_local_yaml  # noqa: E402
 
 HEADER = "Feeder,Season,Month,Day\n"
@@ -83,6 +83,36 @@ def test_uses_mix_days():
     assert uses_mix_days("per_circuit", False)
     assert not uses_mix_days("per_group", True)
     assert not uses_mix_days("per_group", False)
+    # per_substation: every mix, 100 % baseline included, with or without growth
+    assert uses_mix_days("per_substation", True) and uses_mix_days("per_substation", False)
+    assert uses_mix_days("per_substation", True, True)
+
+
+def _year(peaks):
+    """A 365-day year of 15-minute values, 1.0 everywhere apart from {(day of year from 0,
+    step of the day): value}."""
+    values = [1.0] * (365 * STEPS_PER_DAY)
+    for (day, step), value in peaks.items():
+        values[day * STEPS_PER_DAY + step] = value
+    return values
+
+
+def test_shared_peak_day_of_two_curves():
+    """peak_day_rule per_substation: the peak day of the sum of the curves, not of either."""
+    # 1 July is day 181, 10 July day 190, 20 July day 200 (a 365-day year)
+    a = _year({(181, 40): 9.0, (190, 60): 6.0})          # its own peak day: 1 July
+    b = _year({(200, 50): 8.0, (190, 60): 5.0})          # its own peak day: 20 July
+    assert shared_peak_day([a], (6, 7, 8))[:2] == (7, 1)
+    assert shared_peak_day([b], (6, 7, 8))[:2] == (7, 20)
+    assert shared_peak_day([a, b], (6, 7, 8)) == (7, 10, 11.0)     # 6 + 5 at the same step
+    # the months of the season bound the search; winter is January, February and December
+    c = _year({(10, 5): 4.0, (350, 5): 7.0, (190, 60): 50.0})
+    assert shared_peak_day([c], (12, 1, 2)) == (12, 17, 7.0)
+    assert shared_peak_day([c], (1, 2)) == (1, 11, 4.0)
+    # a tie takes the first day of the year; no curve or no whole day of the months gives None
+    assert shared_peak_day([_year({})], (6, 7, 8))[:2] == (6, 1)
+    assert shared_peak_day([], (6, 7, 8)) is None
+    assert shared_peak_day([[1.0] * STEPS_PER_DAY], (6, 7, 8)) is None
 
 
 def test_peak_day_rule_accepts_given():
@@ -123,6 +153,18 @@ def test_dry_run_given_days():
         proc = _dry_run(folder)
         assert proc.returncode == 1
         assert "[FAIL]" in proc.stdout and "peak_day_rule is per_circuit" in proc.stdout, proc.stdout
+
+        # per_substation: accepted without given_days.csv; the mix_days checks cover every mix
+        os.remove(os.path.join(folder, GIVEN_DAYS_FILE))
+        _write(folder, "pipeline_config.yaml", "peak_day_rule: per_substation\n")
+        proc = _dry_run(folder)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        lines = [ln.strip() for ln in proc.stdout.splitlines()]
+        assert "peak_day_rule=per_substation" in lines, proc.stdout
+        for mix in ("baseline", "mixed", "stress"):
+            for phase in ("5b", "5c"):
+                assert any("verify" in ln and ln.endswith(f"--phase {phase} --mix {mix}") for ln in lines), \
+                    (mix, phase, proc.stdout)
     finally:
         shutil.rmtree(folder)
         if metadata_dir:

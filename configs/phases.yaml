@@ -5,7 +5,7 @@
 # once per scenario in 'verify_scenarios' (baseline when absent).
 # 'verify_mix_days' lists phases whose checks also run, for baseline, dm and uncontrolled,
 # in <work_root>/mix_days/<mix>/ (--mix) for each mix that is not 100 % baseline under
-# peak_day_rule per_circuit, and for every mix under given.
+# peak_day_rule per_circuit, and for every mix under given and per_substation.
 
 pre:
   steps:

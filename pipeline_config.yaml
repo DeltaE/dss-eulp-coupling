@@ -340,7 +340,10 @@ der_sizing:
 # building load. Baseline circuits use the baseline peak day under these two values.
 # given: every circuit on the day the caller gives its feeder and season in
 # given_days.csv of the run_case.py --settings folder (README, "Peak-day rules").
-# per_circuit is the default; per_group and given remain available through this setting.
+# per_substation: every circuit of the case on one day per mix and season, the peak day of
+# the sum of the building load of the case's circuits, so all circuits share one window.
+# per_circuit is the default; per_group, given and per_substation remain available through
+# this setting.
 peak_day_rule: per_circuit
 
 # Days simulated around the peak day (day X) of each circuit and season, solved by

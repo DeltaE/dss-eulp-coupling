@@ -46,9 +46,10 @@ Inputs
 - <work_root>/5b_profile_generation/<STATE>_peak_days.csv: each feeder's baseline
   winter and summer peak day (Phase 5b).
 - With peak_day_rule: per_circuit in pipeline_config.yaml, for a circuit whose mix is
-  not 100 % baseline, and with given, for every circuit:
+  not 100 % baseline, and with given or per_substation, for every circuit:
   <work_root>/mix_days/<STATE>_circuit_days.csv, the circuit's day per feeder, season
-  and mix (phase mix_days: its own peak day or the given day), and the mix's shares in
+  and mix (phase mix_days: its own peak day, the given day, or under per_substation
+  the peak day of the sum of the case's feeders), and the mix's shares in
   <work_root>/7_circuit_instantiation/mixes.<ext>, the workspace copy of the mixes
   file (ext yaml, yml or json). The mix is the part of the circuit folder name after
   _circuit_<n>_.
@@ -219,9 +220,12 @@ Load growth (growth_years above 0 in growth.yaml)
   their office among the existing businesses, so every draw over the existing cars has
   the size and the values of a run without growth. The PV and storage hosts among the
   new loads follow the existing hosts of each segment.
-- Sizes: a host's annual use is multiplied by its factor (growth.factors); the roof is
-  unchanged.
-- Planning limits (planning_limits.py; reported, nothing is built or moved): one Monitor
+- Sizes (der_resize_with_growth in growth.yaml, growth.der_use_factor): a host among the
+  new customers is sized on its building's annual use x its factor (growth.factors). An
+  existing host is sized on its annual use without the factor, so it keeps the size of
+  a run without growth; with der_resize_with_growth true its annual use is multiplied
+  by its factor too. The roof is unchanged.
+- Planning limits (planning_limits.py): one Monitor
   per enabled Line (mode 0) and per Transformer (mode 1) in Monitors_Loading.dss,
   redirected before the first Solve of the final solve only. After the solve:
   ModifiedCircuitData/loading_lines.csv (every Line: peak current over all steps
@@ -232,7 +236,32 @@ Load growth (growth_years above 0 in growth.yaml)
   transformer with their percent limits) and growth_blocks.csv (the feeder's rows of
   the block table of phase growth with the lowest voltage at each block's customers and
   the highest loading on the lines from the source bus to its attach bus). The existing
-  voltage summaries keep voltage_band of pipeline_config.yaml.
+  voltage summaries keep voltage_band of pipeline_config.yaml. heads.csv has one row per
+  head (the line Monitor m1 watches, and the line of every Monitor h<k>m1 that network
+  growth adds): its loading by kVA and by largest phase current; planning_limits.csv
+  holds the row head for the first measure and the row head_phase for the second.
+- Network growth (network_growth.py; network_growth in growth.yaml, mode other than
+  "off"): the solve above is round 0, the grown circuit as built. The EV charging
+  shapes and, under storage_rule schedule, the battery schedules were set before it and
+  stay as they are, so the load is the same in every round and only the network changes.
+  Then the items of carry_forward and planned for this feeder and mix are all applied
+  and the circuit is solved again (the planned round), and under as_needed, up to
+  max_rounds times: the limits are tested on the last solve, the first step that applies
+  writes its statements into the .dss files of ModifiedCircuitData/, Monitors_Loading.dss
+  is written again, and Master.dss is compiled again in a new engine; every table above
+  is written again from that solve, so the files of ModifiedCircuitData/ describe the
+  final solve. Before a step is applied, the tables, the head Monitor exports and the
+  .dss files of the last solve are kept in ModifiedCircuitData/round_<round>/ (round_0
+  also keeps load_voltages.parquet and load_voltage_steps.csv); round_0/ exists only
+  when an item is built. If the solve after a step does not converge, the step is
+  undone, the files of the last converged solve stand as the final ones and the rounds
+  end, with a [WARN] line. Written at the end: network_growth_rounds.csv (one row per
+  round), network_growth.csv (one row per built item), network_growth_built.yaml (the
+  items, in the format carry_forward reads), loading_phase_currents.csv (the phase
+  currents of every line at the step of each head's largest phase current), and the
+  column built in loading_lines.csv and loading_transformers.csv (the step that built
+  or changed the element). Every limit still over after the last round is one [WARN]
+  line; the exit code stays 0.
 
 Outputs
 - ModifiedCircuitData/: copied and edited .dss files, LoadShapes_EV.dss, Storage.dss,
@@ -411,9 +440,11 @@ from storage_control import best_window_start, schedule_days
 from der_sizing import day_peak, loadshape_building
 # Load growth (growth.yaml): the pieces used with growth on only
 from pipeline_utils import WINDOW_YEAR, growth_on, growth_settings, load_growth, planning_band, read_growth_plan
+from pipeline_utils import network_growth_items, network_growth_on
 from ev_cars import seed as ev_draw_seed
 import growth as growth_rules
 import planning_limits
+import network_growth
 CFG = load_config()
 HORIZON_DAYS = horizon_days(CFG)
 NPTS = IRRADIANCE_NPTS * HORIZON_DAYS   # steps of the solve and of every loadshape
@@ -826,11 +857,11 @@ def simulated_day(feeder, season):
     Return (month, day) of the simulated day of feeder for season: the feeder's
     baseline peak day for that season in <work_root>/5b_profile_generation/<STATE>_peak_days.csv.
     With peak_day_rule per_circuit and a circuit mix that is not 100 % baseline, and with
-    given for every circuit mix, the date is the row of the feeder, season and mix in
-    <work_root>/mix_days/<STATE>_circuit_days.csv instead (pipeline_utils.uses_mix_days).
-    The records hold no year. Stops if the season or the peak day is missing, or under
-    per_circuit or given if the circuit's mix is not in the workspace copy of the mixes
-    file.
+    given or per_substation for every circuit mix, the date is the row of the feeder,
+    season and mix in <work_root>/mix_days/<STATE>_circuit_days.csv instead
+    (pipeline_utils.uses_mix_days). The records hold no year. Stops if the season or the
+    peak day is missing, or under per_circuit, given or per_substation if the circuit's
+    mix is not in the workspace copy of the mixes file.
     """
     if season not in ("summer", "winter"):
         print(f"[FAIL] scenario_assignments.json season is {season!r}; expected summer or winter.")
@@ -838,7 +869,7 @@ def simulated_day(feeder, season):
     peak_days_path = os.path.join(CFG["work_root"], "5b_profile_generation",
                                   f"{CFG['state']}_peak_days.csv")
     mix_name = None
-    if PEAK_DAY_RULE in ("per_circuit", "given"):
+    if PEAK_DAY_RULE in ("per_circuit", "given", "per_substation"):
         m_mix = re.match(r"^.*_circuit_\d+_(.+)$", CIRCUIT_FOLDER)
         mixes_dir = os.path.join(CFG["work_root"], "7_circuit_instantiation")
         mixes_path = next((os.path.join(mixes_dir, f"mixes{ext}") for ext in (".yaml", ".yml", ".json")
@@ -1491,8 +1522,12 @@ if DER_HOST_LIST:
     for b in DER_HOST_LIST:
         seg = HOST_SEGMENT[b]
         bldg_of_host = building_of(b, seg, bldg_map)
-        if GROWTH is not None:  # load growth: the grown annual use; the roof is unchanged
-            bldg_of_host["annual_use_kwh"] *= GROWTH["factors"][b]
+        if GROWTH is not None:
+            # load growth (der_resize_with_growth): a new host on its grown annual use, an
+            # existing host on its use without growth unless the setting is true; the
+            # roof is unchanged
+            bldg_of_host["annual_use_kwh"] *= growth_rules.der_use_factor(
+                b, GROWTH["factors"][b], NEW_CUSTOMERS, GROWTH_SETTINGS["der_resize_with_growth"])
         DER_ROWS[b] = host_sizes(b, seg, bldg_of_host, annual_yield_kwh_per_kw)
         DER_ROWS[b]["units"] = len(der_units(b))
         DER_ROWS[b]["legs"] = DER_ROWS[b]["units"] > 1
@@ -1637,9 +1672,8 @@ write_lines(os.path.join(OUT_DIR, LV_MONITORS_FILE), monitor_lines(LV_LOADS))
 LOADING_MONITORS_FILE = "Monitors_Loading.dss"
 if GROWTH is not None:
     # every New Line and New Transformer statement of the copied .dss files, whatever file holds it
-    _dss_text = "\n".join(read_text(os.path.join(OUT_DIR, fn)) for fn in sorted(dss_files))
-    LOADING_NET = growth_rules.read_feeder({key: _dss_text for key in (
-        "lines.dss", "transformers.dss", "loads.dss", "master.dss", "linecodes.dss", "buscoords.dss")})
+    LOADING_NET = network_growth.read_network(
+        "\n".join(read_text(os.path.join(OUT_DIR, fn)) for fn in sorted(dss_files)))
     _loading_lines, LINE_MONITORS, TR_MONITORS = planning_limits.loading_monitor_lines(LOADING_NET)
     write_lines(os.path.join(OUT_DIR, LOADING_MONITORS_FILE), _loading_lines)
 
@@ -2343,6 +2377,288 @@ if master_dss_path:
         ev_present=(ACTIVATE_EV and (N_u + N_c) > 0),
     )
 
+# ---------------- Tables of a solve; the rounds of network growth ----------------
+NETWORK_GROWTH_ON = GROWTH is not None and network_growth_on(GROWTH_SETTINGS)
+HEAD_COLUMNS = ["head", "line", "linecode", "normamps", "rating_kva", "peak_kva", "kva_percent", "kva_step",
+                "kva_date", "peak_phase_amps", "phase_percent", "phase_step", "phase_date", "amps_1", "amps_2",
+                "amps_3"]
+TRANSFORMER_COLUMNS = ["transformer", "phases", "bus", "kva", "new", "peak_kva", "peak_step", "peak_date",
+                       "loading_percent"]
+
+def write_load_voltages(circuit):
+    """Voltage at every load of a solved circuit, read from the monitors through the
+    engine: load_voltages.parquet, load_voltage_steps.csv and load_voltage_loads.csv.
+    Returns the load voltage frame."""
+    lv_start = time.time()
+    engine_loads = {str(n).lower() for n in circuit.Loads.AllNames} - {n.lower() for n in STANDBY_LOADS}
+    if engine_loads != {n.lower() for n in LV_LOADS}:
+        raise RuntimeError(f"Loads in the compiled circuit ({len(engine_loads)}) differ from "
+                           f"the loads with a voltage monitor ({len(LV_LOADS)}).")
+    lv_frame, lv_no_base = load_voltage_frame(read_load_monitors(circuit, LV_LOADS))
+    # window_columns: date, day_index and day_type per step when horizon_days is above 1
+    window_columns(lv_frame).to_parquet(os.path.join(OUT_DIR, "load_voltages.parquet"), index=False)
+    window_columns(step_table(lv_frame, V_LOW_PU, V_HIGH_PU)).to_csv(
+        os.path.join(OUT_DIR, "load_voltage_steps.csv"), index=False)
+    load_table(lv_frame, V_LOW_PU, V_HIGH_PU).to_csv(
+        os.path.join(OUT_DIR, "load_voltage_loads.csv"), index=False)
+    print(f"Load voltages -> {len(LV_LOADS)} load monitors, {lv_frame['step'].nunique()} steps, "
+          f"{time.time() - lv_start:.2f} s")
+    print(f"Loads on a bus with no base voltage (base from the load kV): {len(lv_no_base)}"
+          f"{' ' + ' '.join(lv_no_base) if lv_no_base else ''}")
+    return lv_frame
+
+def head_monitor_names(heads):
+    """The Monitor names of the heads (planning_limits.head_lines): m1 and m2 for head 1,
+    h<k>m1 and h<k>m2 for head k."""
+    return [f"{'' if k == 1 else f'h{k}'}m{n}" for k, _ in heads for n in (1, 2)]
+
+def write_planning_tables(circuit, lv_frame):
+    """Load growth: the loading tables and the planning limits of a solved circuit
+    (loading_lines.csv, loading_transformers.csv, heads.csv, planning_limits.csv,
+    growth_blocks.csv; with network growth on also loading_phase_currents.csv). Returns
+    the tables network growth reads: lines, transformers, heads, rows (the rows of
+    planning_limits.csv) and, with network growth on, phase_amps ({head: {line: {phase
+    node: amps}}} at the step of each head's largest phase current) and load_min ({load:
+    lowest voltage}, EV legs left out)."""
+    pl_start = time.time()
+    for kind, names, engine_set in (
+            ("Line", [ln["name"] for ln in LOADING_NET["lines"]], getattr(circuit, "Lines", None)),
+            ("Transformer", [tr["name"] for tr in LOADING_NET["transformers"]],
+             getattr(circuit, "Transformers", None))):
+        if engine_set is None:  # an engine without this interface: the tables hold the .dss elements
+            print(f"Planning limits -> the engine lists no {kind} names; not compared with the tables")
+            continue
+        in_engine = {str(n).lower() for n in engine_set.AllNames} - {"none"}
+        if in_engine != {n.lower() for n in names}:
+            raise RuntimeError(f"{kind}s in the compiled circuit ({len(in_engine)}) differ from "
+                               f"the {kind}s read for the loading tables ({len(names)}).")
+    if HORIZON_DAYS > 1:
+        pl_dates = [d.isoformat() for d in WINDOW_DATES]
+    else:
+        pl_month, pl_day = simulated_day(CIRCUIT_NAME, (ASSIGN.get("season") or "").lower())
+        pl_dates = [datetime.date(WINDOW_YEAR, pl_month, pl_day).isoformat()]
+    pl_units = GROWTH_PLAN["feeders"][CIRCUIT_NAME]["units"]
+    pl_new = {kind: [re.match(r"(?i)^\s*new\s+\w+\.(\S+)", text).group(1)
+                     for unit in pl_units for text in unit[kind]] for kind in ("lines", "transformers")}
+    line_peaks, tr_peaks = planning_limits.read_loading(circuit, LINE_MONITORS, TR_MONITORS)
+    pl_lines = planning_limits.line_rows(LOADING_NET, line_peaks, pl_dates, pl_new["lines"])
+    pl_trs = planning_limits.transformer_rows(LOADING_NET, tr_peaks, pl_dates, pl_new["transformers"])
+    pd.DataFrame(pl_lines).to_csv(os.path.join(OUT_DIR, "loading_lines.csv"), index=False)
+    pd.DataFrame(pl_trs, columns=TRANSFORMER_COLUMNS).to_csv(
+        os.path.join(OUT_DIR, "loading_transformers.csv"), index=False)
+    pl_limits = GROWTH_SETTINGS["planning_limits"]
+    pl_low, pl_high = planning_band(GROWTH_SETTINGS, CFG)
+    # The heads: the line of Monitor m1 and of every Monitor h<k>m1, from their exports
+    heads = planning_limits.head_lines(read_text(master_dss_path))
+    exports = {k: tuple(pd.read_csv(os.path.join(OUT_DIR, f"{get_circuit_name(master_dss_path)}_Mon_{name}_1.csv"))
+                        for name in head_monitor_names([(k, line)])) for k, line in heads}
+    pl_heads = planning_limits.head_rows(LOADING_NET, heads, exports, pl_dates)
+    pd.DataFrame(pl_heads, columns=HEAD_COLUMNS).to_csv(os.path.join(OUT_DIR, "heads.csv"), index=False)
+    pl_rows = planning_limits.voltage_rows(lv_frame, pl_low, pl_high, pl_dates) \
+        + planning_limits.limit_rows(pl_lines, pl_trs, pl_heads, pl_limits, pl_dates)
+    pd.DataFrame(pl_rows).to_csv(os.path.join(OUT_DIR, "planning_limits.csv"), index=False)
+    with open(os.path.join(CFG["work_root"], "growth", "growth_blocks.csv"), newline="", encoding="utf-8") as f:
+        pl_reader = csv.DictReader(f)
+        pl_block_columns = list(pl_reader.fieldnames)
+        pl_blocks = [r for r in pl_reader if r["Feeder"] == CIRCUIT_NAME]
+    pd.DataFrame(planning_limits.block_rows(pl_blocks, pl_units, LOADING_NET, lv_frame, pl_lines, pl_low,
+                                            pl_high, pl_limits["line_limit_percent"]),
+                 columns=pl_block_columns + ["v_pu_min", "v_pu_min_load", "v_pu_max", "path_worst_percent",
+                                             "path_worst_line", "voltage_outside", "path_over"]).to_csv(
+        os.path.join(OUT_DIR, "growth_blocks.csv"), index=False)
+    tables = {"lines": pl_lines, "transformers": pl_trs, "heads": pl_heads, "rows": pl_rows}
+    if NETWORK_GROWTH_ON:
+        currents = planning_limits.read_phase_currents(circuit, LINE_MONITORS,
+                                                       sorted({h["phase_step"] for h in pl_heads}))
+        tables["phase_amps"] = {h["head"]: network_growth.phase_table(LOADING_NET, currents[h["phase_step"]])
+                                for h in pl_heads}
+        pd.DataFrame([{"head": h["head"], "step": h["phase_step"], "line": ln["name"],
+                       **{f"amps_{node}": tables["phase_amps"][h["head"]][ln["name"].lower()].get(node)
+                          for node in (1, 2, 3)}}
+                      for h in pl_heads for ln in LOADING_NET["lines"]
+                      if ln["name"].lower() in tables["phase_amps"][h["head"]]],
+                     columns=["head", "step", "line", "amps_1", "amps_2", "amps_3"]).to_csv(
+            os.path.join(OUT_DIR, "loading_phase_currents.csv"), index=False)
+        tables["load_min"] = lv_frame[~lv_frame["ev_leg"].astype(bool)].groupby("load")["v_pu"].min().to_dict()
+    print(f"Planning limits -> band {pl_low} to {pl_high} pu; {len(LINE_MONITORS)} line and "
+          f"{len(TR_MONITORS)} transformer monitors; "
+          + "; ".join(f"{r['limit']} over {r['elements_over']} of {r['elements_checked']}" for r in pl_rows)
+          + f"; {time.time() - pl_start:.2f} s")
+    return tables
+
+ROUND_LIMITS = ("voltage_low", "voltage_high", "line", "head", "head_phase", "transformer")
+ROUND_COLUMNS = ["round", "step", "items", "converged"] + [f"{limit}_{part}" for limit in ROUND_LIMITS
+                                                           for part in ("over", "worst")] \
+    + ["heads", "head_measures", "note"]
+BUILT_COLUMNS = ["round", "step", "element", "was", "now", "count_before", "count", "length_m", "kva", "peak",
+                 "detail"]
+
+def network_growth_rounds(tables):
+    """The rounds of network growth after round 0 (module docstring; the rules are in
+    network_growth.py). tables: write_planning_tables of round 0. Returns the circuit of
+    the final solve."""
+    ng_start = time.time()
+    ng, limits = GROWTH_SETTINGS["network_growth"], GROWTH_SETTINGS["planning_limits"]
+    low = planning_band(GROWTH_SETTINGS, CFG)[0]
+    catalog_path = os.path.join(CFG["work_root"], "growth", network_growth.CATALOG_FILE)
+    catalog = json.loads(read_text(catalog_path)) if os.path.isfile(catalog_path) else {"feeders": {}}
+    if CIRCUIT_NAME not in catalog["feeders"]:
+        print(f"[FAIL] network growth: {catalog_path} is missing or does not hold feeder {CIRCUIT_NAME}. "
+              f"Run phase growth again.")
+        sys.exit(1)
+    catalog, substation = catalog["feeders"][CIRCUIT_NAME], catalog["substation"]
+    mix = re.match(r"^.*_circuit_\d+_(.+)$", CIRCUIT_FOLDER).group(1)
+    planned = network_growth.items_for(network_growth_items(GROWTH_SETTINGS), CIRCUIT_NAME, mix)
+    # every express line takes the LineCode the head line has in round 0
+    express = {"linecode": LOADING_NET["line_of"][tables["heads"][0]["line"].lower()]["text_code"],
+               "normamps": tables["heads"][0]["normamps"]}
+    state = network_growth.new_state()
+    circuit_name = get_circuit_name(master_dss_path)
+    last_dir = os.path.join(OUT_DIR, "_last_solve")
+    circuit, labels = DSScircuit, ["0"]
+    built_rows, built_items, built_by = [], [], {}
+
+    def top_files():
+        return [fn for fn in sorted(os.listdir(OUT_DIR)) if os.path.isfile(os.path.join(OUT_DIR, fn))]
+
+    def round_row(label, step, items, note, done=True):
+        row = {"round": label, "step": step, "items": items, "converged": int(done), "note": note}
+        if done:
+            by_limit = {r["limit"]: r for r in tables["rows"]}
+            for limit in ROUND_LIMITS:
+                row[f"{limit}_over"] = by_limit[limit]["elements_over"]
+                row[f"{limit}_worst"] = by_limit[limit]["worst_value"]
+            row["heads"] = len(tables["heads"])
+            row["head_measures"] = ";".join(
+                f"{h['head']}:" + "/".join("" if v is None else format(v, ".6g")
+                                           for v in (h["kva_percent"], h["phase_percent"])) for h in tables["heads"])
+        return row
+
+    def reload_net():
+        global LOADING_NET, LINE_MONITORS, TR_MONITORS
+        LOADING_NET = network_growth.read_network(
+            "\n".join(read_text(os.path.join(OUT_DIR, fn)) for fn in sorted(dss_files)))
+        monitor_text, LINE_MONITORS, TR_MONITORS = planning_limits.loading_monitor_lines(LOADING_NET)
+        write_lines(os.path.join(OUT_DIR, LOADING_MONITORS_FILE), monitor_text)
+
+    def solve():
+        engine = create_dss_engine()
+        engine.AllowForms = False
+        engine.Start(0)
+        engine.Text.Command = f'Compile "{master_dss_path}"'
+        solved = bool(engine.ActiveCircuit.Solution.Converged)
+        if solved:
+            assert_monitor_exports(master_dss_path, monitor_names + head_monitor_names(
+                planning_limits.head_lines(read_text(master_dss_path))), OUT_DIR)
+        return engine.ActiveCircuit, solved
+
+    def attempt(label, step, items, notes):
+        """Apply items and solve. True when the solve converges; else the step is undone."""
+        nonlocal circuit, tables
+        # The files of the last solve: aside for an undo, and its tables, head exports
+        # and .dss files as round_<its label>/
+        shutil.rmtree(last_dir, ignore_errors=True)
+        os.makedirs(last_dir)
+        for fn in top_files():
+            shutil.copy2(os.path.join(OUT_DIR, fn), os.path.join(last_dir, fn))
+        round_dir = os.path.join(OUT_DIR, f"round_{labels[-1]}")
+        keep = ["loading_lines.csv", "loading_transformers.csv", "planning_limits.csv", "heads.csv",
+                "growth_blocks.csv", "load_voltage_loads.csv", "loading_phase_currents.csv"] \
+            + [f"{circuit_name}_Mon_{name}_1.csv" for name in head_monitor_names(
+                [(h["head"], h["line"]) for h in tables["heads"]])] \
+            + (["load_voltages.parquet", "load_voltage_steps.csv"] if labels[-1] == "0" else [])
+        os.makedirs(round_dir)
+        for fn in top_files():
+            if fn in keep or fn.lower().endswith(".dss"):
+                shutil.copy2(os.path.join(OUT_DIR, fn), os.path.join(round_dir, fn))
+        texts = {}
+        for fn in top_files():
+            if fn.lower().endswith(".dss") and fn != LOADING_MONITORS_FILE:
+                with open(os.path.join(OUT_DIR, fn), encoding="utf-8", newline="") as f:
+                    texts[fn] = f.read()
+        try:
+            changed, rows = network_growth.apply_items(texts, items, catalog, substation, express)
+        except network_growth.NetworkGrowthError as e:
+            print(f"[FAIL] network growth: {e}.")
+            sys.exit(1)
+        for fn, text in changed.items():
+            with open(os.path.join(OUT_DIR, fn), "w", encoding="utf-8", newline="") as f:
+                f.write(text)
+        reload_net()
+        new_circuit, solved = solve()
+        if not solved:
+            for fn in top_files():
+                os.remove(os.path.join(OUT_DIR, fn))
+            for fn in os.listdir(last_dir):
+                shutil.copy2(os.path.join(last_dir, fn), os.path.join(OUT_DIR, fn))
+            shutil.rmtree(round_dir)
+            reload_net()
+            circuit, solved = solve()  # the engine holds the last converged solve again
+            if not solved:
+                raise RuntimeError("The circuit of the last converged solve did not converge again.")
+            note = "; ".join(notes + [f"no convergence after {step}: the step is undone"])
+            ROUNDS.append(round_row(label, step, len(items), note, done=False))
+            print(f"[WARN] network growth: the solve after {step} ({len(items)} items, round {label}) did not "
+                  f"converge; the step is undone and the rounds end.")
+            return False
+        circuit = new_circuit
+        tables = write_planning_tables(circuit, write_load_voltages(circuit))
+        labels.append(label)
+        number = int(label) if label.isdigit() else label
+        for item, row in zip(items, rows):
+            for key in row.pop("changed"):
+                built_by[key] = row["step"]
+            built_rows.append({"round": number, **row})
+            built_items.append({"feeder": CIRCUIT_NAME, "mix": mix, **network_growth.public(item), "round": number})
+        ROUNDS.append(round_row(label, step, len(items), "; ".join(notes)))
+        print(f"Network growth -> round {label}: {step}, {len(items)} items; "
+              + "; ".join(f"{r['limit']} over {r['elements_over']} of {r['elements_checked']}"
+                          for r in tables["rows"]))
+        return True
+
+    ROUNDS = [round_row("0", "", 0, "")]
+    watched = network_growth.watched_lines("\n".join(
+        read_text(os.path.join(OUT_DIR, fn)) for fn in top_files() if fn.lower().endswith(".dss")))
+    going = True
+    if planned:
+        going = attempt("planned", "planned", planned, [])
+    used = 0
+    while going and ng["mode"] == "as_needed" and used < ng["max_rounds"]:
+        step, items, notes = network_growth.next_step(
+            LOADING_NET, tables["heads"], tables["lines"], tables["transformers"], tables["phase_amps"],
+            tables["load_min"], catalog, substation, ng, limits, low, express, state, watched)
+        for note in notes:
+            print(f"[WARN] network growth: {note}.")
+        if step is None:
+            if notes:
+                ROUNDS[-1]["note"] = "; ".join([n for n in [ROUNDS[-1]["note"]] if n] + notes)
+            break
+        used += 1
+        going = attempt(str(used), step, items, notes)
+    shutil.rmtree(last_dir, ignore_errors=True)
+
+    pd.DataFrame(ROUNDS, columns=ROUND_COLUMNS).to_csv(os.path.join(OUT_DIR, "network_growth_rounds.csv"), index=False)
+    pd.DataFrame(built_rows, columns=BUILT_COLUMNS).to_csv(os.path.join(OUT_DIR, "network_growth.csv"), index=False)
+    network_growth.write_built(os.path.join(OUT_DIR, network_growth.BUILT_FILE), built_items)
+    # the column built on the loading tables of the final solve
+    pd.DataFrame([dict(r, built=built_by.get(("line", r["line"].lower()), "")) for r in tables["lines"]]).to_csv(
+        os.path.join(OUT_DIR, "loading_lines.csv"), index=False)
+    pd.DataFrame([dict(r, built=built_by.get(("transformer", r["transformer"].lower()), ""))
+                  for r in tables["transformers"]], columns=TRANSFORMER_COLUMNS + ["built"]).to_csv(
+        os.path.join(OUT_DIR, "loading_transformers.csv"), index=False)
+    for r in tables["rows"]:
+        if r["limit"] != "voltage_band" and r["elements_over"] > 0:
+            print(f"[WARN] network growth: limit {r['limit']} still over after the last round: "
+                  f"{r['elements_over']} of {r['elements_checked']}, worst {r['worst_element']} "
+                  f"({format(r['worst_value'], '.6g')}).")
+    if len(tables["heads"]) > 1 and n_storage > 0 and STORAGE_RULE in ("simple", "tuned") and STORAGE_VIEW == "feeder":
+        print(f"[WARN] network growth: the live storage controller (storage_rule {STORAGE_RULE}, storage_view "
+              f"feeder) keeps watching the first head, {tables['heads'][0]['line']}, after a new head is built.")
+    print(f"Network growth -> mode {ng['mode']}: {len(labels) - 1} rounds after round 0 "
+          f"({', '.join(labels[1:]) or 'none'}), {len(built_items)} items built, {len(tables['heads'])} heads; "
+          f"{time.time() - ng_start:.2f} s")
+    return circuit
+
 # ---------------- Compile & Solve ----------------
 DSSobj   = create_dss_engine()
 DSSobj.AllowForms = False
@@ -2366,73 +2682,14 @@ if COMPILE_CIRCUIT and master_dss_path:
 
     # Voltage at every load, read from the monitors through the engine
     if converged:
-        lv_start = time.time()
-        engine_loads = {str(n).lower() for n in DSScircuit.Loads.AllNames} - {n.lower() for n in STANDBY_LOADS}
-        if engine_loads != {n.lower() for n in LV_LOADS}:
-            raise RuntimeError(f"Loads in the compiled circuit ({len(engine_loads)}) differ from "
-                               f"the loads with a voltage monitor ({len(LV_LOADS)}).")
-        lv_frame, lv_no_base = load_voltage_frame(read_load_monitors(DSScircuit, LV_LOADS))
-        # window_columns: date, day_index and day_type per step when horizon_days is above 1
-        window_columns(lv_frame).to_parquet(os.path.join(OUT_DIR, "load_voltages.parquet"), index=False)
-        window_columns(step_table(lv_frame, V_LOW_PU, V_HIGH_PU)).to_csv(
-            os.path.join(OUT_DIR, "load_voltage_steps.csv"), index=False)
-        load_table(lv_frame, V_LOW_PU, V_HIGH_PU).to_csv(
-            os.path.join(OUT_DIR, "load_voltage_loads.csv"), index=False)
-        print(f"Load voltages -> {len(LV_LOADS)} load monitors, {lv_frame['step'].nunique()} steps, "
-              f"{time.time() - lv_start:.2f} s")
-        print(f"Loads on a bus with no base voltage (base from the load kV): {len(lv_no_base)}"
-              f"{' ' + ' '.join(lv_no_base) if lv_no_base else ''}")
-
+        lv_frame = write_load_voltages(DSScircuit)
         if GROWTH is not None:
             # Load growth: the loading tables and the planning limits of the grown circuit
-            pl_start = time.time()
-            for kind, names, engine_set in (
-                    ("Line", [ln["name"] for ln in LOADING_NET["lines"]], getattr(DSScircuit, "Lines", None)),
-                    ("Transformer", [tr["name"] for tr in LOADING_NET["transformers"]],
-                     getattr(DSScircuit, "Transformers", None))):
-                if engine_set is None:  # an engine without this interface: the tables hold the .dss elements
-                    print(f"Planning limits -> the engine lists no {kind} names; not compared with the tables")
-                    continue
-                in_engine = {str(n).lower() for n in engine_set.AllNames} - {"none"}
-                if in_engine != {n.lower() for n in names}:
-                    raise RuntimeError(f"{kind}s in the compiled circuit ({len(in_engine)}) differ from "
-                                       f"the {kind}s read for the loading tables ({len(names)}).")
-            if HORIZON_DAYS > 1:
-                pl_dates = [d.isoformat() for d in WINDOW_DATES]
-            else:
-                pl_month, pl_day = simulated_day(CIRCUIT_NAME, (ASSIGN.get("season") or "").lower())
-                pl_dates = [datetime.date(WINDOW_YEAR, pl_month, pl_day).isoformat()]
-            pl_units = GROWTH_PLAN["feeders"][CIRCUIT_NAME]["units"]
-            pl_new = {kind: [re.match(r"(?i)^\s*new\s+\w+\.(\S+)", text).group(1)
-                             for unit in pl_units for text in unit[kind]] for kind in ("lines", "transformers")}
-            line_peaks, tr_peaks = planning_limits.read_loading(DSScircuit, LINE_MONITORS, TR_MONITORS)
-            pl_lines = planning_limits.line_rows(LOADING_NET, line_peaks, pl_dates, pl_new["lines"])
-            pl_trs = planning_limits.transformer_rows(LOADING_NET, tr_peaks, pl_dates, pl_new["transformers"])
-            pd.DataFrame(pl_lines).to_csv(os.path.join(OUT_DIR, "loading_lines.csv"), index=False)
-            pd.DataFrame(pl_trs, columns=["transformer", "phases", "bus", "kva", "new", "peak_kva", "peak_step",
-                                          "peak_date", "loading_percent"]).to_csv(
-                os.path.join(OUT_DIR, "loading_transformers.csv"), index=False)
-            pl_limits = GROWTH_SETTINGS["planning_limits"]
-            pl_low, pl_high = planning_band(GROWTH_SETTINGS, CFG)
-            head_kva, _, _ = planning_limits.head_series(pd.read_csv(
-                os.path.join(OUT_DIR, f"{get_circuit_name(master_dss_path)}_Mon_m2_1.csv")))
-            head_rating_kva, head_line = planning_limits.head_rating(LOADING_NET, read_text(master_dss_path))
-            pl_rows = planning_limits.voltage_rows(lv_frame, pl_low, pl_high, pl_dates) \
-                + planning_limits.limit_rows(pl_lines, pl_trs, head_kva, head_rating_kva, head_line, pl_limits, pl_dates)
-            pd.DataFrame(pl_rows).to_csv(os.path.join(OUT_DIR, "planning_limits.csv"), index=False)
-            with open(os.path.join(CFG["work_root"], "growth", "growth_blocks.csv"), newline="", encoding="utf-8") as f:
-                pl_reader = csv.DictReader(f)
-                pl_block_columns = list(pl_reader.fieldnames)
-                pl_blocks = [r for r in pl_reader if r["Feeder"] == CIRCUIT_NAME]
-            pd.DataFrame(planning_limits.block_rows(pl_blocks, pl_units, LOADING_NET, lv_frame, pl_lines, pl_low,
-                                                    pl_high, pl_limits["line_limit_percent"]),
-                         columns=pl_block_columns + ["v_pu_min", "v_pu_min_load", "v_pu_max", "path_worst_percent",
-                                                     "path_worst_line", "voltage_outside", "path_over"]).to_csv(
-                os.path.join(OUT_DIR, "growth_blocks.csv"), index=False)
-            print(f"Planning limits -> band {pl_low} to {pl_high} pu; {len(LINE_MONITORS)} line and "
-                  f"{len(TR_MONITORS)} transformer monitors; "
-                  + "; ".join(f"{r['limit']} over {r['elements_over']} of {r['elements_checked']}" for r in pl_rows)
-                  + f"; {time.time() - pl_start:.2f} s")
+            planning_tables = write_planning_tables(DSScircuit, lv_frame)
+            if NETWORK_GROWTH_ON:
+                # Network growth: the rounds after this solve; the storage tables below
+                # read the final solve
+                DSScircuit = network_growth_rounds(planning_tables)
 
     # Each battery's state monitor (mode=3): energy charged and discharged, stored energy range
     if STORAGE_TARGET_ROWS:

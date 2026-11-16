@@ -88,7 +88,7 @@ def load_mixes(path):
         return json.load(f) if suffix == ".json" else yaml.safe_load(f)
 
 
-PEAK_DAY_RULES = ("per_group", "per_circuit", "given")
+PEAK_DAY_RULES = ("per_group", "per_circuit", "given", "per_substation")
 
 
 def peak_day_rule(cfg):
@@ -166,11 +166,32 @@ def read_given_days(folder):
 
 def uses_mix_days(rule, baseline_only, growth=False):
     """Whether a circuit reads its day and profiles from <work_root>/mix_days/<mix>/:
-    always under peak_day_rule given, and under per_circuit for a mix that is not 100 %
-    baseline. With growth on (growth_years above 0 in growth.yaml) every mix under
-    per_circuit does, 100 % baseline included, because its day is the peak day of the
-    grown curve."""
-    return rule == "given" or (rule == "per_circuit" and (growth or not baseline_only))
+    always under peak_day_rule given and per_substation, and under per_circuit for a mix
+    that is not 100 % baseline. With growth on (growth_years above 0 in growth.yaml)
+    every mix under per_circuit does, 100 % baseline included, because its day is the
+    peak day of the grown curve."""
+    return rule in ("given", "per_substation") or (rule == "per_circuit" and (growth or not baseline_only))
+
+
+def shared_peak_day(curves, months):
+    """(month, day, peak) of the peak day of the sum of curves (peak_day_rule
+    per_substation): each curve holds a 365-day year of STEPS_PER_DAY values a day from
+    1 January, and the curves are added step by step. The day is the one whose highest
+    summed value is the highest among the days whose month is in months, the first such
+    day of the year on a tie; peak is that value. None when no day of those months is
+    whole in every curve."""
+    best = None
+    if not curves:
+        return best
+    days = min(len(c) for c in curves) // STEPS_PER_DAY
+    for d in range(days):
+        date = datetime.date(WINDOW_YEAR, 1, 1) + datetime.timedelta(days=d)
+        if date.month not in months:
+            continue
+        top = max(sum(float(c[i]) for c in curves) for i in range(d * STEPS_PER_DAY, (d + 1) * STEPS_PER_DAY))
+        if best is None or top > best[2]:
+            best = (date.month, date.day, top)
+    return best
 
 
 # The multi-day window (horizon_days in pipeline_config.yaml): horizon_days consecutive
@@ -530,6 +551,17 @@ GROWTH_LIMITS = ("line_limit_percent", "head_limit_percent", "transformer_limit_
                  "substation_limit_percent")
 GROWTH_PLAN_DIR = "growth"
 GROWTH_PLAN_FILE = "growth_plan.json"
+# Network growth (network_growth in growth.yaml; the rules are in
+# 7_circuit_instantiation/deployer_modules/network_growth.py)
+NETWORK_MODES = ("off", "planned", "as_needed")
+NETWORK_STEPS = ("new_feeder", "reconductor", "service_transformer", "regulator")
+NETWORK_OPEN_POINTS = ("switch", "switch_then_bus", "bus")
+NETWORK_HEAD_METRICS = ("largest_phase", "three_phase_kva")
+NETWORK_CATALOGS = ("region", "substation", "feeder")
+# An item of network_growth_built.yaml: {feeder, mix, step, ...} with these keys per step
+NETWORK_ITEM_KEYS = {"rebalance_phases": ("lateral", "to_phase"), "new_feeder": (),
+                     "reconductor": ("line", "linecode", "circuits"),
+                     "service_transformer": ("transformer", "kva", "units"), "regulator": ("line",)}
 
 
 def _growth_fail(key, value, expected):
@@ -639,6 +671,9 @@ def growth_settings(raw, topology_id=None):
             _growth_fail(f"{key}.bus", entry["bus"], "a bus name, or no bus key")
     if g.get("named_load_bus") not in GROWTH_NAMED_BUS:
         _growth_fail("named_load_bus", g.get("named_load_bus"), "one of " + ", ".join(GROWTH_NAMED_BUS))
+    value = g.get("named_load_mv_line_m")
+    if not _number(value) or value <= 0:
+        _growth_fail("named_load_mv_line_m", value, "a number of metres above 0")
     factors = g.get("load_factors")
     if not isinstance(factors, list):
         _growth_fail("load_factors", factors, "a list of {feeder, load, factor, peak_factor}")
@@ -653,6 +688,8 @@ def growth_settings(raw, topology_id=None):
             _growth_fail(f"{key}.factor", entry.get("factor"), "a number above 0")
         if "peak_factor" in entry and (not _number(entry["peak_factor"]) or entry["peak_factor"] <= 0):
             _growth_fail(f"{key}.peak_factor", entry["peak_factor"], "a number above 0, or no peak_factor key")
+    if not isinstance(g.get("der_resize_with_growth"), bool):
+        _growth_fail("der_resize_with_growth", g.get("der_resize_with_growth"), "true or false")
     limits = g.get("planning_limits")
     if not isinstance(limits, dict):
         _growth_fail("planning_limits", limits, "a map")
@@ -671,11 +708,116 @@ def growth_settings(raw, topology_id=None):
     for name in GROWTH_LIMITS:
         if not _number(limits.get(name)) or limits[name] <= 0:
             _growth_fail(f"planning_limits.{name}", limits.get(name), "a number of percent above 0")
+    ng = g.get("network_growth")
+    if not isinstance(ng, dict):
+        _growth_fail("network_growth", ng, "a map")
     # off without quotes loads as a boolean in YAML: the value is read as text
-    mode = (g.get("network_growth") or {}).get("mode") if isinstance(g.get("network_growth"), dict) else None
-    if not (isinstance(mode, str) and mode == "off"):
-        _growth_fail("network_growth.mode", mode, 'the text "off", in quotes (no other mode exists yet)')
+    mode = ng.get("mode")
+    if not (isinstance(mode, str) and mode in NETWORK_MODES):
+        _growth_fail("network_growth.mode", mode, 'one of "off" (in quotes), planned, as_needed')
+    steps = ng.get("steps")
+    if not (isinstance(steps, list) and all(isinstance(s, str) and s in NETWORK_STEPS for s in steps)
+            and len(set(steps)) == len(steps)):
+        _growth_fail("network_growth.steps", steps, "a list of " + ", ".join(NETWORK_STEPS) + ", each at most once")
+    if not isinstance(ng.get("rebalance_phases"), bool):
+        _growth_fail("network_growth.rebalance_phases", ng.get("rebalance_phases"), "true or false")
+    for key, values in (("open_point", NETWORK_OPEN_POINTS), ("head_metric", NETWORK_HEAD_METRICS),
+                        ("catalog", NETWORK_CATALOGS)):
+        if not (isinstance(ng.get(key), str) and ng[key] in values):
+            _growth_fail(f"network_growth.{key}", ng.get(key), "one of " + ", ".join(values))
+    value = ng.get("sizing_percent")
+    if not _number(value) or not 0 < value <= 100:
+        _growth_fail("network_growth.sizing_percent", value, "a number above 0 and at most 100")
+    if _whole(ng.get("max_rounds")) is None or _whole(ng["max_rounds"]) < 0:
+        _growth_fail("network_growth.max_rounds", ng.get("max_rounds"), "a whole number, 0 or above")
+    carry = ng.get("carry_forward")
+    if carry is not None and not (isinstance(carry, str) and carry):
+        _growth_fail("network_growth.carry_forward", carry, "null or the path of a network_growth_built.yaml")
+    planned = ng.get("planned")
+    if not isinstance(planned, list):
+        _growth_fail("network_growth.planned", planned, "a list of items in the format of network_growth_built.yaml")
+    for i, item in enumerate(planned):
+        problem = network_item_error(item)
+        if problem:
+            _growth_fail(f"network_growth.planned[{i}]", item, problem)
+    if mode == "planned" and not planned and carry is None:
+        _growth_fail("network_growth.mode", mode, "an item in network_growth.planned or a carry_forward file "
+                     "under mode planned")
+    g["network_growth"] = dict(ng, max_rounds=_whole(ng["max_rounds"]))
     return g
+
+
+def network_item_error(item):
+    """None for a well-formed item of network_growth_built.yaml, else what it should be.
+    An item is a map with feeder, mix, step and the keys of its step: rebalance_phases
+    {lateral, to_phase 1 to 3}; new_feeder {open} or {cut_bus}; reconductor {line,
+    linecode, circuits}; service_transformer {transformer, kva, units}; regulator {line}.
+    round is optional and ignored."""
+    if not isinstance(item, dict) or item.get("step") not in NETWORK_ITEM_KEYS:
+        return "a map with feeder, mix, step (one of " + ", ".join(NETWORK_ITEM_KEYS) + ") and the keys of its step"
+    step = item["step"]
+    keys = set(NETWORK_ITEM_KEYS[step])
+    if step == "new_feeder":
+        if len({"open", "cut_bus"} & set(item)) != 1:
+            return "a new_feeder item with exactly one of open (a line) and cut_bus (a bus)"
+        keys = {"open", "cut_bus"} & set(item)
+    if set(item) - {"round"} != {"feeder", "mix", "step"} | keys:
+        return f"a {step} item with the keys feeder, mix, step, {', '.join(sorted(keys))} and, optional, round"
+    for key in ("feeder", "mix", "lateral", "open", "cut_bus", "line", "linecode", "transformer"):
+        if key in item and not (isinstance(item[key], str) and item[key]):
+            return f"a name for {key}"
+    if "to_phase" in item and item["to_phase"] not in (1, 2, 3):
+        return "to_phase 1, 2 or 3"
+    for key in ("circuits", "units"):
+        if key in item and (_whole(item[key]) is None or _whole(item[key]) < 1):
+            return f"a whole number, 1 or above, for {key}"
+    if "kva" in item and (not _number(item["kva"]) or item["kva"] <= 0):
+        return "a number above 0 for kva"
+    return None
+
+
+def network_growth_on(g):
+    """True when the checked growth settings g ask for network growth: growth on and a
+    mode other than "off"."""
+    return growth_on(g) and g["network_growth"]["mode"] != "off"
+
+
+def network_growth_items(g, settings_dir=None):
+    """The items to build after round 0, in order: those of the carry_forward file (a
+    network_growth_built.yaml; absolute, or relative to settings_dir, the --settings
+    folder; None takes PIPELINE_SETTINGS_DIR), then those of planned. A carry_forward
+    file that is missing, does not load as a list or holds a malformed item, and mode
+    planned without any item, print [FAIL] and exit 1."""
+    ng = g["network_growth"]
+    items = []
+    if ng["carry_forward"] is not None:
+        path = Path(ng["carry_forward"])
+        if not path.is_absolute():
+            path = Path(settings_dir or os.environ.get(SETTINGS_ENV) or ".") / path
+        if not path.is_file():
+            print(f"[FAIL] growth.yaml: network_growth.carry_forward file {path.as_posix()} not found.")
+            sys.exit(1)
+        try:
+            with open(path, encoding="utf-8") as f:
+                carried = yaml.safe_load(f) or []
+        except yaml.YAMLError as exc:
+            print(f"[FAIL] network_growth.carry_forward file {path.as_posix()} does not load as YAML: {exc}")
+            sys.exit(1)
+        if not isinstance(carried, list):
+            print(f"[FAIL] network_growth.carry_forward file {path.as_posix()} does not hold a list of items.")
+            sys.exit(1)
+        for i, item in enumerate(carried):
+            problem = network_item_error(item)
+            if problem:
+                print(f"[FAIL] network_growth.carry_forward file {path.as_posix()}, item {i + 1} is {item!r}; "
+                      f"expected {problem}.")
+                sys.exit(1)
+        items.extend(carried)
+    items.extend(ng["planned"])
+    if ng["mode"] == "planned" and not items:
+        print("[FAIL] growth.yaml: network_growth.mode is planned but carry_forward and planned hold no item.")
+        sys.exit(1)
+    return [{k: v for k, v in item.items() if k != "round"} for item in items]
 
 
 def growth_on(g):

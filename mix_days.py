@@ -31,6 +31,10 @@ and the later steps carry 96 x horizon_days steps; day X itself is found as abov
 With load growth on (growth_years above 0 in growth.yaml) and per_circuit, day X of every
 mix is the peak day of the grown curve, and every mix, 100 % baseline included, has its
 profiles cut on day X and runs step 2; the baseline check of step 1 does not run.
+With peak_day_rule: per_substation, the phase runs as under given: every mix has its
+profiles cut on day X and runs step 2, and the baseline check does not run. Day X of
+every feeder of the case is the peak day of the sum of the mix curves of the case's
+feeders (the grown curves with growth on), so all circuits share one window.
 A step that exits non-zero stops the phase with that exit code.
 """
 
@@ -74,7 +78,7 @@ def run(cwd, args, env):
 def main():
     cfg = load_config()
     rule = peak_day_rule(cfg)
-    if rule not in ("per_circuit", "given"):
+    if rule not in ("per_circuit", "given", "per_substation"):
         print(f"[mix_days] peak_day_rule is {rule}: phase mix_days skipped, nothing written.")
         return
     mixes = load_mixes(cfg["mixes_file"])

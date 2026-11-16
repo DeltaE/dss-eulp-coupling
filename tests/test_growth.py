@@ -70,7 +70,9 @@ def test_tracked_defaults_are_growth_off():
     assert g["growth_years"] == 0 and not growth_on(g)
     assert growth_rates(g) == MODERATE
     assert growth_infill_share(g, "NC_GSO_urban_uhs13_1247") == 1.0
-    assert g["network_growth"]["mode"] == "off"
+    assert g["network_growth"]["mode"] == "as_needed"           # with growth_years 0 nothing of it runs
+    assert g["der_resize_with_growth"] is False and g["named_load_mv_line_m"] == 269.0
+    assert growth_settings(_with(der_resize_with_growth=True))["der_resize_with_growth"] is True
     assert "growth.yaml" in SETTINGS_FILES
     assert planning_band(g, {"voltage_band": {"low_pu": 0.95, "high_pu": 1.05}}) == (0.95, 1.05)
 
@@ -104,7 +106,9 @@ def test_every_bad_growth_value_stops():
         {"named_loads": [{"feeder": "f", "type": "Hospital", "count": 1}]},
         {"named_loads": [{"feeder": "f", "type": "Hospital", "count": 1, "year": 1, "kw": 5}]},
         {"named_loads": [{"feeder": "f", "type": "Hospital", "count": 1, "year": 1, "bus": ""}]},
-        {"named_load_bus": "nearest"},
+        {"named_load_bus": "nearest"}, {"named_load_mv_line_m": 0}, {"named_load_mv_line_m": "269"},
+        {"named_load_mv_line_m": None}, {"der_resize_with_growth": "false"}, {"der_resize_with_growth": 0},
+        {"der_resize_with_growth": None},
         {"load_factors": [{"feeder": "f", "load": "x"}]},
         {"load_factors": [{"feeder": "f", "load": "x", "factor": 1.1, "peak_factor": 0}]},
         {"load_factors": [{"feeder": "f", "factor": 1.1}]},
@@ -122,11 +126,12 @@ def test_every_bad_growth_value_stops():
 
 
 def test_off_is_read_as_text():
-    """off without quotes is a boolean in YAML; only the text "off" is accepted."""
+    """off without quotes is a boolean in YAML; the mode is read as text, "off" in quotes."""
     assert yaml.safe_load("mode: off")["mode"] is False
     assert yaml.safe_load('mode: "off"')["mode"] == "off"
-    assert _stops(growth_settings, _with(network_growth=yaml.safe_load("mode: off")))
-    assert not _stops(growth_settings, _with(network_growth=yaml.safe_load('mode: "off"')))
+    assert _stops(growth_settings, _with(network_growth__mode=yaml.safe_load("mode: off")["mode"]))
+    assert not _stops(growth_settings, _with(network_growth__mode=yaml.safe_load('mode: "off"')["mode"]))
+    assert growth_settings(_with(network_growth__mode="off"))["network_growth"]["mode"] == "off"
 
 
 def test_growth_merge_strict_keys_and_open_maps(tmp_path):
@@ -240,18 +245,45 @@ def test_counts_table():
         == round(100 / (127.6 / 5.9))
 
 
-def test_companion_pool_and_bound():
+def test_year_additions_sum_to_counts_and_nest():
+    """Year t adds what the counts at t years hold beyond earlier years: the additions sum
+    to growth.counts at every horizon, and a shorter horizon is the start of a longer one."""
+    for homes, businesses in CIRCUITS:
+        for companions in ("feeder", "national", "aeo"):
+            for share in (1.0, 0.25, 0.07):
+                by_years = {}
+                for years in (5, 10, 20):
+                    adds = growth.year_additions(homes, businesses, MODERATE, years, companions, NATIONAL, share)
+                    assert len(adds) == years
+                    total = {key: sum(a[key] for a in adds) for key in adds[0]}
+                    assert total == growth.counts(homes, businesses, MODERATE, years, companions, NATIONAL, share)
+                    by_years[years] = adds
+                assert by_years[10][:5] == by_years[5] and by_years[20][:10] == by_years[10]
+    assert growth.year_additions(494, 272, MODERATE, 0, "feeder", NATIONAL, 1.0) == []
+
+
+def test_companion_candidates_and_draw():
     buildings = {"b1": {"type": "SmallOffice", "sqft": 1000.0}, "b2": {"type": "Hospital", "sqft": 3000.0},
                  "b3": {"type": "RetailStandalone", "sqft": 8000.0}, "b4": {"type": "Warehouse", "sqft": 4000.0}}
     businesses = ["b1", "b2", "b3", "b4", "b5"]                       # b5 has no known building
-    pool, bound, mean = growth.companion_pool(businesses, buildings, 1, ["Hospital", "PrimarySchool"])
-    assert mean == 4000.0 and bound == 4000.0                          # the mean keeps the excluded type
-    assert pool == ["b1", "b4"]                                        # no hospital, none above the bound
-    pool, bound, _ = growth.companion_pool(businesses, buildings, 2, ["Hospital"])
-    assert bound == 8000.0 and pool == ["b1", "b3", "b4"]
-    assert growth.companion_pool(businesses, buildings, 0, [])[0] == []
-    # the bound of a circuit: companions x its mean floor area
+    mean = growth.mean_floor_area(businesses, buildings)
+    assert mean == 4000.0                                              # the mean keeps the excluded type
+    assert growth.mean_floor_area(["b5"], buildings) == 0.0
+    # the k-th companion: floor area no larger than k x mean, no excluded type
+    assert growth.companion_candidates(1, businesses, buildings, ["Hospital", "PrimarySchool"], mean) == \
+        (["b1", "b4"], 4000.0)
+    assert growth.companion_candidates(2, businesses, buildings, ["Hospital"], mean) == (["b1", "b3", "b4"], 8000.0)
+    assert growth.companion_candidates(0, businesses, buildings, [], mean) == ([], 0.0)
+    # the bound of the last companion of a circuit: companions x its mean floor area
     assert round(22 * 16994.5) == 373879
+    seed = growth.growth_seed(555, "sub", "feeder")
+    pool = ["b1", "b3", "b4"]
+    first = growth.companion_draw(1, pool, set(), seed)
+    assert first in pool and growth.companion_draw(1, pool, set(), seed) == first
+    # a business an earlier companion copied is left out while another is left
+    assert growth.companion_draw(2, pool, {"b1", "b4"}, seed) == "b3"
+    assert growth.companion_draw(3, pool, {"b1", "b3", "b4"}, seed) in pool
+    assert growth.companion_draw(1, [], set(), seed) is None           # an empty pool
 
 
 # ---------------------------------------------------------------------------
@@ -457,26 +489,42 @@ def test_find_laterals_and_copy():
     assert [x["kind"] for x in growth.find_laterals(growth.read_feeder(texts))] == ["none"]
 
 
-def test_block_eligibility_spacing_and_remainder():
+def _add(infill_homes=0, infill_companions=0, block_homes=0, block_companions=0):
+    return {"new_homes": infill_homes + block_homes, "companions": infill_companions + block_companions,
+            "infill_homes": infill_homes, "block_homes": block_homes, "infill_companions": infill_companions,
+            "block_companions": block_companions}
+
+
+BIZ = {f"biz{i}": {"type": "SmallOffice", "sqft": 1000.0 * i} for i in range(1, 7)}   # mean 3,500 ft2
+
+
+def test_block_eligibility():
     net, _, _ = _net()
     laterals = growth.find_laterals(net)
-    assert growth.eligible_templates(laterals, 3, 0, []) == laterals
-    assert growth.eligible_templates(laterals, 2, 0, []) == []                    # more homes than are left
-    mixed = [dict(laterals[0], kind="mixed", businesses=1, customers=laterals[0]["customers"] + ["biz"])]
-    assert growth.eligible_templates(mixed, 3, 1, ["biz"]) == mixed
-    assert growth.eligible_templates(mixed, 3, 0, ["biz"]) == []                  # no companion still due
-    assert growth.eligible_templates(mixed, 3, 1, []) == []                       # its business is not in the pool
-    assert growth.eligible_templates([dict(laterals[0], kind="businesses")], 9, 9, []) == []
+    none = ([], {}, [], 0.0)
+    assert growth.eligible_templates(laterals, 3, 0, 0, *none) == laterals
+    assert growth.eligible_templates(laterals, 2, 0, 0, *none) == []              # more homes than are waiting
+    assert growth.eligible_templates([dict(laterals[0], kind="businesses")], 9, 9, 0, *none) == []
+    # a mixed lateral: its business is companion placed + 1 and has to fit that companion's bound
+    mixed = [dict(laterals[0], kind="mixed", businesses=1, customers=laterals[0]["customers"] + ["biz6"])]
+    args = (sorted(BIZ), BIZ, ["Hospital"], 3500.0)
+    assert growth.eligible_templates(mixed, 3, 1, 0, *args) == []                 # 6,000 ft2 above 1 x 3,500
+    assert growth.eligible_templates(mixed, 3, 1, 1, *args) == mixed              # no larger than 2 x 3,500
+    assert growth.eligible_templates(mixed, 3, 0, 1, *args) == []                 # no companion waiting
+    assert growth.eligible_templates(mixed, 3, 1, 1, sorted(BIZ), BIZ, ["SmallOffice"], 3500.0) == []
+    assert growth.eligible_templates(mixed, 3, 1, 1, sorted(BIZ), {}, [], 3500.0) == []   # no known building
 
+
+def test_block_spacing():
+    net, _, _ = _net()
+    laterals = growth.find_laterals(net)
     seed = growth.growth_seed(555, "sub", "feeder")
-    # 7 block homes: two blocks of 3 homes are placed, 1 home is the remainder
-    blocks, remainder, companions_left = growth.place_blocks(net, laterals, 7, 2, [], seed)
-    assert [b["template"]["root"] for b in blocks] == ["l1", "l1"] and remainder == 1 and companions_left == 2
     # spacing: the attach buses are at least r(new) + r(earlier) apart, r the reach of the lateral
     xy = growth.project(net["coords"])
     r = growth.lateral_radius(laterals[0], xy)
     assert 60 < r < 75                                                            # tap a to h3: about 70 m
-    built = [b for b in blocks if b["attach"]]
+    events = growth.plan_years(net, laterals, [_add(block_homes=7)], ["x"], [], {}, [], seed)
+    built = [e for e in events if e["event"] == "block" and e["attach"]]
     assert len(built) == 2 and built[0]["attach"] != built[1]["attach"]
     d = math.hypot(xy[built[0]["attach"]][0] - xy[built[1]["attach"]][0],
                    xy[built[0]["attach"]][1] - xy[built[1]["attach"]][1])
@@ -488,19 +536,81 @@ def test_block_eligibility_spacing_and_remainder():
     assert growth.attach_bus(buses, xy, centre, math.pi, r, []) == "a"
     assert growth.attach_bus(buses, xy, centre, 0.0, r, [("c", r)]) == "b"        # c is taken, m1 is too near
     assert growth.attach_bus(buses, xy, centre, 0.0, 1000.0, [("c", r)]) is None  # nothing far enough
-    # a block without an attach bus is not built and its homes join the remainder
-    blocks, remainder, _ = growth.place_blocks(net, [dict(laterals[0], buses=laterals[0]["buses"])], 6, 0, [], seed)
-    far = [dict(b) for b in blocks]
-    assert len(far) == 2 and remainder == 0
-    wide = dict(net, coords={b: (lon * 0.01, lat * 0.01) for b, (lon, lat) in net["coords"].items()})
-    blocks, remainder, _ = growth.place_blocks(wide, growth.find_laterals(wide), 6, 0, [], seed)
-    assert [b["attach"] is not None for b in blocks].count(True) >= 1
     # given attach buses are used in order before any drawn bearing, and must be three-phase buses
-    blocks, _, _ = growth.place_blocks(net, laterals, 3, 0, [], seed, ["B"])
-    assert blocks[0]["attach"] == "b" and blocks[0]["given"]
-    assert _raises(growth.place_blocks, net, laterals, 3, 0, [], seed, ["l1"])
-    # no template fits: every block home is the remainder
-    assert growth.place_blocks(net, laterals, 2, 0, [], seed) == ([], 2, 0)
+    events = growth.plan_years(net, laterals, [_add(block_homes=3)], ["x"], [], {}, [], seed, ["B"])
+    assert events[0]["attach"] == "b" and events[0]["given"]
+    assert _raises(growth.plan_years, net, laterals, [_add(block_homes=3)], ["x"], [], {}, [], seed, ["l1"])
+
+
+def test_plan_years_order_waiting_and_dealing():
+    net, _, _ = _net()
+    laterals = growth.find_laterals(net)                                          # one lateral of 3 homes
+    seed = growth.growth_seed(555, "sub", "feeder")
+    order = [f"home{i}" for i in range(4)]
+    args = (order, sorted(BIZ), BIZ, [], seed)
+
+    def brief(events):
+        return [(e["event"], e["year"], e.get("position") or e["k"]) for e in events]
+
+    # year 1: infill homes, then infill companions; 2 block homes and 1 block companion wait
+    one = growth.plan_years(net, laterals, [_add(2, 1, 2, 1)], *args)
+    assert brief(one) == [("home", 1, 1), ("home", 1, 2), ("companion", 1, 1), ("home", 1, 3), ("home", 1, 4),
+                          ("companion", 1, 2)]
+    assert [e["template"] for e in one if e["event"] == "home"] == order
+    assert [(e["remainder"], e["waiting"]) for e in one] == [(False, False)] * 3 + [(True, True)] * 3
+    assert one[5]["block"] is None                                # a waiting companion arrives as infill
+    # a second year brings the third block home: the block is built and the waiting companion dealt to it
+    two = growth.plan_years(net, laterals, [_add(2, 1, 2, 1), _add(0, 0, 1, 0)], *args, ["b"])
+    assert two[:3] == one[:3]                                     # the units that are not waiting are kept
+    assert brief(two[3:]) == [("block", 2, 1), ("companion", 2, 2)]
+    assert two[3]["attach"] == "b" and two[4]["block"] == 1 and not two[4]["waiting"]
+    # the k-th companion: its bound is k x the mean floor area, and no business is copied twice
+    comps = [e for e in growth.plan_years(net, laterals, [_add(0, 2), _add(0, 2), _add(0, 2)], *args)
+             if e["event"] == "companion"]
+    assert [e["k"] for e in comps] == [1, 2, 3, 4, 5, 6] and [e["year"] for e in comps] == [1, 1, 2, 2, 3, 3]
+    assert [e["bound"] for e in comps] == [3500.0 * k for k in range(1, 7)]
+    assert [e["pool"] for e in comps] == [3, 6, 6, 6, 6, 6]
+    assert all(BIZ[e["template"]]["sqft"] <= e["bound"] for e in comps)
+    assert sorted(e["template"] for e in comps) == sorted(BIZ)
+    # dealing: the j-th dealt companion goes to block ((j - 1) mod B) + 1, B the blocks built by then
+    deal = growth.plan_years(net, laterals, [_add(0, 0, 3, 2), _add(0, 0, 3, 2)], *args, ["a", "c"])
+    assert [(e["k"], e["year"], e["block"]) for e in deal if e["event"] == "companion"] == \
+        [(1, 1, 1), (2, 1, 1), (3, 2, 1), (4, 2, 2)]
+    both = growth.plan_years(net, laterals, [_add(0, 0, 6, 5)], *args, ["a", "c"])
+    assert [e["block"] for e in both if e["event"] == "companion"] == [1, 2, 1, 2, 1]
+    # a block without an attach bus is not built: its homes arrive as infill, marked remainder
+    far = [dict(laterals[0], tap="c")]                            # a reach of about 580 m
+    events = growth.plan_years(net, far, [_add(1, 0, 6, 0)], *args)
+    assert [(e["event"], e.get("attach") is not None) for e in events if e["event"] == "block"] == \
+        [("block", True), ("block", False)]
+    homes = [e for e in events if e["event"] == "home"]
+    assert [(e["position"], e["remainder"], e["waiting"]) for e in homes] == \
+        [(1, False, False), (2, True, False), (3, True, False), (4, True, False)]
+    # no template fits and no block is built: block homes and block companions all wait
+    events = growth.plan_years(net, laterals, [_add(0, 0, 2, 1)], *args)
+    assert [(e["event"], e["waiting"]) for e in events] == [("home", True), ("home", True), ("companion", True)]
+    # an empty pool leaves the companion without a template; it keeps its number
+    events = growth.plan_years(net, laterals, [_add(0, 2)], order, [], {}, [], seed)
+    assert [(e["k"], e["template"], e["pool"]) for e in events] == [(1, None, 0), (2, None, 0)]
+
+
+def test_plans_nest_across_horizons():
+    """The events of a 5-year plan that are not waiting open the 10-year and 20-year plans."""
+    net, _, _ = _net()
+    laterals = growth.find_laterals(net)
+    mixed = dict(laterals[0], kind="mixed", businesses=1, customers=laterals[0]["customers"] + ["biz2"], root="lx")
+    seed = growth.growth_seed(555, "uhs13_1247", "uhs13_1247--udt4015")
+    order = growth.seeded_order([f"load_h{i}" for i in range(494)], "infill_homes", seed)
+    for share in (1.0, 0.25, 0.07):
+        plans = {}
+        for years in (5, 10, 20):
+            adds = growth.year_additions(494, 6, MODERATE, years, "national", NATIONAL, share)
+            plans[years] = growth.plan_years(net, laterals + [mixed], adds, order, sorted(BIZ), BIZ, [], seed)
+        for short, long in ((5, 10), (10, 20), (5, 20)):
+            kept = [e for e in plans[short] if not e.get("waiting")]
+            assert kept == plans[long][:len(kept)]
+            assert all(e["year"] <= short for e in kept)
+            assert all(e["waiting"] for e in plans[short][len(kept):])
 
 
 def test_named_load_rules():
@@ -545,6 +655,76 @@ def test_named_load_rules():
     new = growth.connect_named(net, "n1x2", template, conn, "c", 5200.0, "com_kw_10_pu")
     assert new["pattern"] == "mv_line" and new["transformers"] == []
     assert new["lines"][0].startswith("New Line.mvc_gn1x2 Units=km Length=0.03 bus1=c.1.2.3 bus2=m1_gn1x2.1.2.3")
+
+
+def test_named_load_at_medium_voltage():
+    """A named load whose template sits behind a service transformer and that no transformer
+    of the feeder can carry connects at medium voltage on a new line and bus of its own."""
+    net, tr_map, served = _net()
+    assert net["base_kv"] == 12.47
+    mv_lines = [growth.customer_connection(net, b, tr_map, served)["line"] for b in ("load_m1",)]
+    template, conn = growth.named_template(net, 140.0, tr_map, served)
+    assert template == "load_c1" and conn["pattern"] == "transformer"
+    # a load a transformer can carry keeps the transformer pattern
+    kept = growth.connect_named(net, "n1x1", template, conn, "a", 420.0, "com_kw_g77_pu", mv_lines, 269.0)
+    assert kept["pattern"] == "transformer" and kept["large_enough"] and kept["mv"] is None
+    assert kept == growth.connect_named(net, "n1x1", template, conn, "a", 420.0, "com_kw_g77_pu")
+    # above every rating (500 kVA): pattern mv_new, the feeder's median length (one customer, 30 m)
+    new = growth.connect_named(net, "n1x1", template, conn, "a", 600.0, "com_kw_g77_pu", mv_lines, 269.0)
+    assert new["pattern"] == "mv_new" and new["transformers"] == [] and new["transformer"] == ""
+    assert not new["large_enough"] and new["transformer_kva"] is None
+    assert new["lines"] == ["New Line.s4_gn1x1 Units=m Length=30.0 bus1=a.1.2.3 bus2=c1_gn1x1.1.2.3 switch=n "
+                            "enabled=y phases=3 Linecode=3P"]
+    assert new["loads"] == [{"name": "load_c1_gn1x1", "template": "load_c1", "bus1": "c1_gn1x1.1.2.3",
+                             "base": "load_c1_gn1x1", "yearly": "com_kw_g77_pu", "mv_new": 12.47,
+                             "templates": ["load_c1"]}]
+    assert new["buses"] == {"c1_gn1x1": "c1"}
+    mv = new["mv"]
+    assert math.isclose(mv["peak_amps"], 600.0 / (math.sqrt(3.0) * 12.47))
+    # no overhead code on this feeder: the choice is over all three-phase medium-voltage codes
+    assert (mv["linecode"], mv["normamps"], mv["carries"], mv["length_m"], mv["length_rule"]) == \
+        ("3P", 400.0, True, 30.0, "feeder_median")
+    # the new line reads back as a three-phase medium-voltage line of 30 m
+    line = growth.read_feeder(dict(TEXTS, **{"lines.dss": LINES + new["lines"][0] + "\n"}))["lines"][-1]
+    assert (line["b1"], line["b2"], line["phases"], line["length_m"], line["linecode"]) == \
+        ("a", "c1_gn1x1", 3, 30.0, "3p")
+    # a feeder without a medium-voltage customer takes named_load_mv_line_m
+    assert growth.mv_new_line(net, [], 600.0, 269.0)["length_m"] == 269.0
+    assert growth.mv_new_line(net, [], 600.0, 269.0)["length_rule"] == "named_load_mv_line_m"
+    two = growth.mv_new_line(net, [{"length_m": 100.0}, {"length_m": 300.0}], 600.0, 269.0)
+    assert two["length_m"] == 200.0 and two["length_rule"] == "feeder_median"
+    # overhead codes: the smallest normamps at or above the peak current; the largest when none is
+    codes = LINECODES + (
+        "New Linecode.3P_OH_A units=km nphases=3 Rmatrix=(0.2 ) Xmatrix=(0.6 ) normamps=20.0\n"
+        "New Linecode.3P_OH_B units=km nphases=3 Rmatrix=(0.2 ) Xmatrix=(0.6 ) normamps=30.0\n"
+        "New Linecode.3P_UG_C units=km nphases=3 Rmatrix=(0.2 ) Xmatrix=(0.6 ) normamps=28.0\n")
+    lines = LINES.replace("bus2=b.1.2.3 switch=n enabled=y phases=3 Linecode=3P", "bus2=b.1.2.3 switch=n "
+                          "enabled=y phases=3 Linecode=3P_OH_A")
+    lines = lines.replace("bus2=c.1.2.3 switch=n enabled=y phases=3 Linecode=3P", "bus2=c.1.2.3 switch=n "
+                          "enabled=y phases=3 Linecode=3P_OH_B")
+    lines = lines.replace("bus2=m1.1.2.3 switch=n enabled=y phases=3 Linecode=3P", "bus2=m1.1.2.3 switch=n "
+                          "enabled=y phases=3 Linecode=3P_UG_C")
+    oh = growth.read_feeder(dict(TEXTS, **{"lines.dss": lines, "linecodes.dss": codes}))
+    pick = growth.mv_new_line(oh, [], 600.0, 269.0)                      # 27.8 A: above A, the UG code is no choice
+    assert (pick["linecode"], pick["normamps"], pick["carries"]) == ("3P_OH_B", 30.0, True)
+    pick = growth.mv_new_line(oh, [], 400.0, 269.0)                      # 18.5 A
+    assert (pick["linecode"], pick["normamps"], pick["carries"]) == ("3P_OH_A", 20.0, True)
+    pick = growth.mv_new_line(oh, [], 700.0, 269.0)                      # 32.4 A: none carries it
+    assert (pick["linecode"], pick["normamps"], pick["carries"]) == ("3P_OH_B", 30.0, False)
+    assert _raises(growth.mv_new_line, dict(net, base_kv=None), [], 600.0, 269.0)
+    # a medium-voltage template keeps the copy of its own line
+    template, conn = growth.named_template(net, 5000.0, tr_map, served)
+    new = growth.connect_named(net, "n1x2", template, conn, "c", 9000.0, "com_kw_10_pu", mv_lines, 269.0)
+    assert new["pattern"] == "mv_line" and new["mv"] is None
+    assert new["lines"][0].startswith("New Line.mvc_gn1x2 Units=km Length=0.03 bus1=c.1.2.3 bus2=m1_gn1x2.1.2.3")
+    # the Load line Phase 7b writes for pattern mv_new
+    text = growth.mv_load_line("New Load.load_c1 conn=wye bus1=c1.1.2.3 kV=0.48 Vminpu=0.8 Vmaxpu=1.2 model=1 "
+                               "kW=1 kvar=1 Phases=3 daily=com_kw_11_pu", "load_c1_gn1x1", "c1_gn1x1.1.2.3", 12.47,
+                               0.5 * 1.25, 1.25, "com_kw_g77_pu")
+    assert text == ("New Load.load_c1_gn1x1 conn=wye bus1=c1_gn1x1.1.2.3 kV=12.47 Vminpu=0.8 Vmaxpu=1.2 model=1 "
+                    "kW=0.625 kvar=1.25 Phases=3 daily=com_kw_g77_pu")
+    load = growth.read_feeder(dict(TEXTS, **{"loads.dss": text.replace("daily=", "yearly=")}))["loads"][0]
+    assert (load["bus"], load["kv"], load["phases"], load["base"]) == ("c1_gn1x1", 12.47, 3, "load_c1_gn1x1")
 
 
 def test_named_candidates_and_stops():

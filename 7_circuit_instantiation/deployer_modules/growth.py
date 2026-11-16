@@ -18,28 +18,39 @@ curves. Per circuit (one SMART-DS feeder):
 - Counts (counts). New homes = round(H x ((1 + households / 100) ^ years - 1)), H the
   circuit's homes. Companion businesses by the companions setting. The infill share
   splits both between infill and extension blocks.
-- Infill. Each infill home is a copy of one existing home, the first n of one seeded
-  order of the homes; each infill companion a copy of one business of the pool
-  (companion_pool). A copy copies its customer's connection (copy_customer).
+- The plan is built year by year (year_additions, plan_years), in one seeded sequence
+  per circuit: the plan of a horizon is the state after its last year, so a longer
+  horizon holds every unit of a shorter one. Year t adds what the counts at t years
+  hold beyond what earlier years added.
+- Infill. Each infill home is a copy of one existing home, the next position of one
+  seeded order of the homes; each companion a copy of one business drawn for it
+  (companion_candidates, companion_draw). A copy copies its customer's connection
+  (copy_customer).
 - Blocks. A block is a copy of one of the circuit's laterals (find_laterals), attached
-  at a three-phase medium-voltage bus (place_blocks).
+  at a three-phase medium-voltage bus (attach_bus). Block homes and block companions
+  wait until a lateral fits; those still waiting at the horizon arrive as infill copies
+  marked waiting.
 - Named loads. Loads of one ComStock building type, each on a three-phase
   medium-voltage bus, connected like the existing customer of the nearest size
-  (connect_named).
+  (connect_named). When that customer sits behind a service transformer and no
+  transformer of the feeder is large enough, the load connects at medium voltage on a
+  new line and bus of its own (mv_new_line).
 
 Seeds: one growth seed per circuit, random_seed of pipeline_config.yaml plus the sha256
 offset of "<substation>|<feeder>" (growth_seed). Every draw has its own name on that
 seed (draw), so adding a draw never moves another. Counts are computed, never drawn:
 the seeds only choose which customer or lateral is copied and where it attaches.
 
-New names: <template name>_g<unit>, the unit being one infill copy, one block, one
-companion or one named load, numbered from 1 in plan order. A load keeps its _<n> leg
-suffix after the _g<unit> part, so the name of a new customer never ends in _<digits>.
+New names: <template name>_g<unit>, the unit being one infill home (h<position in the
+home order>), one block (b<k>), one companion (c<k>) or one named load (n<entry>x<j>).
+A load keeps its _<n> leg suffix after the _g<unit> part, so the name of a new customer
+never ends in _<digits>.
 """
 
 import math
 import random
 import re
+import statistics
 
 from heating_split import _stable_seed_offset, load_segment
 from ev_control import _PROP_RE, _array, _bus, _logical_lines, service_transformers
@@ -120,6 +131,20 @@ def counts(homes, businesses, rates, years, companions, national, share):
     return {"new_homes": new_homes, "companions": n_comp, "infill_homes": infill_homes,
             "block_homes": new_homes - infill_homes, "infill_companions": infill_comp,
             "block_companions": n_comp - infill_comp}
+
+
+def year_additions(homes, businesses, rates, years, companions, national, share):
+    """What each year adds, [{count: n}] for year 1 to years. With C(t) the six counts
+    of counts at t years, year t adds max(0, C(t) - what earlier years added) of each,
+    so a count that never falls from one year to the next sums to its value at the
+    horizon."""
+    added, out = {}, []
+    for t in range(1, int(years) + 1):
+        c = counts(homes, businesses, rates, t, companions, national, share)
+        step = {key: max(0, value - added.get(key, 0)) for key, value in c.items()}
+        added = {key: added.get(key, 0) + step[key] for key in c}
+        out.append(step)
+    return out
 
 
 def stretch_coefficients(peak, mean, factor, peak_factor):
@@ -206,7 +231,8 @@ def read_feeder(texts):
     """The network of one feeder. texts: {file name, lower case: text} with lines.dss,
     transformers.dss, loads.dss and master.dss (linecodes.dss and buscoords.dss when
     present). Returns a dict:
-    - source: the source bus of New Circuit (lower case, no nodes);
+    - source: the source bus of New Circuit (lower case, no nodes); base_kv: its basekV
+      (None when not written);
     - lines: one dict per New Line (name, text, bus1, bus2 as written, b1, b2 lower case
       without nodes, phases, length_m, linecode, switch, enabled);
     - transformers: one dict per New Transformer (name, text, windings [(bus as written,
@@ -269,11 +295,13 @@ def read_feeder(texts):
                       "bus": _bus(d.get("bus1", "")), "kv": float(d["kv"]) if "kv" in d else None,
                       "phases": int(d.get("phases", 3)), "kw": float(d.get("kw", 0.0)),
                       "kvar": float(d.get("kvar", 0.0)), "yearly": d.get("yearly")})
-    source = None
+    source = base_kv = None
     for st in _logical_lines(texts.get("master.dss", "")):
         m = re.match(r"(?i)^new\s+circuit\.\S+\s*(.*)$", st)
         if m:
-            source = _bus(dict(_props(m.group(1))).get("bus1", "sourcebus"))
+            d = dict(_props(m.group(1)))
+            source = _bus(d.get("bus1", "sourcebus"))
+            base_kv = float(d["basekv"]) if "basekv" in d else None
             break
     if source is None:
         raise GrowthError("Master.dss has no New Circuit line")
@@ -323,7 +351,7 @@ def read_feeder(texts):
             if kind == "line" and bus in mv:
                 mv.add(other)
             queue.append(other)
-    return {"source": source, "lines": lines, "transformers": transformers, "loads": loads,
+    return {"source": source, "base_kv": base_kv, "lines": lines, "transformers": transformers, "loads": loads,
             "customers": customers, "parent": parent, "children": children, "mv": mv,
             "extra_lines": extra, "linecodes": read_linecodes(texts.get("linecodes.dss", "")),
             "coords": read_coords(texts.get("buscoords.dss", ""))}
@@ -492,20 +520,31 @@ def copy_customer(net, base, unit, connection, at=None, own_transformer=False):
 
 
 # ---------------------------------------------------------------------------
-# The companion pool
+# Companions
 # ---------------------------------------------------------------------------
-def companion_pool(businesses, buildings, companions, excluded_types):
-    """(pool, bound, mean): the businesses a companion may copy. buildings: {business:
-    {"type", "sqft"}} for the businesses whose building is known. mean is the mean floor
-    area of the circuit's businesses with a known building (excluded types included),
-    bound = companions x mean. The pool leaves out the excluded ComStock types, the
-    businesses above bound and those without a known building. Sorted."""
+def mean_floor_area(businesses, buildings):
+    """The mean floor area of the circuit's businesses with a known building (buildings:
+    {business: {"type", "sqft"}}), the excluded types included; 0 without one."""
     areas = [buildings[b]["sqft"] for b in businesses if b in buildings]
-    mean = sum(areas) / len(areas) if areas else 0.0
-    bound = companions * mean
-    pool = sorted(b for b in businesses if b in buildings and buildings[b]["type"] not in excluded_types
-                  and buildings[b]["sqft"] <= bound)
-    return pool, bound, mean
+    return sum(areas) / len(areas) if areas else 0.0
+
+
+def companion_candidates(k, businesses, buildings, excluded_types, mean):
+    """(pool, bound) of the k-th companion of a circuit (k from 1): the sorted
+    businesses with a known building, a type outside excluded_types and a floor area no
+    larger than bound = k x mean, mean the circuit's mean floor area per business. The
+    bound grows with k, so no copy is larger than the companion count times the mean."""
+    bound = k * mean
+    return sorted(b for b in businesses if b in buildings and buildings[b]["type"] not in excluded_types
+                  and buildings[b]["sqft"] <= bound), bound
+
+
+def companion_draw(k, pool, copied, seed):
+    """The business the k-th companion copies: one seeded draw called companion_<k>
+    among pool, leaving out the businesses in copied (those earlier companions copied)
+    while any other is left. None for an empty pool."""
+    fresh = [b for b in pool if b not in copied] or list(pool)
+    return fresh[draw(f"companion_{k}", seed).randrange(len(fresh))] if fresh else None
 
 
 # ---------------------------------------------------------------------------
@@ -592,31 +631,62 @@ def attach_bus(candidates, xy, centre, bearing, radius, earlier):
     return best[1] if best else None
 
 
-def eligible_templates(laterals, homes_left, companions_left, pool):
+def eligible_templates(laterals, homes_waiting, companions_waiting, placed, businesses, buildings,
+                       excluded_types, mean):
     """The laterals that fit: homes-only and mixed laterals with no more homes than
-    homes_left; a mixed lateral also needs no more businesses than companions_left, each
-    of them in pool."""
-    pool = set(pool)
+    homes_waiting. A mixed lateral also needs no more businesses than companions_waiting,
+    each with a known building, a type outside excluded_types and a floor area no larger
+    than (placed + b) x mean, placed being the companions placed so far and b the
+    lateral's businesses (companion_candidates at the index of its last business)."""
+    businesses = set(businesses)
     out = []
     for lat in laterals:
-        if lat["kind"] not in ("homes", "mixed") or lat["homes"] > homes_left:
+        if lat["kind"] not in ("homes", "mixed") or lat["homes"] > homes_waiting:
             continue
         if lat["kind"] == "mixed":
-            biz = [b for b in lat["customers"] if b in pool]
-            if lat["businesses"] > companions_left or len(biz) != lat["businesses"]:
+            members = [b for b in lat["customers"] if b in businesses]
+            pool, _ = companion_candidates(placed + lat["businesses"], members, buildings, excluded_types, mean)
+            if lat["businesses"] > companions_waiting or len(pool) != lat["businesses"]:
                 continue
         out.append(lat)
     return out
 
 
-def place_blocks(net, laterals, block_homes, block_companions, pool, seed, given_buses=()):
-    """Place blocks one after another until no template fits. Returns (blocks,
-    remainder_homes, companions_left). Block k (from 1): a seeded draw
-    (block_template_<k>) among eligible_templates; it attaches at the next unused bus of
-    given_buses, else at attach_bus along the seeded bearing block_bearing_<k>. A block
-    without an attach bus is not built: its homes join the remainder and placement goes
-    on. Each block: k, template (the lateral), attach (None when not built), given,
-    bearing_deg, radius_m. remainder_homes are the block homes that arrive as infill."""
+def plan_years(net, laterals, additions, home_order, businesses, buildings, excluded_types, seed,
+               given_buses=()):
+    """The growth plan of one circuit as a list of events in plan order, built year by
+    year from additions (year_additions). The events of the first N years are the plan
+    of horizon N apart from the waiting events, so plans nest across horizons.
+
+    Inside year t, in this order:
+    1. The year's infill homes take the next positions of home_order (the seeded order
+       of the homes; past its end it starts again).
+    2. The year's infill companions are the next companions.
+    3. The year's block homes join the waiting homes and its block companions the
+       waiting companions. While a template is eligible (eligible_templates), block k (k
+       runs over the whole plan) is one seeded draw (block_template_<k>) among them; it
+       attaches at the next unused bus of given_buses, else at attach_bus along the
+       seeded bearing block_bearing_<k>. A built block takes its homes and businesses
+       off the waiting lists; the businesses of a mixed lateral are the next companions.
+       A block without an attach bus is not built: its homes leave the waiting list and
+       arrive as infill homes at the next positions, marked remainder.
+    4. Once a block is built, the waiting companions are dealt to the built blocks: the
+       j-th dealt companion of the circuit goes to block ((j - 1) mod B) + 1 in build
+       order, B being the blocks built when it is dealt.
+    At the end of the last year the homes still waiting arrive as infill homes and the
+    companions still waiting as the next companions, both marked remainder and waiting.
+
+    The k-th companion (k counts infill companions, the businesses of mixed laterals
+    and dealt companions as they arrive) copies companion_draw of companion_candidates;
+    an empty pool leaves it without a template.
+
+    Events, each with year:
+    - home: position, template, remainder, waiting;
+    - companion: k, template (None when the pool is empty), block (the block it is dealt
+      to, else None), pool (its size), bound, remainder, waiting;
+    - block: k, template (the lateral), attach (None when not built), given,
+      bearing_deg, radius_m, companions (the k of each business of a built mixed
+      lateral, in the order of its customers)."""
     xy = project(net["coords"])
     centre = load_centre(net, xy)
     candidates = three_phase_mv_buses(net)
@@ -624,30 +694,74 @@ def place_blocks(net, laterals, block_homes, block_companions, pool, seed, given
     for b in given:
         if b not in candidates:
             raise GrowthError(f"block_attach_buses: {b} is not a three-phase medium-voltage bus of the feeder")
-    blocks, earlier, remainder = [], [], 0
-    homes_left, companions_left, k = block_homes, block_companions, 0
-    while True:
-        fits = eligible_templates(laterals, homes_left, companions_left, pool)
-        if not fits:
-            break
-        k += 1
-        lat = fits[draw(f"block_template_{k}", seed).randrange(len(fits))]
-        bearing = draw(f"block_bearing_{k}", seed).random() * 2.0 * math.pi
-        radius = lateral_radius(lat, xy)
-        block = {"k": k, "template": lat, "given": False, "bearing_deg": math.degrees(bearing),
-                 "radius_m": radius, "attach": None}
-        if given:
-            block["attach"], block["given"] = given.pop(0), True
-        else:
-            block["attach"] = attach_bus(candidates, xy, centre, bearing, radius, earlier)
-        homes_left -= lat["homes"]
-        if block["attach"] is None:
-            remainder += lat["homes"]
-        else:
-            companions_left -= lat["businesses"]
+    mean = mean_floor_area(businesses, buildings)
+    events, built, earlier, copied = [], [], [], set()
+    state = {"position": 0, "k": 0, "blocks": 0, "dealt": 0}
+
+    def home(year, remainder=False, waiting=False):
+        if not home_order:
+            return
+        state["position"] += 1
+        events.append({"event": "home", "year": year, "position": state["position"],
+                       "template": take(home_order, state["position"])[-1],
+                       "remainder": remainder, "waiting": waiting})
+
+    def companion(year, block=None, remainder=False, waiting=False):
+        state["k"] += 1
+        pool, bound = companion_candidates(state["k"], businesses, buildings, excluded_types, mean)
+        template = companion_draw(state["k"], pool, copied, seed)
+        if template is not None:
+            copied.add(template)
+        events.append({"event": "companion", "year": year, "k": state["k"], "template": template,
+                       "block": block, "pool": len(pool), "bound": bound, "remainder": remainder,
+                       "waiting": waiting})
+
+    homes_waiting = companions_waiting = 0
+    for year, add in enumerate(additions, start=1):
+        for _ in range(add["infill_homes"]):
+            home(year)
+        for _ in range(add["infill_companions"]):
+            companion(year)
+        homes_waiting += add["block_homes"]
+        companions_waiting += add["block_companions"]
+        while True:
+            fits = eligible_templates(laterals, homes_waiting, companions_waiting, state["k"], businesses,
+                                      buildings, excluded_types, mean)
+            if not fits:
+                break
+            state["blocks"] += 1
+            n = state["blocks"]
+            lat = fits[draw(f"block_template_{n}", seed).randrange(len(fits))]
+            bearing = draw(f"block_bearing_{n}", seed).random() * 2.0 * math.pi
+            radius = lateral_radius(lat, xy)
+            block = {"event": "block", "year": year, "k": n, "template": lat, "given": False,
+                     "bearing_deg": math.degrees(bearing), "radius_m": radius, "attach": None, "companions": []}
+            if given:
+                block["attach"], block["given"] = given.pop(0), True
+            else:
+                block["attach"] = attach_bus(candidates, xy, centre, bearing, radius, earlier)
+            events.append(block)
+            homes_waiting -= lat["homes"]
+            if block["attach"] is None:
+                for _ in range(lat["homes"]):
+                    home(year, remainder=True)
+                continue
+            members = [b for b in lat["customers"] if b in set(businesses)]
+            block["companions"] = [state["k"] + i for i in range(1, len(members) + 1)]
+            state["k"] += len(members)
+            copied.update(members)
+            companions_waiting -= lat["businesses"]
             earlier.append((block["attach"], radius))
-        blocks.append(block)
-    return blocks, remainder + homes_left, companions_left
+            built.append(block)
+        while built and companions_waiting:
+            state["dealt"] += 1
+            companions_waiting -= 1
+            companion(year, block=built[(state["dealt"] - 1) % len(built)]["k"])
+    for _ in range(homes_waiting):
+        home(len(additions), remainder=True, waiting=True)
+    for _ in range(companions_waiting):
+        companion(len(additions), remainder=True, waiting=True)
+    return events
 
 
 def copy_lateral(net, lateral, unit, attach):
@@ -785,22 +899,85 @@ def pick_transformer(net, like, peak_kva):
     return largest[0], False
 
 
-def connect_named(net, unit, template, connection, bus, peak_kva, shape):
+def mv_new_line(net, mv_lines, peak_kva, default_length_m):
+    """The LineCode and length of the new line of a named load that connects at medium
+    voltage. mv_lines: the lines that feed the feeder's own medium-voltage customers.
+    - LineCode: among the LineCodes of the feeder's three-phase medium-voltage lines
+      longer than 1 m whose name holds _OH_ (overhead in SMART-DS names), the one with
+      the smallest normamps at or above the load's peak current, peak_kva / (sqrt(3) x
+      base kV), the first name on a tie; the largest when none is at or above it
+      (carries False); over all three-phase medium-voltage LineCodes of lines longer
+      than 1 m when the feeder has no overhead one.
+    - Length: the median length of mv_lines (rule feeder_median); on a feeder without a
+      medium-voltage customer, default_length_m (rule named_load_mv_line_m).
+    Returns {linecode (as written in Lines.dss), normamps, peak_amps, carries, length_m,
+    length_rule}. Raises GrowthError when the feeder has no rated three-phase
+    medium-voltage LineCode or no base kV."""
+    if not net["base_kv"]:
+        raise GrowthError("Master.dss gives no basekV for a load at medium voltage")
+    written = {}
+    for ln in net["lines"]:
+        code = net["linecodes"].get(ln["linecode"])
+        if (ln["phases"] == 3 and ln["length_m"] > 1.0 and ln["b1"] in net["mv"] and ln["b2"] in net["mv"]
+                and code and code["normamps"] is not None):
+            written.setdefault(ln["linecode"], re.search(r"(?i)\blinecode=(\S+)", ln["text"]).group(1))
+    codes = sorted((net["linecodes"][c]["normamps"], c) for c in written)
+    overhead = [t for t in codes if "_oh_" in t[1]]
+    codes = overhead or codes
+    if not codes:
+        raise GrowthError("the feeder has no rated three-phase medium-voltage LineCode for a load at medium voltage")
+    peak_amps = peak_kva / (math.sqrt(3.0) * net["base_kv"])
+    fits = [t for t in codes if t[0] >= peak_amps]
+    amps, code = fits[0] if fits else [t for t in codes if t[0] == codes[-1][0]][0]
+    lengths = [ln["length_m"] for ln in mv_lines]
+    return {"linecode": written[code], "normamps": amps, "peak_amps": peak_amps, "carries": bool(fits),
+            "length_m": statistics.median(lengths) if lengths else float(default_length_m),
+            "length_rule": "feeder_median" if lengths else "named_load_mv_line_m"}
+
+
+def mv_load_line(template_text, name, bus1, kv, kw, kvar, shape):
+    """The Load line of a customer connected at medium voltage with no line to copy: one
+    three-phase wye load at kv on bus1, with the model, Vminpu and Vmaxpu of
+    template_text (a New Load line) and daily loadshape shape."""
+    d = {k.lower(): v for k, v in _PROP_RE.findall(template_text)}
+    kept = " ".join(f"{key}={d[key.lower()]}" for key in ("Vminpu", "Vmaxpu", "model") if key.lower() in d)
+    return (f"New Load.{name} conn=wye bus1={bus1} kV={format(kv, '.10g')} {kept} kW={format(kw, '.10g')} "
+            f"kvar={format(kvar, '.10g')} Phases=3 daily={shape}")
+
+
+def connect_named(net, unit, template, connection, bus, peak_kva, shape, mv_lines=(), mv_line_m=None):
     """The new elements of a named load as unit on bus (a three-phase medium-voltage
     bus), with the Load lines of template under loadshape shape:
     - a medium-voltage template: a copy of its line from bus to a new load bus;
     - a template behind a service transformer: a transformer (pick_transformer on
-      peak_kva) from bus and a copy of the template's secondary lines to a new load bus.
-    Returns the elements with pattern, transformer, transformer_kva and large_enough."""
+      peak_kva) from bus and a copy of the template's secondary lines to a new load bus;
+    - the same template when no transformer is large enough: pattern mv_new, one new
+      three-phase line (mv_new_line with mv_lines and mv_line_m) from bus to a new bus
+      of its own and one three-phase Load line at the circuit's base kV on that bus
+      (nodes .1.2.3). Its load entry carries mv_new (the kV) and templates (the
+      template's Load lines, whose kW and kvar it carries whole).
+    Returns the elements with pattern, transformer, transformer_kva, large_enough and
+    mv (the dict of mv_new_line, None for another pattern)."""
     c = net["customers"][template]
     if connection["pattern"] == "mv_line":
         busmap = _new_buses([c["bus"]], unit)
         busmap[connection["up"]] = bus
         out = copy_elements(net, unit, [connection["line"]], [], [template], busmap, shape=shape)
-        return dict(out, pattern="mv_line", transformer="", transformer_kva=None, large_enough=True)
+        return dict(out, pattern="mv_line", transformer="", transformer_kva=None, large_enough=True, mv=None)
     like = connection["transformer"]
     lines, top = connection["lines"], like["windings"][-1][1]
     donor, enough = pick_transformer(net, like, peak_kva)
+    if not enough:
+        mv = mv_new_line(net, mv_lines, peak_kva, mv_line_m)
+        new_bus = f"{c['bus']}_g{unit}"
+        line = (f"New Line.{new_name(connection['line']['name'], unit)} Units=m Length={mv['length_m']!r} "
+                f"bus1={bus}.1.2.3 bus2={new_bus}.1.2.3 switch=n enabled=y phases=3 Linecode={mv['linecode']}")
+        first = c["loads"][0]
+        load = {"name": new_name(template, unit), "template": first["name"], "bus1": f"{new_bus}.1.2.3",
+                "base": new_name(template, unit), "yearly": shape, "mv_new": net["base_kv"],
+                "templates": [ld["name"] for ld in c["loads"]]}
+        return {"lines": [line], "transformers": [], "loads": [load], "buses": {new_bus: c["bus"]},
+                "pattern": "mv_new", "transformer": "", "transformer_kva": None, "large_enough": False, "mv": mv}
     busmap = _new_buses(sorted({ln["b1"] for ln in lines} | {ln["b2"] for ln in lines}), unit)
     out = copy_elements(net, unit, lines, [], [template], busmap, shape=shape)
     # the new transformer feeds the upstream end of the copied secondary from bus
@@ -810,7 +987,7 @@ def connect_named(net, unit, template, connection, bus, peak_kva, shape):
     name = new_name(donor["name"], unit)
     out["transformers"] = [copy_text(donor["text"], "transformer", name, tr_buses)]
     return dict(out, pattern="transformer", transformer=name, transformer_kva=donor["windings"][0][3],
-                large_enough=enough)
+                large_enough=enough, mv=None)
 
 
 # ---------------------------------------------------------------------------
@@ -841,6 +1018,14 @@ def pick_new(items, share, name, seed):
     the hosts among new loads. No minimum of one."""
     order = seeded_order(items, name, seed)
     return order[:int(round(float(share) * len(order)))]
+
+
+def der_use_factor(base, factor, new_customers, resize):
+    """The factor on the annual electricity use that sizes the PV and storage of host
+    base (der_resize_with_growth in growth.yaml). A host among new_customers is sized on
+    its own use, its building's annual use x factor. An existing host keeps the size of
+    a run without growth (1) unless resize is true (factor)."""
+    return float(factor) if resize or base in new_customers else 1.0
 
 
 def customer_factors(feeder_plan, bases, segment_of):

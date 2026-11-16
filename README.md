@@ -183,9 +183,11 @@ Without `--settings` a run is as before.
   4. Phases 7b and 7c read the day and the profiles of every circuit from `<ws>/mix_days/<mix>/`. PV follows the day.
   5. `run_case.py` prints the rows. `<run_dir>/resolved_case.yaml` lists them in its `settings` block, and `<run_dir>/settings/` holds a copy of `given_days.csv`.
 
+- `per_substation`: every circuit of the case runs on one day per mix and season, the peak day of the sum of the building load of the case's circuits under that mix (the grown curves with load growth on). All circuits of the substation then share one window, so the step-by-step sum of their head power in `substation_limits.csv` adds the same dates. Phase `mix_days` cuts every mix on that day, 100 % baseline mixes included, as under `given`, and the baseline check does not run. `Peak_kW` of a feeder's row in `<ws>/mix_days/<ST>_circuit_days.csv` is that feeder's own peak on the day.
+
   `run_case.py` stops with `[FAIL]` when the rule is `given` without `--settings` or without `given_days.csv` in the folder, when the folder holds `given_days.csv` under another rule, and on a wrong header, no data row, an empty feeder, a season other than `summer` or `winter`, a month or day that is not a whole number, a month and day that are not a date of a 365-day year (29 February stops), a month outside the season (6 to 8 for summer, 12, 1 and 2 for winter) or a feeder and season given twice; phase `mix_days` stops when a feeder of the case has no row for the run's season.
 
-To switch, set `peak_day_rule` to `per_circuit`, `per_group` or `given` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on.
+To switch, set `peak_day_rule` to `per_circuit`, `per_group`, `given` or `per_substation` before the run. `run_case.py` stops on any other value. PV follows the day the circuit runs on.
 
 ## The multi-day window
 
@@ -336,7 +338,7 @@ Every battery draws standby power. Under `storage_standby_element: load` (the de
 
 ## Load growth over planning years
 
-A run simulates the circuits as SMART-DS built them, with the building load of the data year. Load growth moves a run to one planning year, `growth_years` years after the data year. Existing customers use more or less electricity. New homes and businesses arrive as copies of the circuit's own customers, one at a time or as whole copied laterals. Named loads, such as a hospital, can be added. The run also reports the planning limits of the grown circuit. Nothing in the network is rebuilt.
+A run simulates the circuits as SMART-DS built them, with the building load of the data year. Load growth moves a run to one planning year, `growth_years` years after the data year. Existing customers use more or less electricity. New homes and businesses arrive as copies of the circuit's own customers, one at a time or as whole copied laterals. Named loads, such as a hospital, can be added. The run also reports the planning limits of the grown circuit. Network growth then builds what those limits call for (see "Network growth").
 
 Every setting sits in `configs/growth.yaml`. The tracked file has `growth_years: 0`, which is growth off: phase `growth` prints one line, no growth output is written, and every output equals a run without the file. A caller turns growth on with a `growth.yaml` in its `--settings` folder (see "Settings from a caller"). That file holds only the keys it changes. Every key path must exist in the tracked file, except under `infill_share_metro` and `block_attach_buses`, which take new keys. A list replaces the tracked list. `run_case.py` checks every key before any phase and stops with one `[FAIL]` line that names the key, the value and the accepted values.
 
@@ -365,11 +367,13 @@ One run is one planning year in one workspace. A study of several years runs eac
 | `block_attach_buses` | feeder: list of buses | Where blocks attach, used in order before any drawn bearing |
 | `named_loads` | list of `{feeder, type, count, year, bus}` | Loads added by name; `bus` is optional |
 | `named_load_bus` | `seeded`, `strongest`, `weakest`; default `seeded` | The bus of a named load without `bus` |
+| `named_load_mv_line_m` | metres; default 269.0 | Length of the new line of a named load that connects at medium voltage, on a feeder with no medium-voltage customer |
+| `der_resize_with_growth` | `true`, `false`; default `false` | `false`: the PV and storage of existing hosts keep the size of a run without growth. `true`: every host is sized on the use of the planning year |
 | `load_factors` | list of `{feeder, load, factor, peak_factor}` | The factor of one named customer; `peak_factor` is optional |
 | `planning_limits.voltage_band` | `repository`, `range_a`, `range_b` or `[low, high]`; default `repository` | The band of the voltage limit, per unit |
 | `planning_limits.voltage_bands` | `range_a`, `range_b` | The two ANSI C84.1 bands |
 | `planning_limits.line_limit_percent`, `head_limit_percent`, `transformer_limit_percent`, `substation_limit_percent` | percent; default 100 | The loading limits |
-| `network_growth.mode` | `"off"` | Only `"off"` is accepted. Keep the quotes: `off` without quotes is a boolean in YAML |
+| `network_growth` | a map; default mode `as_needed` | The keys of network growth (see "Network growth") |
 
 ### Rates and factors
 
@@ -394,19 +398,32 @@ Worked example, a circuit of 494 homes and 272 businesses at 10 years with the `
 
 Counts are computed, never drawn. The seeds only choose which customer or lateral is copied and where it attaches. Each circuit has one growth seed, `random_seed` of `pipeline_config.yaml` plus the sha256 offset of `<substation>|<feeder>`, and every draw has its own name on that seed, so adding a draw never moves another. All mixes of a run share the same new customers.
 
+### Plans nest across planning years
+
+The plan of a circuit is built year by year, from year 1 to `growth_years`, in one seeded sequence per circuit. The plan of horizon N is the state after year N. A longer horizon therefore holds every unit of a shorter one, with the same copied customer or lateral, the same buses and the same names. The counts at every horizon stay those of "How many new customers": with C(t) the counts at t years, year t adds what C(t) holds beyond what the earlier years added. Every unit records the year it arrives.
+
+Inside year t the order is fixed:
+
+1. The year's infill homes take the next positions of the seeded home order.
+2. The year's infill companions are the next companions.
+3. The year's block homes and block companions wait for a block. While a lateral fits the waiting homes and companions, a block is drawn and built (see "Extension blocks").
+4. Once a block is built, the waiting companions are dealt to the built blocks, one after another round the blocks in build order.
+
+At the end of the last year, the homes still waiting arrive as infill homes and the companions still waiting as infill companions. The tables mark them `remainder` and `waiting`. They are the only units that a longer horizon may place differently, because it may put them in a block.
+
 ### Infill
 
-- An infill home is a copy of one existing home of the same circuit. The infill homes are the first n of one seeded order of the circuit's homes, so a longer horizon holds every infill home of a shorter one.
-- An infill companion is a copy of one business of the companion pool: the circuit's businesses, without the types of `companion_excluded_types` and without any whose floor area is above companions x the circuit's mean floor area per business.
+- An infill home is a copy of one existing home of the same circuit. The infill homes take the positions of one seeded order of the circuit's homes, in the order they arrive. Its unit is `h<position>`.
+- The k-th companion of a circuit is a copy of one business. k counts the infill companions, the businesses of copied mixed laterals and the dealt companions in the order they arrive. The business is one seeded draw among the circuit's businesses with a known building, without the types of `companion_excluded_types` and without any whose floor area is above k x the circuit's mean floor area per business. A business that an earlier companion copied is left out while another is left. The bound grows with k, so no copy is larger than the companion count times the mean floor area, at every horizon. Its unit is `c<k>`. When no business fits, the companion is not placed and the summary counts it.
 - A copy copies its customer's connection. When the copied customer's service transformer serves more than one customer, the copy gets a new drop: a line from the bus where the copied customer's last line starts, with the same LineCode, phases and length, to a new load bus. When the copied customer is alone on its transformer, the copy gets its own copy of that transformer and of its secondary lines. A copy of a medium-voltage customer gets a copy of the line that feeds its bus, from the same upstream bus. A customer whose load bus is not the end of exactly one line is copied onto its own bus.
 - A copy has the Load lines of its customer: legs, kV, phases, model, kW and kvar shares, and loadshape.
 
 ### Extension blocks
 
 - A block is a copy of one of the circuit's own laterals. A lateral is rooted at a medium-voltage bus fed by a line of fewer than three phases whose upstream bus is fed by a three-phase line or is the source bus. It holds everything downstream: medium-voltage lines, transformers, secondaries and customers. Laterals with homes only and mixed laterals are templates. Laterals with businesses only are never templates.
-- Blocks are placed one after another until no template fits. Each template is a seeded draw among the laterals that fit: no more homes than the block homes still to place and, for a mixed lateral, no more businesses than the block companions still due, each of them in the companion pool. Block homes that no template fits arrive as infill homes, marked `remainder` in the tables.
-- Block companions still due after the blocks are dealt to the blocks in build order. Each is a copy of a business of the pool with its own copy of its transformer and secondary, or of its medium-voltage line, connected at the block's attach bus. When no block is built they arrive as infill companions.
-- A block attaches at the next unused bus of `block_attach_buses` for its feeder. Otherwise it attaches at the outermost three-phase medium-voltage bus along a seeded bearing from the load centre that is at least r(new) + r(earlier) from every earlier attach bus. The load centre is the mean position of the circuit's customers. r of a lateral is the largest straight distance from its tap bus to any of its buses. Positions come from `Buscoords.dss`, projected to metres. When no bus qualifies the block is not built and its homes arrive as infill homes.
+- Each block is a seeded draw among the laterals that fit. A lateral with homes only fits when its homes are no more than the waiting homes. A mixed lateral also needs no more businesses than the waiting companions, each of a type outside `companion_excluded_types` and with a floor area within the bound of the companion it becomes. Its businesses are the next companions. Blocks are numbered over the whole plan.
+- A dealt companion is the next companion, connected at its block's attach bus with its own copy of its transformer and secondary, or of its medium-voltage line. The j-th dealt companion of the circuit goes to block ((j - 1) mod B) + 1 in build order, B being the blocks built when it is dealt.
+- A block attaches at the next unused bus of `block_attach_buses` for its feeder. Otherwise it attaches at the outermost three-phase medium-voltage bus along a seeded bearing from the load centre that is at least r(new) + r(earlier) from every earlier attach bus. The load centre is the mean position of the circuit's customers. r of a lateral is the largest straight distance from its tap bus to any of its buses. Positions come from `Buscoords.dss`, projected to metres. When no bus qualifies the block is not built: its homes leave the waiting list and arrive in the same year as infill homes, marked `remainder`.
 
 ASSUMPTION: a new customer or block has the line lengths, line codes and transformer ratings of the existing customer or lateral it copies, and its place is electrical: no street map is used. SMART-DS sized its lines and transformers with the Reference Network Model for peak planning loads (https://github.com/openEDI/documentation/tree/main/SMART-DS). A new district with longer runs has lower voltages than its copy shows.
 
@@ -414,23 +431,24 @@ ASSUMPTION: a new customer or block has the line lengths, line codes and transfo
 
 - `named_loads` adds `count` loads of ComStock `type` on `feeder`, present when `year` is at or below `growth_years`. The building is a seeded draw among the buildings of that type in the state's Phase 4 commercial selection. When the selection has none, it is a seeded draw among the buildings of that type in the state's Phase 1 ComStock metadata whose climate zone is the most common zone among the circuit's own businesses. That building is added to the Phase 5a download with the same upgrades as every other. The run stops with `[FAIL]` when the state has no such building.
 - The bus is the entry's `bus`, which must be a three-phase medium-voltage bus of the feeder. Without it, `named_load_bus` sets the bus: `seeded` is a seeded draw among the three-phase medium-voltage buses, `strongest` the one with the lowest positive-sequence impedance to the source bus along its path, `weakest` the highest.
-- The connection copies the existing business of the feeder whose SMART-DS kW is closest to the new load's annual peak kW. A medium-voltage template gives the new load a copy of its line from the chosen bus. A template behind a service transformer gives it a transformer and a copy of the template's secondary: the transformer has the smallest rating among the feeder's transformers of the template's phases and voltages that is at or above the new load's peak kVA, or the largest when none is large enough, which the table records.
+- The connection copies the existing business of the feeder whose SMART-DS kW is closest to the new load's annual peak kW. A medium-voltage template gives the new load a copy of its line from the chosen bus. A template behind a service transformer gives it a transformer and a copy of the template's secondary: the transformer has the smallest rating among the feeder's transformers of the template's phases and voltages that is at or above the new load's peak kVA.
+- When no such transformer is large enough, the load connects at medium voltage: one new three-phase line from the chosen bus to a new bus of its own, and one three-phase wye Load line at the circuit's base kV on that bus, with the whole customer's kW and kvar. The new line takes, among the LineCodes of the feeder's three-phase medium-voltage overhead lines longer than 1 m, the one with the smallest `normamps` at or above the load's peak current (peak kVA / (sqrt(3) x base kV)). When none carries the load it takes the largest, and the table says so. A feeder without an overhead code chooses among all its three-phase medium-voltage codes. The length is the median length of the lines that feed the feeder's own medium-voltage customers, or `named_load_mv_line_m` on a feeder without one. ASSUMPTION: the new line is overhead and takes the smallest code that carries the load, as the SMART-DS Greensboro feeders serve their medium-voltage customers; the default length is the median of the lines that feed the medium-voltage customers of two SMART-DS Greensboro feeders (NREL, SMART-DS Synthetic Electrical Network Data OpenDSS Models for SFO, GSO, and AUS, Open Energy Data Initiative, https://data.openei.org/submissions/2981). A longer line lowers the voltage at the new load.
 - A building that no load of the feeder uses has no SMART-DS load and so no reactive power series. It draws reactive power at the constant ratio of kvar to kW of its template's SMART-DS Load lines, at every step (an ASSUMPTION, labelled in `configs/growth.yaml`). Its loadshape is named `com_kw_g<bldg_id>_pu`.
 
 ### Day X and the mixes
 
 - With growth on and `peak_day_rule: per_circuit`, day X of each circuit and season is the peak day of the grown curve: the sum of the grown curves of all its customers, existing and new. Every mix, the 100 % baseline mix included, is cut on day X by phase `mix_days`, and the baseline check does not run. `given` is unchanged. `per_group` keeps its group days.
 - Existing customers keep exactly the heating labels and the EV, PV and storage hosts of a growth-off run of the same mix. New loads never enter an existing shuffle. They get the same mix percentages in separate draws over the new loads only, with no minimum of one. A copy runs in the heating group of its building. A building new to the feeder is labelled in a separate draw.
-- PV and storage sizes use the grown annual use, annual use x the host's factor. The roof limit is unchanged.
+- PV and storage sizes follow `der_resize_with_growth`. Under the default, `false`, an existing host is sized on its building's annual use without its growth factor, so it has the size of a run without growth. Under `true` every host is sized on the use of the planning year, annual use x the host's factor. A host among the new customers is sized on its own grown use in both cases. The roof limit is unchanged. ASSUMPTION: a system installed before the planning year keeps its size while its building's use changes; `true` fits a study where all systems are bought in the planning year.
 
 ### Planning limits
 
-With growth on, the Phase 7 deploy reports the planning limits of the grown circuit. Nothing is built, replaced or moved.
+With growth on, the Phase 7 deploy reports the planning limits of the grown circuit after every solve. Under `network_growth.mode: "off"` nothing is built, replaced or moved.
 
 - Loading. For every line, the peak current over all steps against the `normamps` of its LineCode. For every transformer, the peak kVA against its kVA. Lines of 1 m or less are switches, fuses and reclosers; they are listed with a flag and left out of the line limit.
 - `voltage_band`: customers with any step below the low value or above the high value. EV legs are left out. `repository` is `voltage_band` of `pipeline_config.yaml`. `range_a` is 0.95 to 1.05 and `range_b` is 0.9167 to 1.0583, the ANSI C84.1 service voltages of 114 to 126 V and 110 to 127 V on a 120 V base (USDA Rural Utilities Service Bulletin 1724D-113, Table 1, https://rd.usda.gov/sites/default/files/UEP_Bulletin_1724D-113.pdf; Bulletin 1724D-114, Table 2, https://www.rd.usda.gov/files/UEP_Bulletin_1724D-114.pdf; Pacific Power, Power Quality Standards 1C.2.1, Table 1, https://www.pacificpower.net/content/dam/pcorp/documents/en/pp-rmp/power-quality-standards/1C_2_1_PF.pdf). The setting never changes the existing voltage summaries.
 - `line_limit_percent` and `transformer_limit_percent`: 100 percent of the rating (Abraham and Ghosh, DISCO slides, NREL/PR-6A40-89565, slides 13 to 15, https://nrel.gov/docs/fy24osti/89565.pdf). A second sourced value for lines is 75 percent of the thermal rating as the planning rating of conductors (City of Riverside Public Utilities, Distribution Design Manual, DDM-1 Feeder Systems, section 1.2 J, https://www.tellusventure.com/downloads/riverside/DDM-1%20Feeder%20Systems%20.pdf).
-- `head_limit_percent`: the peak kVA at the feeder head against `feeder_head_kva`, the value of Phase 8.
+- `head_limit_percent`: the head is tested by two measures. The row `head` is the peak kVA at the feeder head against `feeder_head_kva`, the value of Phase 8. The row `head_phase` is the largest phase current of the head line over all steps against the `normamps` of its LineCode. `heads.csv` lists both for every head.
 - `substation_limit_percent`: the head power of the case's circuits for one mix, summed step by step, against the substation rating. The rating is the sum of the kVA of the transformers in the topology's substation folder, the folder that holds the feeder folders. ASSUMPTION: the feeder head and the substation transformer take the same 100 percent of their rating as lines and service transformers; a utility that keeps a reserve for switching sets a lower value, and more circuits are then over their limit.
 - Each block gets the line distance from the source bus to its attach bus, the lowest voltage at its customers, the highest loading on the lines from the source bus to its attach bus, and whether either is outside its limit.
 
@@ -438,12 +456,133 @@ With growth on, the Phase 7 deploy reports the planning limits of the grown circ
 
 Phase `growth` sits between phases 4 and 5a (`growth_plan.py`). With growth on it writes, under `<ws>/growth/`, the plan `growth_plan.json` and the tables `growth_customers.csv`, `growth_blocks.csv`, `growth_named_loads.csv`, `growth_factors.csv` and `growth_summary.csv`. A building new to a feeder is added to the lists that Phases 5a onward read, with a load count of 0, so every curve that weights buildings by that count keeps its values.
 
-Phase 7b appends the new customers and their lines and transformers to the copied feeder files of each circuit folder. The existing lines of those files stay as they are, apart from the kW and kvar of the Load lines. `scenario_assignments.json` lists the hosts among the new loads under the key `growth`, apart from the existing hosts. Phase 7c writes `loading_lines.csv`, `loading_transformers.csv`, `planning_limits.csv` and `growth_blocks.csv` into each `ModifiedCircuitData/`. Phase 8 adds `growth_years` and the planning-limit columns to `circuit_summary.csv` and to the summary rows, and writes `substation_limits.csv`. `docs/outputs.md` lists every file and column.
+Phase 7b appends the new customers and their lines and transformers to the copied feeder files of each circuit folder. The existing lines of those files stay as they are, apart from the kW and kvar of the Load lines. `scenario_assignments.json` lists the hosts among the new loads under the key `growth`, apart from the existing hosts. Phase 7c writes `loading_lines.csv`, `loading_transformers.csv`, `heads.csv`, `planning_limits.csv` and `growth_blocks.csv` into each `ModifiedCircuitData/`. Phase 8 adds `growth_years` and the planning-limit columns to `circuit_summary.csv` and to the summary rows, and writes `substation_limits.csv`. `docs/outputs.md` lists every file and column.
 
 A caller that overrides `phase_order` in `defaults.yaml` adds `growth` after `4`. With growth on, a later phase stops with `[FAIL]` when the plan is missing or belongs to other growth settings.
 
+## Network growth
+
+Load growth grows the load of a planning year. Network growth makes the network grow with its load. Expansion is a new feeder from the substation. Reinforcement is a rebuilt line or second circuits, a replaced or parallel service transformer, or a line voltage regulator. Phase rebalancing can run first; it builds nothing. The planning limits tell the run when the network has to grow. The run reports what it built as quantities. It holds no costs.
+
+Network growth runs inside the Phase 7 deploy of each circuit folder, with growth on and `network_growth.mode` other than `"off"`. The tracked mode is `as_needed`, so a run with `growth_years` above 0 grows its network unless the caller sets `mode: "off"`. With `growth_years: 0` nothing of it runs and nothing is written. Nothing is drawn: every choice is computed from the last solve, with ties broken by element name, so the same inputs give the same outputs.
+
+```yaml
+# my_settings/growth.yaml: year 10, report the limits and build nothing
+growth_years: 10
+network_growth:
+  mode: "off"
+```
+
+### Rounds
+
+- Round 0 is the solve of the grown circuit as built. The EV charging shapes and, under `storage_rule: schedule`, the battery schedules are set before it and kept in every later round. The load of a circuit folder is therefore the same in every round, and only the network changes. ASSUMPTION: a controller that sees the grown network would shift charging a little.
+- The planned round: the items of `carry_forward` and `planned` for the circuit folder are all applied after round 0, and the circuit is solved again. This round does not count against `max_rounds`.
+- Under `as_needed`, up to `max_rounds` rounds follow. Each round tests the limits on the last solve, applies the first step that applies, and solves again. A round in which no step applies ends the rounds.
+- If the solve after a step does not converge, the step is undone, the files of the last converged solve stand as the final ones, and the rounds end with a `[WARN]` line.
+- After the last round, every limit still over is one `[WARN]` line with its count and worst element. The exit code stays 0.
+- The limits are tested on each circuit folder's own window solve, with its EVs, PV and storage.
+
+Existing equipment is touched only when it is over its limit. New and rebuilt equipment is sized so that the peak that called for it is at most `sizing_percent` of its rating.
+
+### Keys
+
+| Key | Values | Meaning |
+| --- | --- | --- |
+| `mode` | `"off"`, `planned`, `as_needed`; default `as_needed` | `"off"`: the limits are reported and nothing is built. `planned`: only the items of `carry_forward` and `planned` are built. `as_needed`: those items first, then what the limits still call for. Keep the quotes on `"off"`: `off` without quotes is a boolean in YAML |
+| `steps` | a list of `new_feeder`, `reconductor`, `service_transformer`, `regulator` | The as-needed steps in their order. A step left out never runs |
+| `rebalance_phases` | `true`, `false`; default `false` | `true`: single-phase laterals are moved to the lightest phase before any other step, once per circuit folder |
+| `open_point` | `switch`, `switch_then_bus`, `bus`; default `switch` | Where a new feeder takes over: an existing switch, a switch or else any three-phase medium-voltage bus, or any such bus |
+| `head_metric` | `largest_phase`, `three_phase_kva`; default `largest_phase` | The measure of a head against `head_limit_percent` |
+| `sizing_percent` | above 0, at most 100; default 75 | The loading of new and rebuilt equipment at the peak that called for it |
+| `max_rounds` | whole number, 0 or above; default 5 | Rounds of as-needed steps after round 0 |
+| `catalog` | `region`, `substation`, `feeder`; default `region` | The SMART-DS feeder folders whose LineCodes and transformer ratings a step may use |
+| `carry_forward` | `null` or a path | A `network_growth_built.yaml` of an earlier planning year or of the other season of the same case |
+| `planned` | a list of items | Items in the format of `network_growth_built.yaml` |
+
+`run_case.py` checks every key before any phase. A step name outside the four or given twice, a boolean as `mode`, and `mode: planned` without an item each stop with one `[FAIL]` line.
+
+### What is tested
+
+All tests use the last solve, over all its steps.
+
+- A line is over when its largest phase current exceeds `line_limit_percent` of the `normamps` of its LineCode. Lines of 1 m or less, disabled lines and lines without a rating are never tested, never call a step and are never rebuilt.
+- A head is the first line of a path from the source bus: the line that Monitor m1 watches, every express line of a new feeder, and every second circuit of such a line. A head is over when its measure exceeds `head_limit_percent`. Under `largest_phase` the measure is the largest phase current of the head line over its `normamps`. Under `three_phase_kva` it is the head's kVA over `normamps` x base kV x sqrt(3).
+- A transformer is over when its peak kVA exceeds `transformer_limit_percent` of its kVA.
+- A customer is under the band when any step of any of its Load lines is below the low value of the planning band. EV legs are left out. Voltage above the band is reported and calls no step.
+
+### The catalogue
+
+Phase `growth` writes the catalogue once per run to `<ws>/growth/network_catalog.json`. `catalog: region` reads every feeder folder under the folder that holds the topology's substation folder. `substation` reads the feeder folders of the substation folder. `feeder` reads each feeder alone.
+
+- Lines: the LineCodes in use by lines longer than 1 m, by phases, level and construction, with `normamps` and the LineCode statement. The level is medium voltage when both buses of a line are reached from the source bus without crossing a transformer, else low voltage. ASSUMPTION: the construction is read from the LineCode name, `_OH_` for overhead and `_UG_` for underground, as SMART-DS names its codes; a name with neither shows no construction, and such a line is never rebuilt with another code.
+- Transformers: the kVA ratings in use, by phases and winding voltages, with one transformer statement each.
+- The substation: the transformers of the topology's substation folder and the `vreg`, `band` and `ptratio` of its RegControl.
+
+A statement comes from the circuit's own feeder when it defines the name or rating, else from the first feeder folder in sorted order that does. A LineCode new to a circuit is appended to the LineCodes file of its `ModifiedCircuitData/`.
+
+### The steps
+
+`rebalance_phases` comes first when it is `true`. Then the steps of `steps` run in their order. ASSUMPTION: the order is fixed, capacity before voltage, so the result is a rule-based plan and no least-cost plan; another order builds other equipment.
+
+**Phase rebalancing.** It applies when a head or a three-phase medium-voltage line longer than 1 m is over its limit. Per head, at the step of its largest phase current, the candidates are the single-phase medium-voltage laterals the head feeds, each with the current of its first line at that step. The rule takes the heaviest phase H and the lightest phase L of the head. Among the laterals on H it moves to L the one that leaves the smallest max(I_H - c, I_L + c), c being its current, when that lowers the largest of the three head phase currents. It repeats until no move does. A move rewrites the phase node of every medium-voltage line, transformer primary and medium-voltage element of the lateral; the secondary side keeps its nodes. ASSUMPTION: a single-phase lateral can be moved to another phase at its tap with no change to its lines or transformers. The rule balances the head at its peak step, so other steps of the window can end less balanced.
+
+**New feeder.** It applies to a head that is over its limit while the catalogue holds no larger code for its line, or that feeds a stuck line: a three-phase medium-voltage line longer than 1 m over its limit with no larger code of its phases, level and construction. One feeder is built per round, for the head with the highest measure. The rule works phase by phase, at the step of the head's largest phase current.
+
+1. What must be lost on a phase is the largest, over the head (when over) and the stuck lines, of the element's current on that phase less its limit percent of its `normamps`.
+2. Under `switch` the candidates are the closed three-phase medium-voltage lines the head feeds with `switch=y` or a length of 1 m or less. A candidate lies beyond every stuck line and carries on every phase at least what must be lost there. A line with second circuits is one candidate with the sum of their currents, and all its circuits are opened together. A line that a CapControl, StorageController or RegControl watches is never a candidate. When no candidate exists, the stuck line farthest from the source bus leaves the set and the search runs again.
+3. The rule keeps the candidates whose largest phase current is at most `sizing_percent` of the `normamps` of the express LineCode, or else those within `head_limit_percent`. It takes the one with the smallest max(largest phase of the old head after the transfer over its `normamps`, largest phase of the new head over its `normamps`). A tie goes to the shorter express line, then to the name.
+4. The new feeder is one express line with the LineCode the head line had in round 0, three-phase, from the source bus to the far-side bus of the chosen element. Its length is the line distance from the source bus to that bus along the existing route. The chosen element is disabled. The express line gets Monitors `h<k>m1` and `h<k>m2` for head k, and their exports.
+5. Under `switch`, when no candidate passes, no new feeder is built for that head in the circuit folder, a `[WARN]` line says so, and its lines go to `reconductor`.
+6. Under `switch_then_bus` the search then runs over the three-phase medium-voltage buses the head feeds. Each bus stands for the line that feeds it. If none passes step 3, the candidate with the smallest maximum is taken whatever the limits, and a later round may build another feeder. Under `bus` the candidates are the buses from the start.
+
+ASSUMPTION: the new feeder is one express line along the existing route and serves nothing on the way. A real route can be longer, and the voltage beyond the open point then lower.
+
+**Rebuilt lines (`reconductor`).** Every line over its limit is rebuilt, and so is every head over its limit. For a line with peak current I, the rule takes, among the catalogue codes of its phases, level and construction with a larger `normamps`, the smallest whose `normamps` x `sizing_percent` / 100 is at or above I. If none is, it takes the largest when I is within `line_limit_percent` of its `normamps`. The line keeps its length and buses. If no code passes, the line takes the largest code available to it (its own when none is larger) and second circuits: n circuits in all, n = ceil(I / (`normamps` x `sizing_percent` / 100)), the added ones named `<line>_ng<j>`.
+
+Worked example. A three-phase medium-voltage overhead line with a code of 200 A peaks at 230 A. The catalogue holds overhead codes of 300 A and 400 A for three-phase medium voltage. At `sizing_percent: 75` the 300 A code carries 225 A and the 400 A code 300 A. The line takes the 400 A code and then peaks at 58 percent of its rating. With only the 300 A code in the catalogue, 230 A is within the limit of that code, so the line takes it. At a peak of 460 A neither code passes: the line takes the 400 A code and ceil(460 / 300) = 2 circuits.
+
+**Service transformers.** Every transformer over its limit is replaced. For a peak of S kVA, the rule takes, among the catalogue ratings of its phases and winding voltages above its kVA, the smallest with kVA x `sizing_percent` / 100 at or above S. If none is, it takes the largest when S is within `transformer_limit_percent` of it. The transformer is replaced by the catalogue statement of that rating under its own name and on its own buses, winding by winding. If no rating passes, it takes the largest rating available to it and parallel units: n units in all, n = ceil(S / (kVA x `sizing_percent` / 100)), the added ones named `<transformer>_ng<j>`.
+
+**Line voltage regulator.** It applies when customers are under the band. The rule takes the head that feeds the most of them. The line is the deepest medium-voltage line on the path of every one of them, from the source bus to the customer's service transformer primary, or to its own bus at medium voltage. The step does not apply to a head whose line found this way starts at the source bus or already carries a regulator; the next head is tried. The regulator sits at the upstream end of the line: a new bus `<upstream bus>_ngreg<k>`, the line's upstream end moved to it, and per phase one single-phase two-winding transformer with a RegControl on its winding 2. Both windings are at base kV / sqrt(3) and the kVA is the line's `normamps` x base kV / sqrt(3). A line with second circuits moves with them, and the regulator takes their summed `normamps`. One regulator is built per round. ASSUMPTION: the regulator takes XHL 0.01 and %LoadLoss 0.01, the values of the regulator of the IEEE 13 node test case distributed with OpenDSS (https://github.com/dss-extensions/electricdss-tst/blob/master/Version8/Distrib/IEEETestCases/13Bus/IEEE13Nodeckt.dss), and the `vreg`, `band` and `ptratio` of the substation regulator of its SMART-DS topology, with the OpenDSS default taps and delays. A regulator with line-drop compensation would hold a different voltage downstream. A substation folder without a RegControl makes the step not apply.
+
+### Substation units
+
+Phase 8 records in `substation_limits.csv`, per mix, how many transformer units the substation needs. The power flow is unchanged. `units_existing` and `unit_kva` come from the transformers of the substation folder. When the row is over `substation_limit_percent`, `units_in_all` = ceil(peak kVA / (`unit_kva` x `sizing_percent` / 100)), at least `units_existing`. `units_added` is the difference. Under `mode: "off"` the last two columns stay empty. ASSUMPTION: a new unit copies the largest transformer of the substation folder; the substation transformer is in no solved circuit, so its losses and its regulator are outside the power flow.
+
+### Carrying a plan forward
+
+Every run with a mode other than `"off"` writes what it built as items, per circuit folder in `ModifiedCircuitData/network_growth_built.yaml` and for the whole run in `<ws>/7_circuit_instantiation/network_growth_built.yaml`. An item names its feeder, its mix, its step and its elements, enough to build it again without a solve:
+
+```yaml
+- {feeder: <feeder>, mix: <mix>, step: rebalance_phases, lateral: <root bus>, to_phase: 2}
+- {feeder: <feeder>, mix: <mix>, step: new_feeder, open: <line>}          # or cut_bus: <bus>
+- {feeder: <feeder>, mix: <mix>, step: reconductor, line: <line>, linecode: <code>, circuits: 1}
+- {feeder: <feeder>, mix: <mix>, step: service_transformer, transformer: <name>, kva: 50, units: 1}
+- {feeder: <feeder>, mix: <mix>, step: regulator, line: <line>}
+```
+
+`carry_forward` is the path of such a file, absolute or relative to the settings folder. Its items for the same feeder and mix are applied first, then the items of `planned`, in file order. An item of `planned` may give `mix: all`. The built file adds `round` to each item; a reader ignores it. An item whose feeder is not in the case is left out with one line. An item whose element is not in the circuit, or whose code or rating is not in the catalogue, stops the run with `[FAIL]`. A later run rebuilds a carried element again when it is over its limit again.
+
+### Outputs
+
+Per circuit folder, in `ModifiedCircuitData/`: `network_growth_rounds.csv` (one row per round), `network_growth.csv` (one row per built item), `network_growth_built.yaml`, `loading_phase_currents.csv`, and the column `built` in `loading_lines.csv` and `loading_transformers.csv`. The files of `ModifiedCircuitData/` describe the final solve. Before a step is applied, the tables, the head Monitor exports and the `.dss` files of the last solve are kept in `ModifiedCircuitData/round_<round>/`; `round_0/` holds the grown circuit as built and exists only when an item is built. Phase 8 writes `network_growth_summary.csv` and the merged `network_growth_built.yaml`, and adds `heads` and `network_growth_rounds` to `circuit_summary.csv` and the summary rows. With more than one head, `feeder_head_kva` of a circuit is the sum of the ratings of its heads, and the data rows of `aggregate_m1.csv` and `aggregate_m2.csv` hold the sum over the heads; one extra set of rows per head carries `row_type` `head`. `docs/outputs.md` lists every file and column.
+
+### Sources
+
+- `sizing_percent` 75 and `max_rounds` 5: NREL DISCO documentation, Upgrade Cost Analysis, https://natlabrockies.github.io/disco/analysis-workflows/upgrade-cost-analysis.html (line and transformer design loading of 0.75 per unit; an upgrade iteration threshold of 5). A second source for 75 percent: City of Riverside Public Utilities, Distribution Design Manual, DDM-1 Feeder Systems, section 1.2 J, https://www.tellusventure.com/downloads/riverside/DDM-1%20Feeder%20Systems%20.pdf.
+- The kinds of step and their order, capacity before voltage: the same DISCO page (thermal upgrades before voltage upgrades; a higher-rated item of similar configuration from a catalogue, else similar equipment in parallel; a new regulator on a common upstream node of the buses with violations) and DDM-1 section 1.2 D (line regulators, reconductoring, load transfer and a new circuit as corrective actions).
+- A new feeder at an existing switch: DDM-1 sections 1.1 A and 1.2 E (sectionalizing and tie switches carry load transfers).
+- The regulator model: the IEEE 13 node test case distributed with OpenDSS, URL above.
+
 ## Known limitations
 
+- Network growth runs its steps in a fixed order. The result is a rule-based plan and no least-cost plan.
+- Network growth builds no new substation. Substation transformer units are records, and the power flow does not hold them.
+- Network growth reports quantities. It holds no costs.
+- A feeder is never extended outward to serve a new district: an extension block attaches to an existing bus.
+- Voltage above the planning band is reported and left alone.
+- Under `storage_rule: simple` or `tuned` with `storage_view: feeder`, the live storage controller watches the first head only after a new feeder is built.
+- Phase rebalancing balances the head at one step, its peak step.
 - The simulation horizon is `horizon_days` days of 96 fifteen-minute steps each, one day at `horizon_days: 1`. Day X is the peak day of the building curves; OpenDSS solves the window around it and no other day. The deploy script, `pfs_ev_base_profiles.py` and the max-day script keep their names.
 - Homes use EULP ResStock profiles on TMY3 weather. Commercial buildings use EULP ComStock profiles on 2018 weather, and SMART-DS solar data is for 2018.
 - PV and storage sizes follow sourced shares of roof area and annual use, applied to every host of a segment alike. Real systems vary around those shares, and the commercial median PV size of the default cases is below the LBNL median for non-residential systems. See `der_sizing` in `pipeline_config.yaml`.

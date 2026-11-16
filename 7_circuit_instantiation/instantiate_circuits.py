@@ -30,7 +30,9 @@ instantiate_circuits.py  (procedural; mixes with EV split)
       Transformers.dss, Loads.dss, LoadShapes.dss and Buscoords.dss, in plan order; the
       existing lines of those files stay as they are. A new Load line is its template's
       line with the new name, bus and loadshape, kW and kvar = the template's share x
-      the new customer's factor;
+      the new customer's factor; a named load connected at medium voltage with no line
+      to copy is one three-phase Load line with the whole customer's kW and kvar
+      (growth.mv_load_line);
     * a loadshape new to the feeder is labelled in a draw of its own
       (growth.label_new_shapes);
     * a customer of load_factors with peak_factor gets a loadshape of its own,
@@ -111,7 +113,7 @@ HP_BASELINE_ROOT = Path(resolve_work_path("7_circuit_instantiation", STATE + '_4
 HP_DM_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_6_profhp_dm'))
 HP_UN_ROOT       = Path(resolve_work_path("7_circuit_instantiation", STATE + '_7_profhp_un'))
 # peak_day_rule (pipeline_config.yaml): with per_circuit, a circuit whose mix is not
-# 100 % baseline, and with given, every circuit, reads the three profhp roots under
+# 100 % baseline, and with given or per_substation, every circuit, reads the three profhp roots under
 # <work_root>/mix_days/<mix>/ (phase mix_days) instead (pipeline_utils.uses_mix_days).
 PEAK_DAY_RULE = peak_day_rule(cfg)
 # heating_label_unit (pipeline_config.yaml): building or customer, the unit the heating
@@ -648,6 +650,15 @@ for feeder in feeders:
                     line = norm_line[ld["template"]]
                     kw_share, kvar_share = shares_kw[ld["template"]]
                     factor = new_factor[ld["base"]]
+                    if ld.get("mv_new"):
+                        # a named load at medium voltage has no line to copy: one three-phase
+                        # line at the circuit's base kV with the whole customer's kW and kvar
+                        kw_share = sum(shares_kw[name][0] for name in ld["templates"])
+                        kvar_share = sum(shares_kw[name][1] for name in ld["templates"])
+                        upd.append("\n" + growth_rules.mv_load_line(
+                            line, ld["name"], ld["bus1"], ld["mv_new"], kw_share * factor, kvar_share * factor,
+                            ld["yearly"]) + "\n")
+                        continue
                     line = re.sub(r"(New\s+Load\.)\S+", lambda m: m.group(1) + ld["name"], line, count=1,
                                   flags=re.IGNORECASE)
                     line = re.sub(r"\bbus1=\S+", lambda m: f"bus1={ld['bus1']}", line, count=1, flags=re.IGNORECASE)

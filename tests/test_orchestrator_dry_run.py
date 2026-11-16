@@ -113,6 +113,10 @@ def test_dry_run_verifies_every_day_file_set():
     assert verify_calls(mix_days, resolved) == []
     resolved["peak_day_rule"] = "per_circuit"
     assert len(verify_calls(mix_days, resolved)) == 12
+    # per_substation: the checks of every mix, 100 % baseline included (3 mixes x 2 phases x 3 scenarios)
+    resolved["peak_day_rule"] = "per_substation"
+    calls = verify_calls(mix_days, resolved)
+    assert len(calls) == 18 and ["--phase", "5b", "--mix", "baseline"] in calls
 
 
 if __name__ == "__main__":

@@ -82,6 +82,7 @@ def test_unknown_peak_day_rule_stops():
     assert _stops({})
     assert peak_day_rule({"peak_day_rule": "per_group"}) == "per_group"
     assert peak_day_rule({"peak_day_rule": "per_circuit"}) == "per_circuit"
+    assert peak_day_rule({"peak_day_rule": "per_substation"}) == "per_substation"
 
 
 def test_committed_rule_is_per_circuit():

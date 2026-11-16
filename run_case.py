@@ -279,11 +279,11 @@ def verify_calls(phase_def, resolved) -> list:
     """The verify_phase.py argument lists to run after a phase, in order.
     - verify: --phase <verify> once per scenario in verify_scenarios (baseline when the
       key is absent; baseline passes no --scenario).
-    - verify_mix_days, under peak_day_rule per_circuit or given: every phase it lists, for
-      baseline, dm and uncontrolled, with --mix <mix> for each mix of the mixes file that
-      phase mix_days writes a subtree for (uses_mix_days: every mix under given, each mix
-      that is not 100 % baseline under per_circuit, and every mix under per_circuit with
-      growth on)."""
+    - verify_mix_days, under peak_day_rule per_circuit, given or per_substation: every
+      phase it lists, for baseline, dm and uncontrolled, with --mix <mix> for each mix of
+      the mixes file that phase mix_days writes a subtree for (uses_mix_days: every mix
+      under given and per_substation, each mix that is not 100 % baseline under
+      per_circuit, and every mix under per_circuit with growth on)."""
     def scenario_args(scen):
         return [] if scen == "baseline" else ["--scenario", scen]
     calls = []
@@ -292,7 +292,7 @@ def verify_calls(phase_def, resolved) -> list:
         for scen in phase_def.get("verify_scenarios", ["baseline"]):
             calls.append(["--phase", str(verify)] + scenario_args(scen))
     rule = resolved["peak_day_rule"]
-    if phase_def.get("verify_mix_days") and rule in ("per_circuit", "given"):
+    if phase_def.get("verify_mix_days") and rule in ("per_circuit", "given", "per_substation"):
         mixes = load_mixes(resolved["mixes_file"])
         for mix, mix_cfg in mixes.items():
             if not uses_mix_days(rule, is_baseline_only(mix_cfg["shares"]), resolved.get("growth_on", False)):
@@ -394,9 +394,9 @@ def main() -> None:
     pipeline_config = _with_settings(_load_yaml(REPO_ROOT / "pipeline_config.yaml"), settings,
                                      "pipeline_config.yaml")
     rule = pipeline_config.get("peak_day_rule")
-    if rule not in ("per_group", "per_circuit", "given"):
+    if rule not in ("per_group", "per_circuit", "given", "per_substation"):
         sys.exit(f"[FAIL] peak_day_rule in pipeline_config.yaml is {rule!r}; "
-                 f"expected one of per_group, per_circuit, given.")
+                 f"expected one of per_group, per_circuit, given, per_substation.")
     # peak_day_rule given reads one day per circuit and season from
     # <settings>/given_days.csv; the file and the rule come together or not at all.
     has_given_days = bool(settings) and (settings / GIVEN_DAYS_FILE).is_file()
