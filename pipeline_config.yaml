@@ -365,8 +365,8 @@ peak_day_rule: per_circuit
 # https://www.ferc.gov/media/february-2021-cold-weather-outages-texas-and-south-central-united-states-ferc-nerc-and ;
 # FERC, NERC and Regional Entity inquiry into Winter Storm Elliott,
 # https://www.ferc.gov/sites/default/files/2023-11/24_Winter-Storm_Elliot_1107_1300.pdf ;
-# EPA Climate Change Indicators: Heat Waves,
-# https://www.epa.gov/climate-indicators/climate-change-indicators-heat-waves .
+# EPA fact sheet Climate Change and Heat, December 2024, EPA 430-F-24-009,
+# https://www.epa.gov/system/files/documents/2024-12/climate-change-heat.pdf .
 horizon_days: 7
 
 # What the heating split of Phase 7b and phase mix_days counts (heating_split.py).
