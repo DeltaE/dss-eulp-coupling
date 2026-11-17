@@ -216,6 +216,13 @@ def verify_phase2():
     check("review_parquet_matches.csv exists", os.path.exists(rpm))
 
 
+def _sector_has_loads(yearly_type):
+    """True when <work_root>/parsed_loads_SUMMARY.csv has a row of Yearly_Type
+    yearly_type (res or com). A sector without one has no load in the case."""
+    s = pd.read_csv(os.path.join(WORK_ROOT, "parsed_loads_SUMMARY.csv"))
+    return bool((s["Yearly_Type"] == yearly_type).any())
+
+
 def verify_phase3():
     phase_header("3 — Tolerance Matching")
 
@@ -227,7 +234,12 @@ def verify_phase3():
         check(f"df_{kind}_matches_out_{STATE}.csv exists", exists)
         if exists:
             df = pd.read_csv(fp)
-            check(f"  rows={df.shape[0]}", df.shape[0] > 0)
+            if not _sector_has_loads(kind):
+                check(f"  rows={df.shape[0]}: sector {kind} has no load", True)
+            elif df.shape[0] > 0:
+                check(f"  rows={df.shape[0]}", True)
+            else:
+                check(f"  rows=0: sector {kind} has loads and no match row", False)
 
 
 def verify_phase4():
@@ -239,7 +251,13 @@ def verify_phase4():
         check(f"{STATE}_final_{kind}.csv exists", exists)
         if exists:
             df = pd.read_csv(fp)
-            check(f"  rows={df.shape[0]} (zero = upstream problem)", df.shape[0] > 0)
+            sector = {"commercial": "com", "residential": "res"}[kind]
+            if not _sector_has_loads(sector):
+                check(f"  rows={df.shape[0]}: sector {sector} ({kind}) has no load", True)
+            elif df.shape[0] > 0:
+                check(f"  rows={df.shape[0]} (zero = upstream problem)", True)
+            else:
+                check(f"  rows=0: sector {sector} ({kind}) has loads and no building", False)
 
 
 def verify_phase5a():

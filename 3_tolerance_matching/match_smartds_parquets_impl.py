@@ -257,12 +257,14 @@ def main():
         com_rows = match_commercial(df_matches, df_com, MATCH_METHOD)
         res_rows = match_residential(df_matches, df_res, MATCH_METHOD)
 
-    df_com_matches_out = pd.DataFrame(com_rows)
+    # The columns of a match row; a sector with no load shape writes this header and no rows.
+    match_columns = ["Source_File", "State", "Matched_Buildings", "Tolerance"]
+    df_com_matches_out = pd.DataFrame(com_rows, columns=match_columns)
     df_com_matches_out.to_csv(
         resolve_work_path("3_tolerance_matching", f"df_com_matches_out_{state}.csv"),
         index=False,
     )
-    df_res_matches_out = pd.DataFrame(res_rows)
+    df_res_matches_out = pd.DataFrame(res_rows, columns=match_columns)
     df_res_matches_out.to_csv(
         resolve_work_path("3_tolerance_matching", f"df_res_matches_out_{state}.csv"),
         index=False,

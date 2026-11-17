@@ -47,6 +47,21 @@ columns = [
 ]
 grouped = grouped[columns]
 
+# One row per (Feeder, Yearly_Type, Yearly_Number): the rows of a load shape that serves loads
+# of more than one phase count merge into the first of them, the row of its lowest phase count.
+# Phases lists the phase counts in ascending order joined by ";"; Count_of_Load_Name and
+# REAL_LOAD_COUNT are the sums of the merged rows. No other row moves.
+shape_keys = ["Feeder", "Yearly_Type", "Yearly_Number"]
+shared = grouped.duplicated(shape_keys, keep=False)
+if shared.any():
+    grouped["Phases"] = grouped["Phases"].astype(object)
+    for _, rows in grouped[shared].groupby(shape_keys, sort=False):
+        first = rows.index[0]
+        grouped.at[first, "Phases"] = ";".join(str(p) for p in sorted(rows["Phases"]))
+        grouped.at[first, "Count_of_Load_Name"] = rows["Count_of_Load_Name"].sum()
+        grouped.at[first, "REAL_LOAD_COUNT"] = rows["REAL_LOAD_COUNT"].sum()
+    grouped = grouped[~grouped.duplicated(shape_keys, keep="first")]
+
 grouped.to_csv(output_path, index=False, encoding="utf-8")
 
 print(f"Feeders: {grouped['Feeder'].nunique()}")
