@@ -170,6 +170,29 @@ Without `--settings` a run is as before.
 
 `eulp_release` in `pipeline_config.yaml` names the ResStock and ComStock releases and their OEDI year folders (`residential_year` and `commercial_year`, both 2024). The current releases, 2024 `resstock_tmy3_release_2` and 2024 `comstock_amy2018_release_1`, keep the folder names `Metadata_<ST>_Residential`, `Metadata_<ST>_Commercial`, `parquet_residential_short_<date>_<ST>` and `parquet_commercial_<date>_comm_<ST>`. Any other release adds `_<year>_<release>` to the metadata folder and to the download folder of its dataset, so the files of two releases never mix. Phase 1 stops with `[FAIL]` when the metadata folder of such a release is missing under `eulp_metadata_root`.
 
+## Repairs of the SMART-DS release
+
+Some feeders of the SMART-DS v0.9 Full Texas 2018 release contradict their own files, and OpenDSS cannot solve them as released or solves them at the wrong voltage. `smartds_repairs.py` holds one named repair for each of two such defects. Each repair has a detection rule that reads only the feeder's own files, a change that writes only values read from those files, and a reason. Phase `pre` checks every feeder of the case, read only on the staged files. Phase 7b makes the change on the run's own copy of each feeder in its circuit folder. The staged files are never written, and a feeder without a defect runs as before.
+
+- `head_meters_on_regulator`. Detection: `monitor.m1`, `monitor.m2` or `energymeter.m3` of `Master.dss` names an element `Line.<name>`, and no `New Line.<name>` statement exists in the feeder folder. The repair exists when exactly one transformer of the feeder is a regulator, a transformer with two or more windings that all have the same kV, with its first winding on the source bus (`bus1` of the `New Circuit` statement), and that transformer is named `trans_<name>`. Change: in each of the three statements the element becomes `Transformer.<the regulator's name as Transformers.dss writes it>`, and nothing else in the statement changes. Reason: the meters name the head regulator under the class Line, so OpenDSS finds no element to meter. For example, the `Master.dss` of `p175uhs2_1247--p175udt21772` meters `Line.reg_creguladortension(r:p175udt21772-p175uhs2_1247)`, and its `Transformers.dss` defines `Transformer.trans_reg_creguladortension(r:p175udt21772-p175uhs2_1247)` (https://oedi-data-lake.s3.amazonaws.com/SMART-DS/v0.9/2018/Full_Texas/P175U/scenarios/base_timeseries/opendss/p175uhs2_1247/p175uhs2_1247--p175udt21772/Master.dss and `Transformers.dss` in the same folder).
+- `source_voltage_from_transformers`. The transformer voltage of a feeder: for each transformer that is not a regulator, take its winding of the highest kV (the first on a tie). When the transformer has `phases=1` and that winding's bus names exactly one phase node (a node other than 0), the winding is rated line to neutral and its line-to-line value is kV x sqrt(3); otherwise it is kV. The transformer voltage is the largest such value on the feeder. Detection: `basekV` of the `New Circuit` statement and the transformer voltage differ. Change: `basekV` takes the rounded transformer voltage. In `Set Voltagebases` the old `basekV` value is removed, the new value is added when the list does not hold it, and the list is written in ascending order, each kept value as the release writes it. A `Master.dss` without `Set Voltagebases` gets the `basekV` change only. Reason: the source then holds the voltage the feeder's own transformers are rated for. For example, `p3rhs8_25--p3rdt3710` sets `basekV=12.47` and its single-phase transformers are rated 14.434 kV, line to neutral of 25 kV (https://oedi-data-lake.s3.amazonaws.com/SMART-DS/v0.9/2018/Full_Texas/P3R/scenarios/base_timeseries/opendss/p3rhs8_25/p3rhs8_25--p3rdt3710/Master.dss and `Transformers.dss` in the same folder). A feeder with no such transformer is not checked.
+
+ASSUMPTION: `basekV` and the transformer voltage are compared at 2 decimals, because the release writes a line-to-neutral rating with 3 decimals (14.434 kV for a 25 kV system gives 14.434 x sqrt(3) = 25.0004 kV). A comparison at more decimals would flag every such feeder, and one at fewer would pass a feeder whose source and transformers differ by up to 0.05 kV.
+
+Each changed statement prints one line, in phase `pre` for what Phase 7b will change and in Phase 7b for what it changed:
+
+```
+[repair] <feeder>: <repair name>: <file> line <n>: <statement before> -> <statement after>
+```
+
+Phase 7b writes `smartds_repairs.csv` in every circuit folder, with the columns `feeder`, `repair`, `file`, `line`, `was` and `now` and one row per changed statement. It holds a header and no rows when nothing was repaired or the repairs are off.
+
+Phase `pre` stops with a `[FAIL]` line that names the feeder and says what contradicts what when a feeder has a defect without a repair. With load growth on (`growth_years` above 0), it also stops on a feeder that needs a repair: the repairs run with growth off only.
+
+`smartds_repairs: true` in `pipeline_config.yaml` turns the repairs on. A caller turns them off with `smartds_repairs: false` in the `pipeline_config.yaml` of its `--settings` folder. Phase `pre` then prints one line and reads no feeder file, Phase 7b writes tables with a header only, and every feeder runs as released.
+
+Phase 8 rates a head on a regulator by the kVA of the regulator's first winding and keeps the head columns of a line head (see `docs/outputs.md`).
+
 ## Peak-day rules
 
 `peak_day_rule` in `pipeline_config.yaml` sets the calendar day that each circuit is simulated on. Under `per_circuit` and `per_group`, baseline circuits run on each feeder's baseline seasonal peak day and the rule sets the day of each mixed or stress circuit.
@@ -586,6 +609,7 @@ Per circuit folder, in `ModifiedCircuitData/`: `network_growth_rounds.csv` (one 
 - Customers under the voltage band on branches that share only the head line stay under the band, because the regulator step builds no regulator at the source bus.
 - Network growth sets no limit on the second circuits of one line or the parallel units of one transformer. NREL DISCO limits both to 4 (https://natlabrockies.github.io/disco/analysis-workflows/upgrade-cost-analysis.html).
 - The circuits as built can hold lines and service transformers over a planning limit before any growth. A run with network growth rebuilds those too, so part of what it builds answers the circuit as built.
+- With load growth on, a case with a feeder that needs a repair of the SMART-DS release stops in phase `pre` (see "Repairs of the SMART-DS release").
 - The simulation horizon is `horizon_days` days of 96 fifteen-minute steps each, one day at `horizon_days: 1`. Day X is the peak day of the building curves, the grown curves with load growth on; OpenDSS solves the window around it and no other day. The deploy script, `pfs_ev_base_profiles.py` and the max-day script keep their names.
 - Homes use EULP ResStock profiles on TMY3 weather. Commercial buildings use EULP ComStock profiles on 2018 weather, and SMART-DS solar data is for 2018.
 - PV and storage sizes follow sourced shares of roof area and annual use, applied to every host of a segment alike. Real systems vary around those shares, and the commercial median PV size of the default cases is below the LBNL median for non-residential systems. See `der_sizing` in `pipeline_config.yaml`.
