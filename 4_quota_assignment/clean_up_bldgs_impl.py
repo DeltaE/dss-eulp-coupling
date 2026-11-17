@@ -101,7 +101,8 @@ if FILTER_RESIDENTIAL:
             "Occurrence_Count": len(sf_list),
             "Unique_Source_Files": unique_source_files
         })
-    df_res_summary = pd.DataFrame(res_rows)
+    # A sector with no matched building writes the header and no rows.
+    df_res_summary = pd.DataFrame(res_rows, columns=["bldg_id", "Occurrence_Count", "Unique_Source_Files"])
     df_res_summary.to_csv(phase4_csv("residential_building_source_map_" + STATE_STR + ".csv"), index=False)
     print("Wrote residential_building_source_map_" + STATE_STR + ".csv")
 
@@ -193,7 +194,8 @@ if FILTER_COMMERCIAL:
             "Occurrence_Count": len(sf_list),
             "Unique_Source_Files": unique_source_files
         })
-    df_com_summary = pd.DataFrame(com_rows)
+    # A sector with no matched building writes the header and no rows.
+    df_com_summary = pd.DataFrame(com_rows, columns=["bldg_id", "Occurrence_Count", "Unique_Source_Files"])
     df_com_summary.to_csv(phase4_csv("commercial_building_source_map_" + STATE_STR + ".csv"), index=False)
     print("Wrote commercial_building_source_map_" + STATE_STR + ".csv")
 

@@ -316,6 +316,10 @@ com_missing = set(unique_com_parquets) - com_assigned_parquets
 mop_up(com_missing, com_exploded, COM_TYPE, com_selected, RNG, com_df, com_used)
 
 final_commercial = pd.DataFrame(com_selected)
+if not com_selected:
+    # A sector with no building writes the header of a final list (its descriptor columns and
+    # Chosen_Parquet) and no rows.
+    final_commercial = pd.DataFrame(columns=list(com_df.columns) + ["Chosen_Parquet"])
 report(final_commercial, COM_TYPE, com_quota, com_target, "Commercial")
 
 
@@ -382,6 +386,9 @@ mop_up(res_missing, res_exploded, RES_TYPE, res_selected, RNG,
        final_residential_raw, res_used, fallback_lookup=final_residential_raw_vacant)
 
 final_residential = pd.DataFrame(res_selected)
+if not res_selected:
+    # A sector with no building writes the header of a final list and no rows.
+    final_residential = pd.DataFrame(columns=list(final_residential_raw.columns) + ["Chosen_Parquet"])
 report(final_residential, RES_TYPE, res_quota, res_target, "Residential")
 
 
