@@ -26,7 +26,7 @@ The primary runnable scripts are state-agnostic.
 | 1 | `1_data_provenance/` | Build state-specific EULP metadata CSVs |
 | 2 | `2_circuit_matching/` | Flatten SMART-DS feeders and review parquet matches |
 | 3 | `3_tolerance_matching/` | Match feeder peaks to EULP buildings. A loadshape that matches no building within the largest tolerance takes the buildings of the next 5 % step that matches |
-| 4 | `4_quota_assignment/` | Filter, stratify, and select representative buildings |
+| 4 | `4_quota_assignment/` | Filter, stratify, and select representative buildings. A case with only homes or only businesses runs every phase; the Phase 3 and Phase 4 files of the sector without loads hold a header and no rows |
 | growth | `growth_plan.py` | Plan the load growth of the planning year from `configs/growth.yaml`. Writes nothing with `growth_years: 0` |
 | 5a | `5a_eulp_downloads/` | Download EULP parquet profiles from OEDI |
 | 5b | `5b_profile_generation/` | Build baseline, dm and uncontrolled peak-day parquet slices |

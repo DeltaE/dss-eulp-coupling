@@ -40,7 +40,7 @@ dss-eulp-coupling/
 
 - `stage_circuits_plain.py --registry-only` writes `<ws>/feeder_registry.json`.
 - `scan_feeders.py` writes `<ws>/parsed_loads.csv`.
-- `generate_loads_pivot.py` writes `<ws>/parsed_loads_SUMMARY.csv`.
+- `generate_loads_pivot.py` writes `<ws>/parsed_loads_SUMMARY.csv`, one row per feeder and load shape. `Phases` lists the phase counts of the shape's loads, joined by `;` when there are several (for example `1;3`). `Count_of_Load_Name` and `REAL_LOAD_COUNT` are summed over them.
 
 ### Phase 1: EULP metadata (1_data_provenance)
 
@@ -59,6 +59,8 @@ Phase 1 runs `python -m eulp_metadata.build --cluster pipeline_state` with `PYTH
 ### Phase 4: Quota assignment (4_quota_assignment)
 
 `phase4_cleanup.py` runs `clean_up_bldgs_impl.py`. `phase4_select.py` runs `select_representatives_impl.py`. Phase 4 writes `<STATE>_final_residential.csv` and `<STATE>_final_commercial.csv`.
+
+A case with one kind of customer, only homes or only businesses, runs every phase. A sector (`res` or `com`) has no load when `<ws>/parsed_loads_SUMMARY.csv` has no row of its `Yearly_Type`. The Phase 3 match file and the Phase 4 files of that sector hold their header and no rows. The checks of Phases 3 and 4 accept zero rows for that sector only. A sector with loads and no match row, or with no matched building, stops the run at the Phase 3 or Phase 4 check with a `[FAIL]` line that names the sector.
 
 ### Phase growth: load growth plan (growth_plan.py)
 
