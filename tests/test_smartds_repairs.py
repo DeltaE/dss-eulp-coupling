@@ -2,8 +2,9 @@
 """
 Tests of smartds_repairs.py (the repairs of two defects of the SMART-DS release) on small
 made-up feeders written by the test: the detection rules, the changes, the bytes the apply
-function keeps, the phase pre command and its stops, and the setting smartds_repairs. No
-OpenDSS and no SMART-DS data.
+function keeps, the phase pre command and its stops, and the setting smartds_repairs. Also
+the Phase 8 head of a regulator (8_results_analysis/aggregate_m1_m2_with_circuits.py):
+feeder_head_kva and the head columns. No OpenDSS and no SMART-DS data.
 
 Run under pytest: pytest tests/test_smartds_repairs.py
 """
@@ -18,7 +19,9 @@ import pytest
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
+sys.path.insert(0, os.path.join(REPO_ROOT, "8_results_analysis"))
 import smartds_repairs as sr  # noqa: E402
+import aggregate_m1_m2_with_circuits as agg  # noqa: E402
 from pipeline_utils import SETTINGS_ENV, load_config, smartds_repairs_on  # noqa: E402
 
 REG = "reg_a(r:x-y)"
@@ -260,3 +263,66 @@ def test_the_setting(tmp_path, monkeypatch):
     assert smartds_repairs_on(load_config()) is False                    # a --settings folder turns it off
     write(tmp_path, {"pipeline_config.yaml": "ev_day: typical\n"})
     assert smartds_repairs_on(load_config()) is True                     # without the key: the tracked value
+
+
+# ---------------------------------------------------------------- Phase 8, a regulator head
+M1_LINE = ["hour", " t(sec)", " V1", " VAngle1", " V2", " VAngle2", " V3", " VAngle3",
+           " I1", " IAngle1", " I2", " IAngle2", " I3", " IAngle3"]
+M1_REG = ["hour", " t(sec)", " V1", " VAngle1", " V2", " VAngle2", " V3", " VAngle3", " V4", " VAngle4",
+          " I1", " IAngle1", " I2", " IAngle2", " I3", " IAngle3", " I4", " IAngle4"]
+M2_LINE = ["hour", " t(sec)", " S1 (kVA)", " Ang1", " S2 (kVA)", " Ang2", " S3 (kVA)", " Ang3"]
+M2_REG = M2_LINE + [" S4 (kVA)", " Ang4"]
+
+
+def _export(path, columns, steps=96):
+    rows = []
+    for k in range(steps):
+        rows.append([f"{(k + 1) * 0.25}", f"{k * 900}"] + [f"{100.0 + k + i * 7.5}" for i in range(len(columns) - 2)])
+    if "S4 (kVA)" in " ".join(columns):
+        for row in rows:
+            row[columns.index(" S4 (kVA)")] = "0"
+    Path(path).write_text(",".join(columns) + "\n" + "".join(",".join(r) + "\n" for r in rows), encoding="utf-8")
+
+
+def _circuit(work, name, head, regulator):
+    mcd = work / "7_circuit_instantiation" / name / "ModifiedCircuitData"
+    write(mcd, feeder(head=head))
+    circuit = "feeder_x"
+    _export(mcd / f"{circuit}_Mon_m1_1.csv", M1_REG if regulator else M1_LINE)
+    _export(mcd / f"{circuit}_Mon_m2_1.csv", M2_REG if regulator else M2_LINE)
+    return mcd
+
+
+def _aggregate(work):
+    env = dict(os.environ, PIPELINE_WORK_ROOT=work.as_posix(), PYTHONIOENCODING="utf-8")
+    env.pop(SETTINGS_ENV, None)
+    p = subprocess.run([sys.executable, "aggregate_m1_m2_with_circuits.py"], cwd=os.path.join(REPO_ROOT, "8_results_analysis"),
+                       env=env, capture_output=True, text=True, encoding="utf-8")
+    assert p.returncode == 0, p.stdout + p.stderr
+    root = work / "7_circuit_instantiation"
+    return (pd.read_csv(root / "aggregate_m1.csv", low_memory=False), pd.read_csv(root / "aggregate_m2.csv", low_memory=False),
+            pd.read_csv(root / "circuit_summary.csv"))
+
+
+def test_phase8_regulator_head(tmp_path):
+    line_mcd = _circuit(tmp_path / "w_line", "sub_circuit_1_baseline", "Line.l1", regulator=False)
+    reg_mcd = _circuit(tmp_path / "w_reg", "sub_circuit_2_baseline", f"Transformer.trans_{REG}", regulator=True)
+    # feeder_head_kva: the kVA of the regulator's first winding; a line head keeps its rule
+    reg_files, line_files = sorted(reg_mcd.glob("*.dss")), sorted(line_mcd.glob("*.dss"))
+    assert agg._feeder_head_kva(reg_files) == 10000.0
+    assert agg._feeder_head_kva(line_files) == pytest.approx(325.0 * 12.47 * math.sqrt(3.0))
+    assert agg._head_transformer(line_files) is None
+    assert agg._head_transformer(reg_files) == {"name": f"trans_{REG}", "phases": 3, "kva": 10000.0}
+    m1_line, m2_line, s_line = _aggregate(tmp_path / "w_line")
+    m1_reg, m2_reg, s_reg = _aggregate(tmp_path / "w_reg")
+    assert s_reg["feeder_head_kva"].tolist() == [10000.0]
+    assert s_line["feeder_head_kva"].tolist() == [pytest.approx(325.0 * 12.47 * math.sqrt(3.0))]
+    # the head columns of a regulator head equal those of a line head
+    assert list(m1_reg.columns) == list(m1_line.columns)
+    assert list(m2_reg.columns) == list(m2_line.columns)
+    # the totals are the sums over the phase conductors of the raw export
+    raw = pd.read_csv(reg_mcd / "feeder_x_Mon_m2_1.csv")
+    data = m2_reg[m2_reg["row_type"] == "data"].reset_index(drop=True)
+    p = sum(raw[f" S{i} (kVA)"] * pd.Series(raw[f" Ang{i}"]).map(lambda a: math.cos(math.radians(a)))
+            for i in (1, 2, 3))
+    assert data["P_3ph (kW)"].tolist() == pytest.approx(p.tolist())
