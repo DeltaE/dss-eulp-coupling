@@ -30,6 +30,10 @@ curves. Per circuit (one SMART-DS feeder):
   at a three-phase medium-voltage bus (attach_bus). Block homes and block companions
   wait until a lateral fits; those still waiting at the horizon arrive as infill copies
   marked waiting.
+- Regulators. A voltage regulator (is_regulator) is crossed like a line of its own
+  phases wherever the medium-voltage network is walked (read_feeder,
+  three_phase_mv_buses, find_laterals, path_lines); every other transformer ends it. A
+  lateral that holds a regulator is never a block template.
 - Named loads. Loads of one ComStock building type, each on a three-phase
   medium-voltage bus, connected like the existing customer of the nearest size
   (connect_named). When that customer sits behind a service transformer and no
@@ -227,6 +231,14 @@ def read_coords(text):
     return out
 
 
+def is_regulator(tr):
+    """True for a voltage regulator: a transformer of read_feeder with two or more
+    windings whose windings all have the same kV (a winding without a written kV makes
+    it none). The line regulators network growth builds are regulators too."""
+    kvs = [w[2] for w in tr["windings"]]
+    return len(kvs) >= 2 and None not in kvs and len(set(kvs)) == 1
+
+
 def read_feeder(texts):
     """The network of one feeder. texts: {file name, lower case: text} with lines.dss,
     transformers.dss, loads.dss and master.dss (linecodes.dss and buscoords.dss when
@@ -243,7 +255,8 @@ def read_feeder(texts):
       kvar, shapes, segment}};
     - parent: {bus: (kind line or transformer, element, upstream bus)} of the tree walked
       from the source bus over enabled lines and transformers; children {bus: [bus]};
-    - mv: the buses reached from the source without crossing a transformer;
+    - mv: the source bus and every bus reached over a line or over a regulator
+      (is_regulator) from a bus of mv; any other transformer ends it;
     - extra_lines: enabled lines that close a loop (both ends already reached);
     - linecodes, coords.
     A feeder without a source bus raises GrowthError."""
@@ -348,7 +361,7 @@ def read_feeder(texts):
                 continue
             parent[other] = (kind, element, bus)
             children.setdefault(bus, []).append(other)
-            if kind == "line" and bus in mv:
+            if bus in mv and (kind == "line" or is_regulator(element)):
                 mv.add(other)
             queue.append(other)
     return {"source": source, "base_kv": base_kv, "lines": lines, "transformers": transformers, "loads": loads,
@@ -368,23 +381,25 @@ def subtree(net, bus):
 
 
 def path_lines(net, top, bus):
-    """The lines from bus up to top, as a list ordered from top down; None when the
-    walk meets a transformer or the source before top."""
+    """The lines from bus up to top, as a list ordered from top down; a regulator on
+    the way is crossed and adds no line. None when the walk meets another transformer
+    or the source before top."""
     out = []
     while bus != top:
         step = net["parent"].get(bus)
-        if step is None or step[0] != "line":
+        if step is None or (step[0] != "line" and not is_regulator(step[1])):
             return None
-        out.append(step[1])
+        if step[0] == "line":
+            out.append(step[1])
         bus = step[2]
     return out[::-1]
 
 
 def three_phase_mv_buses(net):
-    """The buses fed by a three-phase medium-voltage line, the source bus left out,
-    sorted."""
+    """The medium-voltage buses fed by a three-phase line or by a three-phase regulator,
+    the source bus left out, sorted."""
     return sorted(b for b, (kind, el, up) in net["parent"].items()
-                  if kind == "line" and b in net["mv"] and el["phases"] == 3)
+                  if (kind == "line" or is_regulator(el)) and b in net["mv"] and el["phases"] == 3)
 
 
 def transformer_map(net, texts):
@@ -553,17 +568,20 @@ def companion_draw(k, pool, copied, seed):
 def find_laterals(net):
     """The laterals of the feeder, sorted by root bus. A lateral is rooted at a
     medium-voltage bus fed by a line of fewer than three phases whose upstream bus (the
-    tap) is the source bus or is fed by a three-phase line. It holds that first line and
-    everything downstream of the root. Each: root, tap, lines, transformers, customers
-    (bases), homes, businesses, others (customers that are neither), buses (root first)
-    and kind: homes (homes only), mixed, businesses (businesses only) or none."""
+    tap) is the source bus or is fed by a three-phase line or by a three-phase
+    regulator. It holds that first line and everything downstream of the root. Each:
+    root, tap, lines, transformers, customers (bases), homes, businesses, others
+    (customers that are neither), buses (root first), kind: homes (homes only), mixed,
+    businesses (businesses only) or none, and regulator: True when it holds a regulator
+    (one whose first winding sits on a bus of the lateral)."""
     out = []
     for root in sorted(net["parent"]):
         kind, el, tap = net["parent"][root]
         if kind != "line" or root not in net["mv"] or el["phases"] >= 3:
             continue
         up = net["parent"].get(tap)
-        if not (tap == net["source"] or (up is not None and up[0] == "line" and up[1]["phases"] == 3)):
+        if not (tap == net["source"] or (up is not None and up[1]["phases"] == 3
+                                         and (up[0] == "line" or is_regulator(up[1])))):
             continue
         buses = subtree(net, root)
         inside = set(buses)
@@ -578,7 +596,8 @@ def find_laterals(net):
         else:
             label = "homes" if not biz else ("mixed" if homes else "businesses")
         out.append({"root": root, "tap": tap, "lines": lines, "transformers": trs, "customers": bases,
-                    "homes": homes, "businesses": biz, "others": others, "buses": buses, "kind": label})
+                    "homes": homes, "businesses": biz, "others": others, "buses": buses, "kind": label,
+                    "regulator": any(is_regulator(t) for t in trs)})
     return out
 
 
@@ -637,11 +656,13 @@ def eligible_templates(laterals, homes_waiting, companions_waiting, placed, busi
     homes_waiting. A mixed lateral also needs no more businesses than companions_waiting,
     each with a known building, a type outside excluded_types and a floor area no larger
     than (placed + b) x mean, placed being the companions placed so far and b the
-    lateral's businesses (companion_candidates at the index of its last business)."""
+    lateral's businesses (companion_candidates at the index of its last business). A
+    lateral that holds a regulator never fits: a copy rewrites bus=, bus1= and bus2=
+    values only, and a regulator statement may name its buses with buses=."""
     businesses = set(businesses)
     out = []
     for lat in laterals:
-        if lat["kind"] not in ("homes", "mixed") or lat["homes"] > homes_waiting:
+        if lat["kind"] not in ("homes", "mixed") or lat["homes"] > homes_waiting or lat["regulator"]:
             continue
         if lat["kind"] == "mixed":
             members = [b for b in lat["customers"] if b in businesses]
@@ -792,8 +813,9 @@ def shifted_coords(net, buses, shift_from=None, shift_to=None):
 # ---------------------------------------------------------------------------
 def path_impedance(net, bus):
     """The magnitude of the positive-sequence impedance (ohm) of the lines from the
-    source bus to bus: the sum of z1 of each line's LineCode x its length. None when the
-    path crosses a transformer or a line without a LineCode impedance."""
+    source bus to bus: the sum of z1 of each line's LineCode x its length. A regulator
+    on the path adds nothing (path_lines). None when the path crosses another
+    transformer or a line without a LineCode impedance."""
     lines = path_lines(net, net["source"], bus)
     if lines is None:
         return None
@@ -807,8 +829,8 @@ def path_impedance(net, bus):
 
 
 def path_length_m(net, bus):
-    """The length (m) of the lines from the source bus to bus; None across a
-    transformer."""
+    """The length (m) of the lines from the source bus to bus, a regulator adding
+    nothing; None across another transformer."""
     lines = path_lines(net, net["source"], bus)
     return None if lines is None else sum(ln["length_m"] for ln in lines)
 

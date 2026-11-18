@@ -821,3 +821,118 @@ def test_existing_draws_are_those_of_a_run_without_growth():
     assert [(c["host"], c["source_id"], c["level"], c["charges_today"]) for c in alone] == \
         [(c["host"], c["source_id"], c["level"], c["charges_today"]) for c in again]
     assert len(new_cars) == 5 and {c["host"] for c in new_cars} == set(new_homes[:5])
+
+
+# ---------------------------------------------------------------------------
+# Voltage regulators: a head regulator src-a, a three-phase regulator b-bx in the
+# main, and a single-phase regulator r1-r2 inside the lateral at c
+# ---------------------------------------------------------------------------
+REG_LINES = """
+New Line.main1 Units=km Length=0.2 bus1=a.1.2.3 bus2=b.1.2.3 switch=n enabled=y phases=3 Linecode=3P
+New Line.main2 Units=km Length=0.3 bus1=bx.1.2.3 bus2=c.1.2.3 switch=n enabled=y phases=3 Linecode=3P
+New Line.fza Units=km Length=0.001 bus1=bx.1 bus2=l1.1 switch=y enabled=y phases=1 Linecode=1P
+New Line.lata Units=km Length=0.05 bus1=l1.1 bus2=l2.1 switch=n enabled=y phases=1 Linecode=1P
+New Line.latb Units=km Length=0.04 bus1=c.2 bus2=r1.2 switch=n enabled=y phases=1 Linecode=1P
+New Line.latc Units=km Length=0.06 bus1=r2.2 bus2=r3.2 switch=n enabled=y phases=1 Linecode=1P
+New Line.mvc Units=km Length=0.03 bus1=c.1.2.3 bus2=m1.1.2.3 switch=n enabled=y phases=3 Linecode=3P
+New Line.s1 Units=km Length=0.02 bus1=talv.1.2 bus2=h1.1.2 switch=n enabled=y phases=2 Linecode=LV
+New Line.s2 Units=km Length=0.02 bus1=tblv.1.2 bus2=h2.1.2 switch=n enabled=y phases=2 Linecode=LV
+New Line.s4 Units=km Length=0.01 bus1=t3lv.1.2.3 bus2=c1.1.2.3 switch=n enabled=y phases=3 Linecode=LV3
+"""
+# the regulators as the SMART-DS release writes them (buses=, kvs=, kvas=)
+REGULATORS = """
+New Transformer.reg_head phases=3 windings=2 buses=(src.1.2.3,a.1.2.3) kvs=(12.47, 12.47) kvas=(10000.0, 10000.0) XHL=0.01
+New Transformer.reg_mid phases=3 windings=2 buses=(b.1.2.3,bx.1.2.3) kvs=(12.47, 12.47) kvas=(10000.0, 10000.0) XHL=0.01
+New Transformer.reg_lat phases=1 windings=2 buses=(r1.2,r2.2) kvs=(7.2, 7.2) kvas=(1000.0, 1000.0) XHL=0.01
+"""
+# the regulators as lines of their own phases
+REG_AS_LINES = """
+New Line.reg_head Units=km Length=0.001 bus1=src.1.2.3 bus2=a.1.2.3 switch=y enabled=y phases=3 Linecode=3P
+New Line.reg_mid Units=km Length=0.001 bus1=b.1.2.3 bus2=bx.1.2.3 switch=y enabled=y phases=3 Linecode=3P
+New Line.reg_lat Units=km Length=0.001 bus1=r1.2 bus2=r2.2 switch=y enabled=y phases=1 Linecode=1P
+"""
+REG_SERVICE = """
+New Transformer.ta phases=1 windings=3 wdg=1 conn=wye bus=l2.1 Kv=7.2 kva=25.0 wdg=2 conn=wye bus=talv.1.0 Kv=0.12 kva=25.0 wdg=3 conn=wye bus=talv.0.2 Kv=0.12 kva=25.0 XHL=2.4
+New Transformer.tb phases=1 windings=3 wdg=1 conn=wye bus=r3.2 Kv=7.2 kva=25.0 wdg=2 conn=wye bus=tblv.1.0 Kv=0.12 kva=25.0 wdg=3 conn=wye bus=tblv.0.2 Kv=0.12 kva=25.0 XHL=2.4
+New Transformer.t3 phases=3 windings=2 wdg=1 conn=wye bus=c Kv=12.47 kva=150.0 wdg=2 conn=wye bus=t3lv Kv=0.48 kva=150.0 XHL=4.0
+"""
+REG_LOADS = """
+New Load.load_h1_1 conn=wye bus1=h1.1 kV=0.12 model=1 kW=1.5 kvar=0.3 Phases=1 yearly=res_kw_1_pu
+New Load.load_h1_2 conn=wye bus1=h1.2 kV=0.12 model=1 kW=0.5 kvar=0.1 Phases=1 yearly=res_kw_1_pu
+New Load.load_h2_1 conn=wye bus1=h2.1 kV=0.12 model=1 kW=1.0 kvar=0.2 Phases=1 yearly=res_kw_2_pu
+New Load.load_h2_2 conn=wye bus1=h2.2 kV=0.12 model=1 kW=1.0 kvar=0.2 Phases=1 yearly=res_kw_2_pu
+New Load.load_m1 conn=wye bus1=m1.1.2.3 kV=12.47 model=1 kW=800.0 kvar=200.0 Phases=3 yearly=com_kw_10_pu
+New Load.load_c1 conn=wye bus1=c1.1.2.3 kV=0.48 model=1 kW=100.0 kvar=30.0 Phases=3 yearly=com_kw_11_pu
+"""
+REG_MASTER = """Clear
+New Circuit.feeder_reg bus1=src pu=1.0 basekV=12.47 R1=1e-05 X1=1e-05 R0=1e-05 X0=1e-05
+new monitor.m1 element=Transformer.reg_head mode=0
+new monitor.m2 element=Transformer.reg_head mode=1
+"""
+REG_TEXTS = {"lines.dss": REG_LINES, "transformers.dss": REGULATORS + REG_SERVICE, "loads.dss": REG_LOADS,
+             "master.dss": REG_MASTER, "linecodes.dss": LINECODES}
+LINE_TEXTS = dict(REG_TEXTS, **{"lines.dss": REG_AS_LINES + REG_LINES, "transformers.dss": REG_SERVICE,
+                                "master.dss": REG_MASTER.replace("Transformer.reg_head", "Line.reg_head")})
+
+
+def _patterns(texts):
+    net = growth.read_feeder(texts)
+    tr_map, served = growth.transformer_map(net, texts)
+    return {b: growth.customer_connection(net, b, tr_map, served)["pattern"] for b in sorted(net["customers"])}
+
+
+def test_is_regulator():
+    net = growth.read_feeder(REG_TEXTS)
+    regs = {t["name"]: growth.is_regulator(t) for t in net["transformers"]}
+    assert regs == {"reg_head": True, "reg_mid": True, "reg_lat": True, "ta": False, "tb": False, "t3": False}
+    one = growth.read_feeder({"transformers.dss": "New Transformer.x phases=1 windings=1 wdg=1 bus=a Kv=7.2 kva=5\n",
+                              "master.dss": REG_MASTER})["transformers"][0]
+    unwritten = growth.read_feeder({"transformers.dss": "New Transformer.y phases=3 windings=2 buses=(a,b) kvas=(5,5)\n",
+                                    "master.dss": REG_MASTER})["transformers"][0]
+    assert not growth.is_regulator(one) and not growth.is_regulator(unwritten)
+
+
+def test_regulators_are_crossed_at_medium_voltage():
+    net = growth.read_feeder(REG_TEXTS)
+    assert net["mv"] == {"src", "a", "b", "bx", "c", "l1", "l2", "r1", "r2", "r3", "m1"}
+    assert growth.three_phase_mv_buses(net) == ["a", "b", "bx", "c", "m1"]
+    laterals = growth.find_laterals(net)
+    assert [(x["root"], x["tap"], x["kind"], x["homes"], x["regulator"]) for x in laterals] == \
+        [("l1", "bx", "homes", 1, False), ("r1", "c", "homes", 1, True)]
+    # the lateral with the regulator: its lines leave the regulator out, its transformers hold it
+    assert [ln["name"] for ln in laterals[1]["lines"]] == ["latb", "latc", "s2"]
+    assert [t["name"] for t in laterals[1]["transformers"]] == ["reg_lat", "tb"]
+    assert _patterns(REG_TEXTS) == {"load_c1": "transformer", "load_h1": "transformer", "load_h2": "transformer",
+                                    "load_m1": "mv_line"}
+    tr_map, served = growth.transformer_map(net, REG_TEXTS)
+    conn = growth.customer_connection(net, "load_m1", tr_map, served)
+    assert (conn["line"]["name"], conn["up"]) == ("mvc", "c")
+    # a lateral that holds a regulator is never a block template
+    assert growth.eligible_templates(laterals, 9, 0, 0, [], {}, [], 0.0) == laterals[:1]
+
+
+def test_regulators_read_as_lines_of_their_own_phases():
+    """The same feeder with lines in the place of its regulators gives the same sets,
+    laterals and patterns (as the code read it before regulators were crossed)."""
+    net = growth.read_feeder(LINE_TEXTS)
+    assert net["mv"] == {"src", "a", "b", "bx", "c", "l1", "l2", "r1", "r2", "r3", "m1"}
+    assert growth.three_phase_mv_buses(net) == ["a", "b", "bx", "c", "m1"]
+    laterals = growth.find_laterals(net)
+    assert [(x["root"], x["tap"], x["kind"], x["homes"], x["regulator"]) for x in laterals] == \
+        [("l1", "bx", "homes", 1, False), ("r1", "c", "homes", 1, False)]
+    assert [ln["name"] for ln in laterals[1]["lines"]] == ["latb", "reg_lat", "latc", "s2"]
+    assert _patterns(LINE_TEXTS) == {"load_c1": "transformer", "load_h1": "transformer", "load_h2": "transformer",
+                                     "load_m1": "mv_line"}
+    assert growth.eligible_templates(laterals, 9, 0, 0, [], {}, [], 0.0) == laterals
+
+
+def test_paths_across_a_regulator():
+    net = growth.read_feeder(REG_TEXTS)
+    # a regulator adds no line, no length and no impedance
+    assert [ln["name"] for ln in growth.path_lines(net, "src", "m1")] == ["main1", "main2", "mvc"]
+    assert [ln["name"] for ln in growth.path_lines(net, "src", "r3")] == ["main1", "main2", "latb", "latc"]
+    assert math.isclose(growth.path_length_m(net, "m1"), 530.0)
+    assert math.isclose(growth.path_impedance(net, "m1"), abs(complex(0.15, 0.4) * 0.53))
+    # a service transformer still ends the walk
+    assert growth.path_lines(net, "src", "h1") is None and growth.path_length_m(net, "h1") is None
+    assert growth.path_impedance(net, "h2") is None

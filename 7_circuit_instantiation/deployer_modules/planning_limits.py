@@ -14,8 +14,9 @@ the same tables to decide what to build.
 - line_rows, transformer_rows: every Line with its peak current over all steps against
   the normamps of its LineCode, every Transformer with its peak kVA against the kVA of
   its first winding.
-- head_lines, head_series, head_rows: the heads of a circuit (the line Monitor m1
-  watches and the line of every Monitor h<k>m1), the head kVA per step from the export
+- head_lines, head_classes, head_series, head_rows: the heads of a circuit (the
+  element, a Line or a regulator, Monitor m1 watches and the line of every Monitor
+  h<k>m1), the head kVA per step from the export
   of a mode 1 Monitor as Phase 8 computes it, and one row per head with its loading by
   kVA and by largest phase current (heads.csv).
 - read_phase_currents: the phase currents of every monitored line at given steps.
@@ -178,18 +179,32 @@ def head_series(frame):
     return np.sqrt(p ** 2 + q ** 2), p, q
 
 
-def head_lines(master_text):
-    """[(k, line name)] of the heads of a circuit, by head number: the line Monitor m1
-    of Master.dss watches is head 1, the line Monitor h<k>m1 watches is head k. A head is
-    the first line of a path from the source bus: the line of m1, every express line of
-    a new feeder and every second circuit of such a line (network_growth.py)."""
+def _heads(master_text):
+    """{k: (class, element name)} of the Monitors m1 and h<k>m1 of Master.dss on a Line
+    or a Transformer; class is line or transformer."""
     out = {}
     for raw in master_text.splitlines():
         st = raw.split("!", 1)[0]
-        m = re.search(r"(?i)\bnew\s+monitor\.(m1|h(\d+)m1)\b.*\belement\s*=\s*line\.(\S+)", st)
+        m = re.search(r"(?i)\bnew\s+monitor\.(m1|h(\d+)m1)\b.*\belement\s*=\s*(line|transformer)\.(\S+)", st)
         if m:
-            out.setdefault(int(m.group(2)) if m.group(2) else 1, m.group(3))
-    return sorted(out.items())
+            out.setdefault(int(m.group(2)) if m.group(2) else 1, (m.group(3).lower(), m.group(4)))
+    return out
+
+
+def head_lines(master_text):
+    """[(k, element name)] of the heads of a circuit, by head number: the element
+    Monitor m1 of Master.dss watches is head 1, the element Monitor h<k>m1 watches is
+    head k, a Line or a Transformer (head_classes tells which). A head is the first
+    element of a path from the source bus: the line or the regulator of m1, every
+    express line of a new feeder and every second circuit of such a line
+    (network_growth.py)."""
+    return sorted((k, name) for k, (_, name) in _heads(master_text).items())
+
+
+def head_classes(master_text):
+    """{k: line or transformer}: the class of the element of each head of head_lines.
+    A Line and a Transformer of one name are told apart only here."""
+    return {k: cls for k, (cls, _) in _heads(master_text).items()}
 
 
 def head_rows(net, heads, exports, dates):
@@ -200,21 +215,32 @@ def head_rows(net, heads, exports, dates):
     kva_date, peak_phase_amps (the largest phase current over all steps), phase_percent
     (over normamps), phase_step, phase_date, and amps_1, amps_2, amps_3, the current of
     each phase node at that step. A head without a rated LineCode or a base kV keeps its
-    peaks and has no percent."""
+    peaks and has no percent.
+    A head on a Transformer (a regulator): line is its name, linecode empty, rating_kva the kVA of its first winding, normamps
+    that kVA / (sqrt(3) x the kV of its first winding) for three phases and empty for
+    any other phase count, and the phase currents are the first p current channels of
+    the export for p phases (the channel of the neutral conductor left out)."""
     rows = []
     for k, name in heads:
         ln = next((x for x in net["lines"] if x["name"].lower() == name.lower()), None)
+        tr = None if ln else next((x for x in net["transformers"] if x["name"].lower() == name.lower()), None)
         code = net["linecodes"].get(ln["linecode"]) if ln else None
         normamps = code["normamps"] if code else None
         rating = normamps * net["base_kv"] * math.sqrt(3.0) if normamps is not None and net["base_kv"] else None
+        if tr is not None and tr["windings"]:
+            _, _, kv, rating = tr["windings"][0]
+            normamps = rating / (math.sqrt(3.0) * kv) if tr["phases"] == 3 and rating and kv else None
         m1, m2 = exports[k]
         kva = head_series(m2)[0]
         peak_kva, kva_step = float(np.max(kva)), int(np.argmax(kva)) + 1
         cols = [c for c in m1.columns if _I_RE.match(str(c).strip())]
+        if tr is not None:
+            cols = cols[:tr["phases"]]
         amps = np.abs(m1[cols].astype(float).to_numpy()).T
         top = amps.max(axis=0)
         peak_amps, amp_step = float(top.max()), int(top.argmax()) + 1
-        nodes = [int(n) for n in str(ln["bus1"]).split(".")[1:] if n.isdigit() and int(n) != 0] if ln else []
+        spec = ln["bus1"] if ln else (tr["windings"][0][0] if tr is not None and tr["windings"] else None)
+        nodes = [int(n) for n in str(spec).split(".")[1:] if n.isdigit() and int(n) != 0] if spec else []
         nodes = nodes or list(range(1, len(cols) + 1))
         at = {node: float(amps[i][amp_step - 1]) for i, node in enumerate(nodes[:len(cols)])}
         rows.append({
