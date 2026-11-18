@@ -60,6 +60,8 @@ from heating_split import is_baseline_only, line_shares, load_segment, split_hea
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'deployer_modules'))
 from der_sizing import SEGMENTS, der_choice, der_switch, pick_hosts, segment_count
 import growth as growth_rules
+import smartds_repairs
+from pipeline_utils import smartds_repairs_on
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -78,6 +80,7 @@ feeder_to_circuit = registry["circuit_name_map"]
 GROWTH = growth_settings(load_growth())
 GROWTH_PLAN = read_growth_plan(GROWTH, "Phase 7b") if growth_on(GROWTH) else None
 SKIP_CIRCUITS = {int(n) for n in cfg.get('skip_circuits', [])}
+SMARTDS_REPAIRS = smartds_repairs_on(cfg)  # repairs of the SMART-DS release on each copy
 
 FORCE_NPTS = STEPS_PER_DAY * horizon_days(cfg)  # 96 steps per day of the window
 FORCE_INTERVAL = 0.25
@@ -399,6 +402,19 @@ for feeder in feeders:
         except Exception as e:
             print(f"❌ Copy failed {feeder} -> {dst_feeder_sub}: {e}")
             continue
+        # SMART-DS repairs (smartds_repairs.py) on this copy; the table in the circuit folder
+        # lists each changed statement (a header only when none changed or repairs are off)
+        repairs = []
+        if SMARTDS_REPAIRS:
+            repairs, defects = smartds_repairs.check(smartds_repairs.read_texts(dst_feeder_sub), feeder_name)
+            fails = smartds_repairs.fail_lines(feeder_name, repairs, defects, growth_on(GROWTH))
+            if fails:
+                print("\n".join(fails))
+                sys.exit(1)
+            repairs, _ = smartds_repairs.repair_folder(dst_feeder_sub, feeder_name)
+            for change in repairs:
+                print(smartds_repairs.repair_line(change))
+        smartds_repairs.write_table(dst_folder / smartds_repairs.TABLE_FILE, repairs)
         print(f"\n✅ Created: {dst_folder_name}")
 
         # ensure EV base data is present

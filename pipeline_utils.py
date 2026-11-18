@@ -435,6 +435,16 @@ def ev_home_window(cfg):
     return value
 
 
+def smartds_repairs_on(cfg):
+    """Return smartds_repairs from the loaded pipeline_config.yaml. A missing or
+    non-boolean value prints [FAIL] and exits 1."""
+    value = cfg.get("smartds_repairs")
+    if not isinstance(value, bool):
+        print(f"[FAIL] smartds_repairs in pipeline_config.yaml is {value!r}; expected true or false.")
+        sys.exit(1)
+    return value
+
+
 def resolve_dss_file(directory, filename):
     """Case-insensitive file lookup within `directory`. ext4 is genuinely
     case-sensitive (unlike the Windows machines SMART-DS exports were

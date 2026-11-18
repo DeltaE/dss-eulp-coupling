@@ -12,6 +12,7 @@ pre:
     - cmd: "{python} 0_download_smartds/stage_circuits_plain.py --smartds-root {smart_ds_root} --registry {work_root}/feeder_registry.json --target {work_root}/2_circuit_matching/circuits_plain_format --registry-only --max-feeders {max_feeders}"
     - cmd: "{python} 0_download_smartds/scan_feeders.py --smartds-root {smart_ds_root} --max-feeders {max_feeders} --output {work_root}/parsed_loads.csv"
     - cmd: "{python} 0_download_smartds/generate_loads_pivot.py --input {work_root}/parsed_loads.csv --output {work_root}/parsed_loads_SUMMARY.csv"
+    - cmd: "{python} smartds_repairs.py --topology-id {topology_id}"
   verify: pre
 
 "1":

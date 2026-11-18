@@ -14,6 +14,8 @@ A feeder‑level **time series** of power flows plus a one‑line metadata “su
 - Three-phase totals: `P_3ph (kW)`, `Q_3ph (kVAr)`, `S_3ph (kVA)`, `S_sum_3ph (kVA)`  
 - Keys to join with summary: `circuit_folder`, `season`, `design`, `scenario`
 
+The head columns are the same for every head. A head on a transformer, the regulator of a feeder repaired by `head_meters_on_regulator` (README, "Repairs of the SMART-DS release"), is measured at terminal 1 of the transformer, and its Monitor exports also hold the channels of conductor p + 1 for a transformer of p phases: `V4`, `VAngle4`, `I4` and `IAngle4` of the mode 0 export (`m1`), `S4 (kVA)` and `Ang4` of the mode 1 export (`m2`) for three phases (Monitor modes: https://opendss.epri.com/Monitor.html). Phase 8 leaves those channels out when it reads the two exports, so `aggregate_m1.csv`, `aggregate_m2.csv` and their combined files hold the columns of a line head, and the totals are the sums over the phase conductors. The exports in `ModifiedCircuitData/` keep every channel.
+
 **Usage patterns:**
 
 - **Peak demand:** `max(P_3ph)` across the timesteps
@@ -24,6 +26,7 @@ A feeder‑level **time series** of power flows plus a one‑line metadata “su
 One row per circuit/scenario/season/design—metadata to contextualize the time series.
 
 - Fields: `n_loads` (without the battery standby Loads `standby_storage_<unit>` that `storage_standby_element: load` writes in `Storage.dss`), `n_evs`, `n_storage`, `n_pv`, `feeder_head_kva`, etc.
+- `feeder_head_kva`: the rating of the head, `normamps` of the LineCode of the head Line x `basekV` x sqrt(3). A head on a regulator (README, "Repairs of the SMART-DS release") takes the kVA of the regulator's first winding as `Transformers.dss` of the circuit writes it.
 - Join keys: `circuit_folder + season + design (+ scenario)`
 
 ### Load voltages

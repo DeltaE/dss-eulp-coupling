@@ -97,12 +97,16 @@ def _find_dss_file(dss_files, name: str):
 def _feeder_head_kva(dss_files):
     """The rating of the feeder head: normamps of the LineCode of the Line that Monitor m1
     watches x base kV x sqrt(3). With more heads (the Lines of Monitors h<k>m1, network
-    growth), the sum of the ratings of the heads."""
+    growth), the sum of the ratings of the heads. When Monitor m1 watches a Transformer (a
+    regulator head, smartds_repairs.py), the kVA of its first winding (_head_transformer)."""
     master_path = _find_dss_file(dss_files, "Master.dss")
     lines_path = _find_dss_file(dss_files, "Lines.dss")
     linecodes_path = _find_dss_file(dss_files, "LineCodes.dss")
     if not (master_path and lines_path and linecodes_path):
         return None
+    head_transformer = _head_transformer(dss_files)
+    if head_transformer is not None:
+        return head_transformer["kva"]
 
     monitor_line_name = None
     more_heads = []
@@ -147,6 +151,49 @@ def _head_line_kva(monitor_line_name, base_kv, lines_path, linecodes_path):
         return None
 
     return normamps * base_kv * np.sqrt(3.0)
+
+def _head_transformer(dss_files):
+    """{"name", "phases", "kva"} of the Transformer that Monitor m1 of Master.dss watches,
+    from its New Transformer statement in Transformers.dss: phases as written (None when
+    the statement does not set it) and kva, the kVA of its first winding (the first value
+    of kvas=, or kva= of winding 1); None when Monitor m1 watches no Transformer."""
+    master_path = _find_dss_file(dss_files, "Master.dss")
+    transformers_path = _find_dss_file(dss_files, "Transformers.dss")
+    name = None
+    for command in _iter_dss_commands(_read_dss_text(master_path)) if master_path else []:
+        if re.search(r"\bnew\s+monitor\.m1\b", command, re.IGNORECASE):
+            element = _dss_value(command, "element")
+            if element and element.lower().startswith("transformer."):
+                name = element.split(".", 1)[1]
+    if name is None:
+        return None
+    head = {"name": name, "phases": None, "kva": None}
+    for command in _iter_dss_commands(_read_dss_text(transformers_path)) if transformers_path else []:
+        m = re.search(r"\bnew\s+transformer\.([^\s]+)\s*(.*)$", command, re.IGNORECASE)
+        if not m or m.group(1).lower() != name.lower():
+            continue
+        winding = 1
+        for key, value in re.findall(r"([A-Za-z%][\w%]*)\s*=\s*(\([^\)]*\)|\[[^\]]*\]|\"[^\"]*\"|'[^']*'|[^\s]+)",
+                                     m.group(2)):
+            key = key.lower()
+            if key == "phases":
+                head["phases"] = int(value)
+            elif key == "wdg":
+                winding = int(value)
+            elif key == "kvas" and head["kva"] is None:
+                head["kva"] = _float_or_none(re.split(r"[\s,]+", value.strip("()[]\"' "))[0])
+            elif key == "kva" and winding == 1 and head["kva"] is None:
+                head["kva"] = _float_or_none(value)
+        break
+    return head
+
+def _drop_neutral_channels(df, phases):
+    """df without the channels of conductor phases + 1, the grounded neutral of a head on a
+    transformer of that many phases: V, VAngle, I and IAngle of a mode 0 export, S (kVA)
+    and Ang of a mode 1 export. The columns are then those of a line head."""
+    k = phases + 1
+    neutral = {f"V{k}", f"VAngle{k}", f"I{k}", f"IAngle{k}", f"S{k} (kVA)", f"Ang{k}"}
+    return df.drop(columns=[c for c in df.columns if c.strip() in neutral])
 
 # Folder pattern: <substation>_circuit_<id>_<scenario>
 FOLDER_RE = re.compile(r"^(.+)_(circuit_\d+)_(.+)$", re.IGNORECASE)
@@ -464,6 +511,11 @@ if __name__ == "__main__":
         try:
             df_m1 = pd.read_csv(m1_path)
             df_m2 = pd.read_csv(m2_path)
+            head_transformer = _head_transformer(dss_files)
+            if head_transformer is not None and head_transformer["phases"] is not None:
+                # A head on a transformer: its neutral's channels are left out
+                df_m1 = _drop_neutral_channels(df_m1, head_transformer["phases"])
+                df_m2 = _drop_neutral_channels(df_m2, head_transformer["phases"])
             head_raw = {}
             if len(heads) > 1:
                 # Network growth: the data rows hold the sum over the heads

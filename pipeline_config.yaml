@@ -447,3 +447,8 @@ ev_day: typical
 # low: 0, every car charges at home. moderate: 0.10. high: 0.20.
 # Main runs use the default, moderate.
 ev_work_share_case: moderate
+
+# Repairs of two defects of the SMART-DS release (smartds_repairs.py): phase pre checks
+# the feeders, Phase 7b repairs the run's own copy. true: repair. false: every feeder
+# runs as released.
+smartds_repairs: true
