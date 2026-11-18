@@ -407,7 +407,7 @@ for feeder in feeders:
         repairs = []
         if SMARTDS_REPAIRS:
             repairs, defects = smartds_repairs.check(smartds_repairs.read_texts(dst_feeder_sub), feeder_name)
-            fails = smartds_repairs.fail_lines(feeder_name, repairs, defects, growth_on(GROWTH))
+            fails = smartds_repairs.fail_lines(feeder_name, defects)
             if fails:
                 print("\n".join(fails))
                 sys.exit(1)

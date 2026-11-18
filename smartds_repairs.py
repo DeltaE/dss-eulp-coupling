@@ -28,8 +28,10 @@ read from those files, and a reason. A defect that has no repair stops the run.
 
 The functions work on the texts of a feeder folder ({file name: text}). Phase pre runs
 this file as a script (check, read only on the staged files); Phase 7b calls
-repair_folder on its copy and write_table in each circuit folder. smartds_repairs in
-pipeline_config.yaml turns every repair off.
+repair_folder on its copy and write_table in each circuit folder; with load growth on,
+phase growth (growth_plan.py) reads each feeder through repaired_texts, in memory. The
+repairs apply with growth on and off. smartds_repairs in pipeline_config.yaml turns
+every repair off.
 
 Script use (phase pre, from the repository root with the PIPELINE_* variables set):
     python smartds_repairs.py --topology-id <topology_id>
@@ -46,8 +48,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation" / "deployer_modules"))
 from ev_control import _PROP_RE, _array, _bus, _logical_lines
-from pipeline_utils import (growth_on, growth_settings, load_config, load_feeder_registry, load_growth,
-                            resolve_config_path, smartds_repairs_on)
+from pipeline_utils import load_config, load_feeder_registry, resolve_config_path, smartds_repairs_on
 
 # ASSUMPTION: basekV and the transformer voltage are compared at 2 decimals, because the
 # release writes a line-to-neutral rating with 3 decimals (14.434 kV for a 25 kV system
@@ -312,35 +313,40 @@ def repair_line(change):
             f"{change['was']} -> {change['now']}")
 
 
-def fail_lines(feeder_name, changes, defects, growth):
-    """The [FAIL] lines of a feeder: one per defect without a repair, and with growth on
-    one per repair that applies (repairs run with growth off only)."""
-    out = [f"[FAIL] {feeder_name}: {repair}: {text}." for repair, text in defects]
-    if growth:
-        for repair in dict.fromkeys(c["repair"] for c in changes):
-            out.append(f"[FAIL] {feeder_name}: needs the repair {repair}, and repairs run with growth off only "
-                       f"(growth_years above 0 in growth.yaml).")
+def fail_lines(feeder_name, defects):
+    """The [FAIL] lines of a feeder: one per defect without a repair."""
+    return [f"[FAIL] {feeder_name}: {repair}: {text}." for repair, text in defects]
+
+
+def repaired_texts(texts, changes):
+    """The texts of a feeder ({file name: text}) with the changes of check applied, in
+    memory: a new dict in which each changed file holds the new statements and keeps
+    every other character, line endings included. texts is not changed."""
+    out = dict(texts)
+    for change in changes:
+        physical = out[change["file"]].splitlines(keepends=True)
+        for n, text in change["new_lines"].items():
+            body = physical[n - 1].rstrip("\r\n")
+            physical[n - 1] = text + physical[n - 1][len(body):]
+        out[change["file"]] = "".join(physical)
     return out
 
 
 def repair_folder(folder, feeder_name):
-    """Apply the repairs to the feeder folder on disk. Rewrites only Master.dss, only the
-    statements named, and keeps every other byte, line endings included. A folder without
-    a defect is not written. Returns (changes, defects) of check."""
+    """Apply the repairs to the feeder folder on disk (repaired_texts). Rewrites only
+    Master.dss, only the statements named, and keeps every other byte, line endings
+    included. A folder without a defect is not written. Returns (changes, defects) of
+    check."""
     texts = read_texts(folder)
     changes, defects = check(texts, feeder_name)
     if not changes:
         return changes, defects
-    path = os.path.join(folder, changes[0]["file"])
+    name = changes[0]["file"]
+    path = os.path.join(folder, name)
     with open(path, "rb") as fh:
         raw = fh.read().decode("utf-8", errors="surrogateescape")
-    physical = raw.splitlines(keepends=True)
-    for change in changes:
-        for n, text in change["new_lines"].items():
-            body = physical[n - 1].rstrip("\r\n")
-            physical[n - 1] = text + physical[n - 1][len(body):]
     with open(path, "wb") as fh:
-        fh.write("".join(physical).encode("utf-8", errors="surrogateescape"))
+        fh.write(repaired_texts({name: raw}, changes)[name].encode("utf-8", errors="surrogateescape"))
     return changes, defects
 
 
@@ -377,13 +383,12 @@ def main():
     parser = argparse.ArgumentParser(description="Phase pre: check the feeders of the case for the "
                                                  "defects of the SMART-DS release (read only).")
     parser.add_argument("--topology-id", required=True)
-    args = parser.parse_args()
+    parser.parse_args()  # the command of phase pre names the topology; the check needs no setting of it
     cfg = load_config()
     if not smartds_repairs_on(cfg):
         print("[repair] smartds_repairs is false in pipeline_config.yaml: no feeder is checked and no repair "
               "is made.")
         return 0
-    growth = growth_on(growth_settings(load_growth(), args.topology_id))
     feeders = case_feeders(cfg)
     n_changes, repaired, fails = 0, 0, []
     for feeder_name, folder in feeders:
@@ -392,7 +397,7 @@ def main():
             print(repair_line(change))
         n_changes += len(changes)
         repaired += 1 if changes else 0
-        fails.extend(fail_lines(feeder_name, changes, defects, growth))
+        fails.extend(fail_lines(feeder_name, defects))
     print(f"[repair] {len(feeders)} feeders checked: {n_changes} statements to repair on {repaired} feeders.")
     for line in fails:
         print(line)

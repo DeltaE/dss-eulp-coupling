@@ -14,7 +14,10 @@ Inputs
 - configs/growth.yaml with the growth.yaml of the --settings folder merged over it
   (pipeline_utils.load_growth, growth_settings).
 - random_seed, skip_circuits and max_feeders of pipeline_config.yaml; the feeder
-  registry; each feeder's SMART-DS .dss files, found as Phase 7b finds them.
+  registry; each feeder's SMART-DS .dss files, found as Phase 7b finds them. With
+  smartds_repairs on, each feeder is read with the repairs of smartds_repairs.py applied
+  in memory (repaired_texts), as Phase 7b repairs its copy; the staged files are never
+  written.
 - <work_root>/4_quota_assignment/<STATE>_final_commercial.csv (Phase 4): the building
   of each business (Chosen_Parquet = <prefix>_<n>.parquet for loadshape
   <prefix>_kw_<n>_pu), with in.comstock_building_type, in.sqft,
@@ -78,7 +81,9 @@ REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 from pipeline_utils import (GROWTH_PLAN_DIR, GROWTH_PLAN_FILE, growth_infill_share, growth_on, growth_rates,
                             growth_settings, load_config, load_feeder_registry, load_growth,
-                            network_growth_items, network_growth_on, resolve_config_path, resolve_work_path)
+                            network_growth_items, network_growth_on, resolve_config_path, resolve_work_path,
+                            smartds_repairs_on)
+import smartds_repairs
 
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation"))
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation" / "deployer_modules"))
@@ -246,6 +251,8 @@ def main():
         feeder, substation = feeder_dir.name, feeder_dir.parent.name
         texts = {fn.lower(): (feeder_dir / fn).read_text(encoding="utf-8")
                  for fn in sorted(os.listdir(feeder_dir)) if fn.lower().endswith(".dss")}
+        if smartds_repairs_on(cfg):  # the feeder as Phase 7b repairs its copy, in memory
+            texts = smartds_repairs.repaired_texts(texts, smartds_repairs.check(texts, feeder)[0])
         try:
             net = growth.read_feeder(texts)
         except growth.GrowthError as e:
