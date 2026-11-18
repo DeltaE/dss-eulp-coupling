@@ -1048,6 +1048,36 @@ def test_head_on_a_regulator():
         raise AssertionError("expected a stop")
 
 
+# the feeder with the line head and the single-phase regulator g0-g in the lateral at d (load_h3 behind it),
+# and the same lateral with a second regulator g-g2 after the first
+LAT_FILES = dict(FILES, **{"Lines.dss": LINES.replace("bus1=d.2 bus2=g.2", "bus1=d.2 bus2=g0.2"),
+                           "Transformers.dss": REG_LAT + TRANSFORMERS})
+SERIES_FILES = dict(LAT_FILES, **{"Transformers.dss": REG_LAT + REG_LAT.replace("reg_lb", "reg_lb2").replace(
+    "buses=(g0.2,g.2)", "buses=(g.2,g2.2)") + TRANSFORMERS.replace("bus=g.2 ", "bus=g2.2 ")})
+
+
+def test_no_line_regulator_upstream_of_a_regulator():
+    plain, lat, series = (ng.read_network(_text(files)) for files in (FILES, LAT_FILES, SERIES_FILES))
+    assert [ln["name"] for ln in ng.customer_path(lat, "load_h3")] == ["head", "m1", "sw1", "m2", "lb"]
+    # the deepest line shared by the customers under the band is lb, and the regulator g0-g sits between it
+    # and load_h3: no item, one note naming the regulator nearest the line; without it the item is lb
+    note = ("head 1: no line regulator on lb, since the regulator reg_lb sits between that line and 1 of the "
+            "customers under the band")
+    assert ng.regulator_choice(lat, _groups(lat), {"load_h3": 0.93}, SUBSTATION) == ([], [note])
+    assert ng.regulator_choice(series, _groups(series), {"load_h3": 0.93}, SUBSTATION) == ([], [note])
+    assert ng.regulator_choice(plain, _groups(plain), {"load_h3": 0.93}, SUBSTATION) == \
+        ([{"step": "regulator", "line": "lb", "_peak": 0.93, "_detail": "head 1;customers=1"}], [])
+    # one of the two customers under the band is behind the regulator: no item for the head
+    under = {"load_h3": 0.93, "load_c1": 0.92}
+    assert ng.regulator_choice(lat, _groups(lat), under, SUBSTATION) == \
+        ([], ["head 1: no line regulator on m2, since the regulator reg_lb sits between that line and 1 of the "
+              "customers under the band"])
+    assert ng.regulator_choice(plain, _groups(plain), under, SUBSTATION) == \
+        ([{"step": "regulator", "line": "m2", "_peak": 0.92, "_detail": "head 1;customers=2"}], [])
+    # no regulator between the line and the customers: the item stands
+    assert ng.regulator_choice(lat, _groups(lat), {"load_c1": 0.92}, SUBSTATION)[0][0]["line"] == "m3"
+
+
 def test_substation_units():
     nc = {"transformers": [{"name": "t", "kva": 40000.0}]}
     tx = {"transformers": [{"name": "t", "kva": 16000.0}]}

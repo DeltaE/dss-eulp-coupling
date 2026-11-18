@@ -740,7 +740,13 @@ def regulator_choice(net, groups, under, substation):
     The line is the deepest medium-voltage line on the path of every one of them
     (customer_path). The step does not apply to a head whose line found this way starts
     at the source bus, at the bus of a regulator network growth built, or at a bus fed by
-    any regulator (growth.is_regulator); the next head is tried. A line
+    any regulator (growth.is_regulator); the next head is tried. Nor does it apply to a
+    head when a regulator (growth.is_regulator, of the release or one network growth
+    built) sits between that line and any of those customers: the walk from each
+    customer's first bus up to the downstream bus of the line meets it. A note then names
+    the head, the regulator nearest the line on the walk of the first such customer, and
+    the count of the head's customers under the band behind that regulator; the next
+    head is tried. A line
     with second circuits is named by the line they were added to, and the regulator
     takes them all. A substation folder without a RegControl makes the step not
     apply."""
@@ -748,6 +754,7 @@ def regulator_choice(net, groups, under, substation):
         return [], []
     if not substation.get("regcontrol"):
         return [], ["no regulator: the substation folder holds no RegControl"]
+    notes = []
     counted = []
     for g in groups:
         fed = _fed_by(net, g)
@@ -772,14 +779,28 @@ def regulator_choice(net, groups, under, substation):
         if not common:
             continue
         ln = circuits(net, net["line_of"][common[-1].lower()])[0]
-        up = orientation(net, ln)[0]
+        up, down = orientation(net, ln)
         feed = net["parent"].get(up)
         if up == net["source"] or _REG_BUS.search(up) or (feed is not None and feed[0] == "transformer"
                                                            and growth.is_regulator(feed[1])):
             continue
+        behind = {}
+        for customer in sorted(paths):
+            bus, met = net["customers"][customer]["buses"][0], None
+            while bus != down:
+                kind, element, bus = net["parent"][bus]
+                if kind == "transformer" and growth.is_regulator(element):
+                    met = element["name"]
+            if met is not None:
+                behind.setdefault(met, []).append(customer)
+        if behind:
+            reg = next(iter(behind))
+            notes.append(f"head {g['k']}: no line regulator on {ln['name']}, since the regulator {reg} sits between "
+                         f"that line and {len(behind[reg])} of the customers under the band")
+            continue
         return [{"step": "regulator", "line": ln["name"], "_peak": min(under[c] for c in paths),
-                 "_detail": f"head {g['k']};customers={len(paths)}"}], []
-    return [], []
+                 "_detail": f"head {g['k']};customers={len(paths)}"}], notes
+    return [], notes
 
 
 # ---------------------------------------------------------------------------
