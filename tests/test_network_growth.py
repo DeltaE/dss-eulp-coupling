@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation", "deployer_
 sys.path.insert(0, os.path.join(REPO_ROOT, "8_results_analysis"))
 from pipeline_utils import (growth_settings, load_growth, network_growth_items, network_growth_on,  # noqa: E402
                             network_item_error)
+import growth  # noqa: E402
 import network_growth as ng  # noqa: E402
 import planning_limits as pl  # noqa: E402
 
@@ -958,6 +959,123 @@ def test_order_of_the_steps():
     assert out[0] == "reconductor" and out[2] == ["no switch qualifies for head 1 (head)"]
     assert ("head", "3P_OH_B", 2) in [(i["line"], i["linecode"], i["circuits"]) for i in out[1]]
     assert state["no_feeder"] == {"head"}
+
+
+# ---------------------------------------------------------------------------
+# Voltage regulators: the feeder above with the head line replaced by a head regulator
+# src-a and a single-phase regulator g0-g in the lateral at d
+# ---------------------------------------------------------------------------
+REG_HEAD = ("New Transformer.reg_head phases=3 windings=2 buses=(src.1.2.3,a.1.2.3) kvs=(12.47, 12.47) "
+            "kvas=(10000.0, 10000.0) XHL=0.01\n")
+REG_LAT = "New Transformer.reg_lb phases=1 windings=2 buses=(g0.2,g.2) kvs=(7.2, 7.2) kvas=(1000.0, 1000.0) XHL=0.01\n"
+REG_FILES = dict(FILES, **{
+    "Lines.dss": LINES.replace("New Line.head Units=km Length=0.1 bus1=src.1.2.3 bus2=a.1.2.3 switch=n enabled=y "
+                               "phases=3 Linecode=3P_OH_B\n", "").replace("bus1=d.2 bus2=g.2", "bus1=d.2 bus2=g0.2"),
+    "Transformers.dss": REG_HEAD + REG_LAT + TRANSFORMERS,
+    "Master.dss": MASTER.replace("Line.head", "Transformer.reg_head")})
+
+
+def _reg_head(amps, percent=None):
+    return dict(_head(amps, percent, line="reg_head"), linecode="")
+
+
+def test_regulators_in_the_network():
+    net = ng.read_network(_text(REG_FILES))
+    assert {"a", "b", "c", "d", "e", "f", "x", "y", "l1", "l2", "g0", "g", "h"} <= net["mv"]
+    assert [ln["name"] for ln in ng.mv_path(net, "f")] == ["m1", "sw1", "m2", "sw2", "m3"]
+    assert ng.path_length_m(net, "c") == 201.0
+    # the catalog: a three-phase line beyond the head regulator is a medium-voltage line
+    uses = ng.inventory({name.lower(): text for name, text in REG_FILES.items()})["uses"]
+    assert uses["3|mv|OH"] == ["3p_oh_a", "3p_oh_b"] and "3|lv|OH" not in uses
+    # a lateral that holds a regulator is a lateral, never moved by phase rebalancing
+    assert [(x["root"], x["regulator"]) for x in growth.find_laterals(net)] == \
+        [("g0", True), ("h", False), ("l1", False)]
+    assert {x["root"]: x["node"] for x in ng.single_phase_laterals(net)} == {"h": 1, "l1": 1}
+    # a regulator over its limit is no service transformer; a service transformer over its limit still is
+    rows = pl.transformer_rows(net, {"reg_head": (12000.0, 4), "reg_lb": (1500.0, 4), "t1": (30.0, 4)}, DATES)
+    assert [(i["transformer"], i["kva"], i["units"]) for i in ng.transformer_items(net, rows, _catalog(), NG, LIMITS)] \
+        == [("t1", 50.0, 1)]
+    # the line regulator network growth builds and a SMART-DS regulator are both crossed
+    changed, _ = ng.apply_items(REG_FILES, [{"step": "regulator", "line": "m2"}], _catalog(), SUBSTATION, None)
+    after = ng.read_network(_text(dict(REG_FILES, **changed)))
+    assert growth.is_regulator(after["transformer_of"]["ngreg1_1"]) and growth.is_regulator(after["transformer_of"]["reg_head"])
+    assert {"a", "c_ngreg1", "d", "e", "f", "g"} <= after["mv"]
+    assert [ln["name"] for ln in ng.mv_path(after, "f")] == ["m1", "sw1", "m2", "sw2", "m3"]
+    assert pl.line_rows(after, {}, DATES)[4]["line"] == "m3" and pl.line_rows(after, {}, DATES)[4]["level"] == "mv"
+
+
+def test_head_on_a_regulator():
+    net = ng.read_network(_text(REG_FILES))
+    head = _amps(220.0, 150.0, 180.0)                       # 200 A rating: 110 percent
+    at = {1: {"fz1": {1: 45.0}, "lc": {1: 30.0}, "lb": {2: 20.0}}}
+    (group,) = ng.head_groups(net, [_reg_head(head)], at, "largest_phase")
+    assert (group["k"], group["lines"], group["up"], group["down"], group["regulator"]) == \
+        (1, ["reg_head"], "src", "a", True)
+    assert (group["normamps"], group["percent"], group["amps"]) == (200.0, 110.0, head)
+    # phase rebalancing works behind it: h (30 A) moves from phase 1 to phase 2
+    items = ng.rebalance_moves(net, [group], at)
+    assert [ng.public(i) for i in items] == [{"step": "rebalance_phases", "lateral": "h", "to_phase": 2}]
+    # no new feeder, the head is no line to rebuild
+    assert ng.new_feeder_choice(net, [group], _rows(net, {}), at, _catalog(), NG, LIMITS, None, ng.new_state()) == \
+        ([], [])
+    assert ng.reconductor_items(net, [group], _rows(net, {}), _catalog(region=True), NG, LIMITS) == []
+    # the note on the head, once per circuit folder
+    state = ng.new_state()
+    trs = pl.transformer_rows(net, {"reg_head": (12000.0, 4)}, DATES)
+    args = (net, [_reg_head(head)], _rows(net, {"m2": 140.0}), trs, at, {}, _catalog(), SUBSTATION, NG, LIMITS,
+            0.95, None, state)
+    step, found, notes = ng.next_step(*args)
+    assert step == "reconductor" and [i["line"] for i in found] == ["m2"]
+    assert notes == ["head 1 is the regulator reg_head at 110 percent, over head_limit_percent; no new feeder is "
+                     "built and nothing is rebuilt at the head",
+                     "the regulator reg_head is at 120 percent of its kVA, over transformer_limit_percent; a "
+                     "regulator is not a service transformer and is not replaced"]
+    assert ng.next_step(*args)[2] == []
+    # the line regulator step skips a line that starts at a bus fed by a regulator: the customers on both
+    # sides of b share m1, which starts at a, behind the head regulator (with a line head, m1 is taken)
+    under = {"load_h1": 0.93, "load_c1": 0.92}
+    assert ng.regulator_choice(net, [group], under, SUBSTATION) == ([], [])
+    line_net = ng.read_network(_text())
+    assert ng.regulator_choice(line_net, _groups(line_net), under, SUBSTATION)[0][0]["line"] == "m1"
+    assert ng.regulator_choice(net, [group], {"load_c1": 0.92}, SUBSTATION)[0][0]["line"] == "m3"
+    # a new feeder on a circuit whose head 1 is a regulator stops
+    try:
+        ng.apply_items(REG_FILES, [{"step": "new_feeder", "open": "sw1", "feeder": "f1", "mix": "all"}], _catalog(),
+                       SUBSTATION, None)
+    except ng.NetworkGrowthError as e:
+        assert "head 1 of feeder f1 is the regulator reg_head" in str(e)
+    else:
+        raise AssertionError("expected a stop")
+
+
+# the feeder with the line head and the single-phase regulator g0-g in the lateral at d (load_h3 behind it),
+# and the same lateral with a second regulator g-g2 after the first
+LAT_FILES = dict(FILES, **{"Lines.dss": LINES.replace("bus1=d.2 bus2=g.2", "bus1=d.2 bus2=g0.2"),
+                           "Transformers.dss": REG_LAT + TRANSFORMERS})
+SERIES_FILES = dict(LAT_FILES, **{"Transformers.dss": REG_LAT + REG_LAT.replace("reg_lb", "reg_lb2").replace(
+    "buses=(g0.2,g.2)", "buses=(g.2,g2.2)") + TRANSFORMERS.replace("bus=g.2 ", "bus=g2.2 ")})
+
+
+def test_no_line_regulator_upstream_of_a_regulator():
+    plain, lat, series = (ng.read_network(_text(files)) for files in (FILES, LAT_FILES, SERIES_FILES))
+    assert [ln["name"] for ln in ng.customer_path(lat, "load_h3")] == ["head", "m1", "sw1", "m2", "lb"]
+    # the deepest line shared by the customers under the band is lb, and the regulator g0-g sits between it
+    # and load_h3: no item, one note naming the regulator nearest the line; without it the item is lb
+    note = ("head 1: no line regulator on lb, since the regulator reg_lb sits between that line and 1 of the "
+            "customers under the band")
+    assert ng.regulator_choice(lat, _groups(lat), {"load_h3": 0.93}, SUBSTATION) == ([], [note])
+    assert ng.regulator_choice(series, _groups(series), {"load_h3": 0.93}, SUBSTATION) == ([], [note])
+    assert ng.regulator_choice(plain, _groups(plain), {"load_h3": 0.93}, SUBSTATION) == \
+        ([{"step": "regulator", "line": "lb", "_peak": 0.93, "_detail": "head 1;customers=1"}], [])
+    # one of the two customers under the band is behind the regulator: no item for the head
+    under = {"load_h3": 0.93, "load_c1": 0.92}
+    assert ng.regulator_choice(lat, _groups(lat), under, SUBSTATION) == \
+        ([], ["head 1: no line regulator on m2, since the regulator reg_lb sits between that line and 1 of the "
+              "customers under the band"])
+    assert ng.regulator_choice(plain, _groups(plain), under, SUBSTATION) == \
+        ([{"step": "regulator", "line": "m2", "_peak": 0.92, "_detail": "head 1;customers=2"}], [])
+    # no regulator between the line and the customers: the item stands
+    assert ng.regulator_choice(lat, _groups(lat), {"load_c1": 0.92}, SUBSTATION)[0][0]["line"] == "m3"
 
 
 def test_substation_units():

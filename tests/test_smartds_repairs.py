@@ -3,7 +3,8 @@
 Tests of smartds_repairs.py (the repairs of two defects of the SMART-DS release) on small
 made-up feeders written by the test: the detection rules, the changes, the bytes the apply
 function keeps, the phase pre command and its stops, and the setting smartds_repairs. Also
-the Phase 8 head of a regulator (8_results_analysis/aggregate_m1_m2_with_circuits.py):
+the repairs in memory (repaired_texts) that phase growth reads. Also the Phase 8 head of a
+regulator (8_results_analysis/aggregate_m1_m2_with_circuits.py):
 feeder_head_kva and the head columns. No OpenDSS and no SMART-DS data.
 
 Run under pytest: pytest tests/test_smartds_repairs.py
@@ -107,7 +108,7 @@ def test_repair_a_is_not_offered_without_its_regulator(transformers, why):
     changes, defects = sr.check(feeder(transformers=transformers), "f1")
     assert [c for c in changes if c["repair"] == "head_meters_on_regulator"] == []
     assert len(defects) == 3 and all(r == "head_meters_on_regulator" and why in t for r, t in defects)
-    lines = sr.fail_lines("f1", changes, defects, growth=False)
+    lines = sr.fail_lines("f1", defects)
     assert len(lines) == 3 and all(ln.startswith("[FAIL] f1: head_meters_on_regulator: Master.dss line ")
                                    for ln in lines)
 
@@ -233,13 +234,36 @@ def test_pre_defect_without_repair_stops(tmp_path):
     assert len(fails) == 3 and "which no New Line statement of the feeder defines" in fails[0]
 
 
-def test_pre_growth_on_stops_a_feeder_that_needs_a_repair(tmp_path):
-    code, out = _pre(tmp_path, feeder(), settings={"growth.yaml": "growth_years: 5\n"})
-    assert code == 1
-    assert ("[FAIL] f1: needs the repair head_meters_on_regulator, and repairs run with growth off only "
-            "(growth_years above 0 in growth.yaml).") in out
+def test_pre_repairable_feeder_whatever_the_growth_setting(tmp_path):
+    off = _pre(tmp_path / "off", feeder())
+    on = _pre(tmp_path / "on", feeder(), settings={"growth.yaml": "growth_years: 5\n"})
+    assert off == on and on[0] == 0 and not [ln for ln in on[1] if ln.startswith("[FAIL]")]
+    assert len([ln for ln in on[1] if ln.startswith("[repair] f1: head_meters_on_regulator: Master.dss line ")]) == 3
     code, out = _pre(tmp_path / "sound", feeder(head="Line.l1"), settings={"growth.yaml": "growth_years: 5\n"})
     assert code == 0
+
+
+def test_repaired_texts_in_memory():
+    texts = feeder(transformers=REG_LINE + SERVICE_14434, vbases="[0.12, 0.208, 12.47, 14.434]", nl="\r\n")
+    before = dict(texts)
+    changes, _ = sr.check(texts, "f1")
+    out = sr.repaired_texts(texts, changes)
+    assert out["Master.dss"] == master(f"Transformer.trans_{REG}", basekv="25.0", vbases="[0.12, 0.208, 14.434, 25.0]",
+                                       nl="\r\n")
+    assert all(out[n] is texts[n] for n in texts if n != "Master.dss") and sorted(out) == sorted(texts)
+    assert texts == before and texts["Master.dss"] == before["Master.dss"]          # the input is not changed
+    assert sr.repaired_texts(texts, []) == texts
+
+
+def test_growth_reads_the_repaired_source_voltage():
+    for sub in ("7_circuit_instantiation", os.path.join("7_circuit_instantiation", "deployer_modules")):
+        sys.path.insert(0, os.path.join(REPO_ROOT, sub))
+    import growth
+    texts = {name.lower(): text for name, text in feeder(head="Line.l1", transformers=SERVICE_14434,
+                                                        vbases="[0.12, 0.208, 12.47, 14.434]").items()}
+    assert growth.read_feeder(texts)["base_kv"] == 12.47
+    repaired = sr.repaired_texts(texts, sr.check(texts, "f1")[0])
+    assert growth.read_feeder(repaired)["base_kv"] == 25.0
 
 
 def test_pre_repairs_off_prints_one_line(tmp_path):

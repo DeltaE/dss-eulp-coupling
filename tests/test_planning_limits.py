@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "7_circuit_instantiation", "deployer_
 import growth  # noqa: E402
 import planning_limits as pl  # noqa: E402
 from pipeline_utils import growth_settings, load_growth, planning_band  # noqa: E402
-from test_growth import MASTER, TEXTS  # noqa: E402
+from test_growth import MASTER, REG_MASTER, REG_TEXTS, TEXTS  # noqa: E402
 
 LIMITS = {"line_limit_percent": 100, "head_limit_percent": 100, "transformer_limit_percent": 100,
           "substation_limit_percent": 100}
@@ -147,6 +147,41 @@ def test_head_series_as_phase_8():
         pass
     else:
         raise AssertionError("expected a stop")
+
+
+def test_heads_on_a_line_and_on_a_regulator():
+    assert pl.head_lines(MASTER) == [(1, "head")] and pl.head_classes(MASTER) == {1: "line"}
+    assert pl.head_lines(REG_MASTER) == [(1, "reg_head")] and pl.head_classes(REG_MASTER) == {1: "transformer"}
+    more = REG_MASTER + "New Monitor.h2m1 element=Line.ng_express_2 mode=0\n"
+    assert pl.head_lines(more) == [(1, "reg_head"), (2, "ng_express_2")]
+    assert pl.head_classes(more) == {1: "transformer", 2: "line"}
+
+
+def test_head_rows_of_a_regulator():
+    net = growth.read_feeder(REG_TEXTS)
+    # a mode 0 export of a transformer terminal: four conductors, the fourth the neutral (larger here)
+    m1 = pd.DataFrame({"hour": [0, 0], " t(sec)": [900, 1800], " I1": [300.0, 250.0], " IAngle1": [0.0, 0.0],
+                       " I2": [280.0, 260.0], " IAngle2": [-120.0, -120.0], " I3": [270.0, 290.0],
+                       " IAngle3": [120.0, 120.0], " I4": [500.0, 500.0], " IAngle4": [0.0, 0.0]})
+    m2 = pd.DataFrame({"hour": [0, 0], " t(sec)": [900, 1800], " S1 (kVA)": [2000.0, 1800.0], " Ang1": [0.0, 0.0],
+                       " S2 (kVA)": [1900.0, 1800.0], " Ang2": [0.0, 0.0], " S3 (kVA)": [1800.0, 2000.0],
+                       " Ang3": [0.0, 0.0], " S4 (kVA)": [0.0, 0.0], " Ang4": [0.0, 0.0]})
+    (row,) = pl.head_rows(net, [(1, "reg_head")], {1: (m1, m2)}, DATES[:1])
+    normamps = 10000.0 / (math.sqrt(3.0) * 12.47)
+    assert (row["line"], row["linecode"], row["rating_kva"]) == ("reg_head", "", 10000.0)
+    assert math.isclose(row["normamps"], normamps) and round(row["normamps"], 1) == 463.0
+    # the neutral's 500 A is left out: the largest phase current is 300 A on phase 1 at step 1
+    assert (row["peak_phase_amps"], row["phase_step"]) == (300.0, 1)
+    assert math.isclose(row["phase_percent"], 100.0 * 300.0 / normamps)
+    assert (row["amps_1"], row["amps_2"], row["amps_3"]) == (300.0, 280.0, 270.0)
+    assert (row["peak_kva"], row["kva_step"]) == (5700.0, 1) and math.isclose(row["kva_percent"], 57.0)
+    limits = {r["limit"]: r for r in pl.limit_rows([], [], [row], LIMITS, DATES[:1])}
+    assert limits["head"]["elements_checked"] == 1 and limits["head_phase"]["elements_checked"] == 1
+    # a single-phase regulator head: no normamps, the current of its one phase only
+    one = m1[["hour", " t(sec)", " I1", " IAngle1", " I2", " IAngle2"]]
+    (row,) = pl.head_rows(net, [(1, "reg_lat")], {1: (one, m2)}, DATES[:1])
+    assert row["normamps"] is None and row["phase_percent"] is None and row["rating_kva"] == 1000.0
+    assert (row["peak_phase_amps"], row["amps_2"], row["amps_1"]) == (300.0, 300.0, None)
 
 
 def test_voltage_rows_and_band_values():

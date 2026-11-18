@@ -2514,9 +2514,12 @@ def network_growth_rounds(tables):
     catalog, substation = catalog["feeders"][CIRCUIT_NAME], catalog["substation"]
     mix = re.match(r"^.*_circuit_\d+_(.+)$", CIRCUIT_FOLDER).group(1)
     planned = network_growth.items_for(network_growth_items(GROWTH_SETTINGS), CIRCUIT_NAME, mix)
-    # every express line takes the LineCode the head line has in round 0
-    express = {"linecode": LOADING_NET["line_of"][tables["heads"][0]["line"].lower()]["text_code"],
-               "normamps": tables["heads"][0]["normamps"]}
+    # every express line takes the LineCode the head line has in round 0; a head on a
+    # regulator has none, and no new feeder is built on its circuit
+    express = None
+    if planning_limits.head_classes(read_text(master_dss_path)).get(1) == "line":
+        express = {"linecode": LOADING_NET["line_of"][tables["heads"][0]["line"].lower()]["text_code"],
+                   "normamps": tables["heads"][0]["normamps"]}
     state = network_growth.new_state()
     circuit_name = get_circuit_name(master_dss_path)
     last_dir = os.path.join(OUT_DIR, "_last_solve")
