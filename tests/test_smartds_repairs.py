@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Tests of smartds_repairs.py (the repairs of two defects of the SMART-DS release) on small
+Tests of smartds_repairs.py (the repairs of three defects of the SMART-DS release) on small
 made-up feeders written by the test: the detection rules, the changes, the bytes the apply
-function keeps, the phase pre command and its stops, and the setting smartds_repairs. Also
+function keeps in each file it writes, the phase pre command and its stops, and the
+setting smartds_repairs. Also
 the repairs in memory (repaired_texts) that phase growth reads. Also the Phase 8 head of a
 regulator (8_results_analysis/aggregate_m1_m2_with_circuits.py):
 feeder_head_kva and the head columns. No OpenDSS and no SMART-DS data.
@@ -38,6 +39,7 @@ LINES = "New Line.l1 bus1=b1.1.2.3 bus2=b2.1.2.3 phases=3 linecode=lc1 length=10
 LINECODES = "New Linecode.lc1 nphases=3 r1=0.1 x1=0.2 units=km normamps=325.0\n"
 LOADS = "New Load.load_1 bus1=lv1.1 phases=1 kV=0.12 kW=1 kvar=0.2 yearly=res_kw_1_pu\n"
 LOADSHAPES = "New Loadshape.res_kw_1_pu npts=96 interval=0.25 mult=(file=x.csv)\n"
+C = "regulator_settings_from_voltage"
 
 
 def master(head, basekv="12.47", vbases="[0.12, 0.208, 7.2, 12.47]", nl="\n"):
@@ -154,7 +156,8 @@ def test_repair_b_without_voltagebases_changes_basekv_only():
     ("12.47", REG_LINE.replace("12.47, 12.47", "25.0, 25.0")),              # a regulator gives no voltage
 ])
 def test_sound_voltages(basekv, transformers):
-    assert sr.check(feeder(head="Line.l1", transformers=transformers, basekv=basekv), "f1") == ([], [])
+    changes, defects = sr.check(feeder(head="Line.l1", transformers=transformers, basekv=basekv), "f1")
+    assert [c for c in changes if c["repair"] != C] == [] and defects == []
 
 
 def test_transformer_voltage_rules():
@@ -182,7 +185,7 @@ def test_line_endings_are_kept(tmp_path, nl):
     texts = feeder(transformers=REG_LINE + SERVICE_14434, vbases="[0.12, 0.208, 12.47, 14.434]", nl=nl)
     folder = write(tmp_path / "f1", texts)
     changes, _ = sr.repair_folder(folder, "f1")
-    assert [c["line"] for c in changes] == [9, 10, 11, 3, 13]
+    assert [c["line"] for c in changes if c["repair"] != C] == [9, 10, 11, 3, 13]
     raw = Path(folder, "Master.dss").read_bytes()
     expected = master(f"Transformer.trans_{REG}", basekv="25.0", vbases="[0.12, 0.208, 14.434, 25.0]", nl=nl)
     assert raw == expected.encode()
@@ -247,6 +250,7 @@ def test_repaired_texts_in_memory():
     texts = feeder(transformers=REG_LINE + SERVICE_14434, vbases="[0.12, 0.208, 12.47, 14.434]", nl="\r\n")
     before = dict(texts)
     changes, _ = sr.check(texts, "f1")
+    changes = [c for c in changes if c["repair"] != C]
     out = sr.repaired_texts(texts, changes)
     assert out["Master.dss"] == master(f"Transformer.trans_{REG}", basekv="25.0", vbases="[0.12, 0.208, 14.434, 25.0]",
                                        nl="\r\n")
@@ -264,6 +268,176 @@ def test_growth_reads_the_repaired_source_voltage():
     assert growth.read_feeder(texts)["base_kv"] == 12.47
     repaired = sr.repaired_texts(texts, sr.check(texts, "f1")[0])
     assert growth.read_feeder(repaired)["base_kv"] == 25.0
+
+
+# ---------------------------------------------------------------- repair C
+REG_1PH = "New Transformer.trans_reg_b phases=1 windings=2 buses=(b2x.3,b2.3) kvs=({kv}, {kv}) kvas=(10000.0, 10000.0)\n"
+REG_1PH_WDG = ("New Transformer.trans_reg_b phases=1 windings=2 wdg=1 bus=b2x.3 kv={kv} kva=10000.0 "
+               "wdg=2 bus=b2.3 kv={kv} kva=10000.0\n")
+V25 = {"basekv": "25.0", "vbases": "[0.12, 0.208, 14.434, 25.0]"}
+
+
+def regcontrol(transformer, ptratio, name="reg_b"):
+    settings = f" ptratio={ptratio}" if ptratio is not None else ""
+    return f"New RegControl.{name} transformer={transformer} winding=2{settings} band=2.4 vreg = 123.60000000000001\n"
+
+
+def c_feeder(transformers, regulators, **kw):
+    texts = feeder(head="Line.l1", transformers=transformers, **kw)
+    texts["Regulators.dss"] = regulators
+    return texts
+
+
+def c_rows(texts):
+    changes, defects = sr.check(texts, "f1")
+    assert defects == []
+    return [c for c in changes if c["repair"] == C]
+
+
+def test_repair_c_ptratio_of_a_single_phase_regulator_at_25kv():
+    texts = c_feeder(SERVICE_14434 + REG_1PH.format(kv=14.434), regcontrol("trans_reg_b", 69.44465262857685), **V25)
+    changes, _ = sr.check(texts, "f1")
+    assert len(changes) == 1 and changes[0]["repair"] == C
+    assert changes[0]["file"] == "Regulators.dss" and changes[0]["line"] == 1
+    assert changes[0]["now"] == regcontrol("trans_reg_b", "120.28130608117205").strip()
+    assert sr.regulator_counts(sr.read_feeder(texts)) == (0, 0)
+
+
+@pytest.mark.parametrize("form", [REG_1PH, REG_1PH_WDG])
+def test_repair_c_kv_of_a_single_phase_regulator_at_1247(form):
+    texts = c_feeder(SERVICE_72 + form.format(kv=12.47), regcontrol("trans_reg_b", 60.0))
+    rows = c_rows(texts)
+    assert len(rows) == 1 and rows[0]["file"] == "Transformers.dss" and rows[0]["line"] == 2
+    assert rows[0]["was"] == form.format(kv=12.47).strip()
+    assert rows[0]["now"] == form.format(kv=7.2).strip()
+
+
+@pytest.mark.parametrize("transformers, ptratio, kw", [
+    (SERVICE_72 + REG_LINE, 60.0, {}),
+    (SERVICE_72 + REG_LINE, 59.99631547328862, {}),
+    (SERVICE_14434 + REG_LINE.replace("12.47, 12.47", "25.0, 25.0"), 120.28130608117205, V25),
+])
+def test_repair_c_three_phase_regulators_that_fit(transformers, ptratio, kw):
+    assert c_rows(c_feeder(transformers, regcontrol(f"trans_{REG}", ptratio), **kw)) == []
+
+
+def test_repair_c_after_the_source_voltage_moves():
+    texts = c_feeder(REG_LINE + SERVICE_14434, regcontrol(f"trans_{REG}", 60.0),
+                     vbases="[0.12, 0.208, 12.47, 14.434]")
+    changes, defects = sr.check(texts, "f1")
+    assert defects == []
+    b = [c for c in changes if c["repair"] == "source_voltage_from_transformers"]
+    today = sr.check(feeder(head="Line.l1", transformers=SERVICE_14434, vbases="[0.12, 0.208, 12.47, 14.434]"), "f1")[0]
+    assert b == today
+    rows = [c for c in changes if c["repair"] == C]
+    assert [(c["file"], c["line"]) for c in rows] == [("Transformers.dss", 1), ("Regulators.dss", 1)]
+    assert rows[0]["now"] == REG_LINE.replace("12.47, 12.47", "25.0, 25.0").strip()
+    assert rows[1]["now"] == regcontrol(f"trans_{REG}", "120.28130608117205").strip()
+
+
+def test_repair_c_single_phase_line_to_line():
+    form = REG_1PH.replace("b2x.3,b2.3", "b2x.1.2,b2.1.2")
+    texts = c_feeder(SERVICE_72 + form.format(kv=12.47), regcontrol("trans_reg_b", 60.0))
+    rows = c_rows(texts)
+    assert len(rows) == 1 and rows[0]["file"] == "Regulators.dss"
+    assert rows[0]["now"] == regcontrol("trans_reg_b", repr(12.47 * 1000 / 120)).strip()
+
+
+@pytest.mark.parametrize("transformer", [
+    REG_1PH.replace("b2x.3,b2.3", "b2x.3,b2.1.2"),                   # one node and two nodes
+    REG_1PH.replace("phases=1", "phases=2").replace("b2x.3,b2.3", "b2x.1.2,b2.1.2"),    # two phases
+])
+def test_repair_c_does_not_judge_other_shapes(transformer):
+    texts = c_feeder(SERVICE_72 + transformer.format(kv=99.0), regcontrol("trans_reg_b", 1.0))
+    assert sr.check(texts, "f1") == ([], [])
+    assert sr.regulator_counts(sr.read_feeder(texts)) == (1, 0)
+
+
+def test_repair_c_regcontrol_without_ptratio():
+    texts = c_feeder(SERVICE_14434 + REG_1PH.format(kv=14.434), regcontrol("trans_reg_b", None), **V25)
+    assert sr.check(texts, "f1") == ([], [])
+    assert sr.regulator_counts(sr.read_feeder(texts)) == (0, 1)
+
+
+ABC_TRANSFORMERS = (f"New Transformer.trans_{REG} phases=3 windings=2\n"
+                    f"~ buses=(src.1.2.3,b1.1.2.3) kvs=(12.47, 12.47) kvas=(10000.0, 10000.0) ! the head\n"
+                    + SERVICE_14434)
+ABC_REGULATORS = (f"! regulators\nNew RegControl.reg_a transformer=TRANS_{REG.upper()} winding=2\n"
+                  f"~ ptratio=60.0 band=2.4 vreg=123.6\n\nNew RegControl.other transformer=x winding=2 ptratio=60.0\n")
+
+
+def abc_feeder(nl):
+    texts = feeder(transformers=ABC_TRANSFORMERS, vbases="[0.12, 0.208, 12.47, 14.434]")
+    texts["Regulators.dss"] = ABC_REGULATORS
+    return {n: t.replace("\n", nl) for n, t in texts.items()}
+
+
+@pytest.mark.parametrize("nl", ["\r\n", "\n"])
+def test_repair_folder_writes_each_file_a_change_names(tmp_path, nl):
+    folder = write(tmp_path / "f1", abc_feeder(nl))
+    before = snapshot(folder)
+    changes, defects = sr.repair_folder(folder, "f1")
+    assert defects == []
+    assert [(c["repair"][:6], c["file"], c["line"]) for c in changes] == [
+        ("head_m", "Master.dss", 9), ("head_m", "Master.dss", 10), ("head_m", "Master.dss", 11),
+        ("source", "Master.dss", 3), ("source", "Master.dss", 13),
+        ("regula", "Transformers.dss", 1), ("regula", "Regulators.dss", 2)]
+    assert changes[5]["numbers"] == [1, 2] and changes[6]["numbers"] == [2, 3]
+    after = snapshot(folder)
+    assert sorted(after) == sorted(before)
+    assert after["Master.dss"] == master(f"Transformer.trans_{REG}", basekv="25.0",
+                                         vbases="[0.12, 0.208, 14.434, 25.0]", nl=nl).encode()
+    assert after["Transformers.dss"] == ABC_TRANSFORMERS.replace("12.47, 12.47", "25.0, 25.0").replace("\n", nl).encode()
+    assert after["Regulators.dss"] == ABC_REGULATORS.replace("ptratio=60.0 band", "ptratio=120.28130608117205 band") \
+        .replace("\n", nl).encode()
+    assert all(after[n] == before[n] for n in before if n not in ("Master.dss", "Transformers.dss", "Regulators.dss"))
+    # the repaired folder needs no more repair
+    assert sr.check(sr.read_texts(folder), "f1") == ([], [])
+
+
+def test_a_sound_feeder_with_regulators_is_not_written(tmp_path):
+    texts = c_feeder(SERVICE_14434 + REG_1PH.format(kv=14.434), regcontrol("trans_reg_b", 120.28130608117205), **V25)
+    folder = write(tmp_path / "f1", texts)
+    before = snapshot(folder)
+    stamp = {n: os.stat(os.path.join(folder, n)).st_mtime_ns for n in before}
+    assert sr.repair_folder(folder, "f1") == ([], [])
+    assert snapshot(folder) == before
+    assert {n: os.stat(os.path.join(folder, n)).st_mtime_ns for n in before} == stamp
+
+
+def test_the_table_of_repair_c(tmp_path):
+    changes, _ = sr.check(abc_feeder("\n"), "f1")
+    sr.write_table(tmp_path / "t.csv", changes)
+    table = pd.read_csv(tmp_path / "t.csv", dtype=str)
+    rows = table[table["repair"] == C]
+    assert rows[["file", "line"]].values.tolist() == [["Transformers.dss", "1"], ["Regulators.dss", "2"]]
+    assert rows["now"].tolist()[1] == (f"New RegControl.reg_a transformer=TRANS_{REG.upper()} winding=2 "
+                                       f"ptratio=120.28130608117205 band=2.4 vreg=123.6")
+
+
+@pytest.mark.parametrize("nl", ["\r\n", "\n"])
+def test_repaired_texts_equal_what_repair_folder_writes(tmp_path, nl):
+    texts = abc_feeder(nl)
+    changes, _ = sr.check(texts, "f1")
+    folder = write(tmp_path / "f1", texts)
+    sr.repair_folder(folder, "f1")
+    written = {n: Path(folder, n).read_bytes().decode("utf-8") for n in texts}
+    assert sr.repaired_texts(texts, changes) == written
+
+
+def test_pre_prints_repair_c(tmp_path):
+    texts = c_feeder(SERVICE_14434 + REG_1PH.format(kv=14.434) + REG_1PH.replace("trans_reg_b", "trans_reg_c")
+                     .replace("phases=1", "phases=2").format(kv=25.0),
+                     regcontrol("trans_reg_b", 69.44465262857685) + regcontrol(f"trans_{REG}", None, name="reg_a"),
+                     **V25)
+    texts["Transformers.dss"] += REG_LINE.replace("12.47, 12.47", "25.0, 25.0")
+    code, out = _pre(tmp_path, texts)
+    assert code == 0
+    assert [ln for ln in out if ln.startswith("[repair] f1: ")] == [
+        f"[repair] f1: {C}: Regulators.dss line 1: {regcontrol('trans_reg_b', 69.44465262857685).strip()} -> "
+        f"{regcontrol('trans_reg_b', '120.28130608117205').strip()}"]
+    assert out[-1] == ("[repair] 1 feeders checked: 1 statements to repair on 1 feeders. 1 regulators of a shape "
+                       f"{C} does not judge. 1 RegControls without ptratio, not checked.")
 
 
 def test_pre_repairs_off_prints_one_line(tmp_path):

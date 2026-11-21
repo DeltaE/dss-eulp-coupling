@@ -448,7 +448,7 @@ ev_day: typical
 # Main runs use the default, moderate.
 ev_work_share_case: moderate
 
-# Repairs of two defects of the SMART-DS release (smartds_repairs.py): phase pre checks
+# Repairs of three defects of the SMART-DS release (smartds_repairs.py): phase pre checks
 # the feeders, Phase 7b repairs the run's own copy. true: repair. false: every feeder
 # runs as released.
 smartds_repairs: true

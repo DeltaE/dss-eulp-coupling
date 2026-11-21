@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Repairs of two defects of the SMART-DS release, made on the run's own copy of a circuit.
+"""Repairs of three defects of the SMART-DS release, made on the run's own copy of a circuit.
 
 Some feeders of the SMART-DS v0.9 release contradict themselves. Each repair below has a
 detection rule that reads only the feeder's own files, a change that writes only values
-read from those files, and a reason. A defect that has no repair stops the run.
+read from those files or computed from them, and a reason. A defect that has no repair stops the run.
 
 - head_meters_on_regulator. Defect: Monitor m1, Monitor m2 or Energymeter m3 of
   Master.dss names an element Line.<name>, and no New Line.<name> statement exists in the
@@ -25,10 +25,30 @@ read from those files, and a reason. A defect that has no repair stops the run.
   in ascending order, every kept value with its own text. Reason: the source then holds
   the voltage the feeder's own transformers are rated for. A feeder with no such
   transformer is not checked.
+- regulator_settings_from_voltage. Feeder voltage V: the transformer voltage rounded to
+  VOLTAGE_DECIMALS, else basekV of the New Circuit statement; a feeder with neither is
+  not checked. Each regulator is judged by the phase nodes its windings sit on (a bus
+  that names no node has the unit's phases, 3 when phases is not written) and their conn
+  (wye when not written): single-phase on one phase node and wye, kV V / sqrt(3) and
+  monitored voltage V / sqrt(3); single-phase on two phase nodes, kV V and monitored
+  voltage V; three-phase on three phase nodes and wye, kV V and monitored voltage
+  V / sqrt(3); three-phase on three phase nodes and delta, kV V and monitored voltage V.
+  A regulator of any other shape is not judged. Defect: a winding kV, or the ptratio of
+  a New RegControl statement that names the regulator, is more than REGULATOR_TOLERANCE
+  from that value. Change: each such winding kV, as the file writes it (kv= per wdg, or
+  an entry of kvs=), becomes the kV rounded to REGULATOR_KV_DECIMALS; each such ptratio
+  becomes the monitored voltage in volts divided by PT_BASE_VOLTS. Reason: OpenDSS
+  divides the monitored winding voltage (line to neutral on a wye winding) by ptratio
+  and holds the result at vreg, so a ptratio of another voltage basis drives the taps to
+  an end (https://opendss.epri.com/Properties23.html,
+  https://opendss.epri.com/RegControl.html), and a winding kV of another basis gives the
+  regulator another impedance and rating. A RegControl without ptratio is not checked.
 
 The functions work on the texts of a feeder folder ({file name: text}). Phase pre runs
 this file as a script (check, read only on the staged files); Phase 7b calls
-repair_folder on its copy and write_table in each circuit folder; with load growth on,
+repair_folder on its copy, which may rewrite Master.dss, the transformer file and the
+regulator file (Transformers.dss, Regulators.dss), and write_table in each circuit
+folder; with load growth on,
 phase growth (growth_plan.py) reads each feeder through repaired_texts, in memory. The
 repairs apply with growth on and off. smartds_repairs in pipeline_config.yaml turns
 every repair off.
@@ -47,7 +67,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "7_circuit_instantiation" / "deployer_modules"))
-from ev_control import _PROP_RE, _array, _bus, _logical_lines
+from ev_control import _PROP_RE, _array, _bus
 from pipeline_utils import load_config, load_feeder_registry, resolve_config_path, smartds_repairs_on
 
 # ASSUMPTION: basekV and the transformer voltage are compared at 2 decimals, because the
@@ -56,6 +76,22 @@ from pipeline_utils import load_config, load_feeder_registry, resolve_config_pat
 # feeder, and one at fewer would pass a feeder whose source and transformers differ by up
 # to 0.05 kV.
 VOLTAGE_DECIMALS = 2
+
+# ASSUMPTION: a regulator's winding kV and ptratio are rewritten only when they are more than
+# 1 percent from the values the feeder voltage gives. The release writes a line-to-neutral
+# rating to 3 decimals and full-precision ratios, so a 1 percent margin passes every value
+# that differs only by rounding (ptratio 60.0 against 59.996) and catches a wrong voltage
+# basis (ptratio 69.44 against 120.28; 12.47 kV against 7.2 kV).
+REGULATOR_TOLERANCE = 0.01
+# ASSUMPTION: a rewritten winding kV takes 3 decimals, as the release writes its
+# line-to-neutral ratings (14.434, 7.2).
+REGULATOR_KV_DECIMALS = 3
+# The regulator voltage a ptratio gives at the monitored winding voltage: 120 V, the
+# default vreg (vreg times ptratio gives the winding voltage,
+# https://opendss.epri.com/Properties23.html; ptratio 60 on a 12.47 kV system,
+# https://opendss.epri.com/RegControl.html).
+PT_BASE_VOLTS = 120.0
+VOLTS_PER_KV = 1000.0  # the SI prefix kilo, https://www.bipm.org/en/measurement-units/si-prefixes
 
 TABLE_FILE = "smartds_repairs.csv"
 TABLE_COLUMNS = ["feeder", "repair", "file", "line", "was", "now"]
@@ -130,8 +166,13 @@ def read_feeder(texts):
     statement; lines, the lower-case names of every New Line statement of the folder;
     transformers, one (name, phases, windings) per New Transformer statement of the
     folder, windings a list of (bus, kV) by winding number and phases None when the
-    statement does not set it."""
-    feeder = {"circuit": None, "voltagebases": None, "heads": [], "lines": set(), "transformers": []}
+    statement does not set it, each also with conns (the conn of each winding as written,
+    None when not written), file, line and numbers (its file name, first line and
+    physical lines); regcontrols, one (name, transformer, winding, ptratio, file, line,
+    numbers) per New RegControl statement of the folder, winding 1 when not written and
+    ptratio None when not written; file_lines, the physical lines of each file."""
+    feeder = {"circuit": None, "voltagebases": None, "heads": [], "lines": set(), "transformers": [],
+              "regcontrols": [], "file_lines": {}}
     master = _file(texts, MASTER)
     for first, numbers, st in master_statements(texts[master]) if master else []:
         m = re.match(r"(?i)^new\s+circuit\.\S+\s*(.*)$", st)
@@ -148,14 +189,25 @@ def read_feeder(texts):
             feeder["heads"].append({"head": m.group(1).lower(), "line": first, "numbers": numbers,
                                     "element": _element(m.group(2))})
     for name in texts:
-        for st in _logical_lines(texts[name]):
+        feeder["file_lines"][name] = texts[name].splitlines()
+        for first, numbers, st in master_statements(texts[name]):
+            m = re.match(r"(?i)^new\s+regcontrol\.(\S+)\s*(.*)$", st)
+            if m:
+                props = dict((k.lower(), v) for k, v in _PROP_RE.findall(m.group(2)))
+                winding = _number(props.get("winding", "1"))
+                feeder["regcontrols"].append({
+                    "name": m.group(1), "transformer": props.get("transformer"),
+                    "winding": int(winding) if winding is not None else 1,
+                    "ptratio": _number(props["ptratio"]) if "ptratio" in props else None,
+                    "file": name, "line": first, "numbers": numbers})
+                continue
             m = re.match(r"(?i)^new\s+(line|transformer)\.(\S+)\s*(.*)$", st)
             if not m:
                 continue
             if m.group(1).lower() == "line":
                 feeder["lines"].add(m.group(2).lower())
                 continue
-            wdg, buses, kvs, phases = 1, {}, {}, None
+            wdg, buses, kvs, phases, conns = 1, {}, {}, None, {}
             for k, v in _PROP_RE.findall(m.group(3)):
                 k = k.lower()
                 if k == "wdg":
@@ -170,8 +222,14 @@ def read_feeder(texts):
                     buses.update({i: b for i, b in enumerate(_array(v), start=1)})
                 elif k == "kvs":
                     kvs.update({i: _number(x) for i, x in enumerate(_array(v), start=1)})
+                elif k == "conn":
+                    conns[wdg] = v
+                elif k == "conns":
+                    conns.update({i: c for i, c in enumerate(_array(v), start=1)})
+            numbered = sorted(set(buses) | set(kvs))
             feeder["transformers"].append({"name": m.group(2), "phases": phases, "windings": [
-                (buses.get(i, ""), kvs.get(i)) for i in sorted(set(buses) | set(kvs))]})
+                (buses.get(i, ""), kvs.get(i)) for i in numbered], "conns": [conns.get(i) for i in numbered],
+                "file": name, "line": first, "numbers": numbers})
     return feeder
 
 
@@ -275,12 +333,145 @@ def source_voltage_from_transformers(feeder, lines):
     return changes, []
 
 
+def feeder_voltage(feeder):
+    """The feeder voltage V of repair C (kV, line to line): the transformer voltage rounded
+    to VOLTAGE_DECIMALS, else basekV of the New Circuit statement, else None."""
+    voltage = transformer_voltage(feeder)
+    if voltage is not None:
+        return round(voltage, VOLTAGE_DECIMALS)
+    return feeder["circuit"]["basekv"] if feeder["circuit"] else None
+
+
+def regulator_shape(transformer, voltage):
+    """(kV, monitored voltage) in kV that a regulator's windings fit under a feeder of
+    voltage V (see the module text), or None when its shape is not judged."""
+    phases = transformer["phases"] if transformer["phases"] is not None else 3
+    shapes = set()
+    for (bus, _), conn in zip(transformer["windings"], transformer["conns"]):
+        named = len(str(bus).strip().strip("\"'").split(".")) > 1
+        nodes = len(_phase_nodes(bus)) if named else phases
+        conn = str(conn or "wye").strip("\"' ").lower()
+        delta = conn.startswith("d") or conn == "ll"
+        if phases == 1 and nodes == 1 and not delta:
+            shapes.add("line to neutral")
+        elif phases == 1 and nodes == 2:
+            shapes.add("line to line")
+        elif phases == 3 and nodes == 3:
+            shapes.add("delta" if delta else "wye")
+        else:
+            return None
+    if len(shapes) != 1:
+        return None
+    shape = shapes.pop()
+    neutral = voltage / math.sqrt(3.0)
+    return {"line to neutral": (neutral, neutral), "line to line": (voltage, voltage),
+            "wye": (voltage, neutral), "delta": (voltage, voltage)}[shape]
+
+
+def _regcontrols_of(feeder, transformer):
+    """The RegControls of the feeder that name the transformer (any letter case)."""
+    name = transformer["name"].lower()
+    out = []
+    for rc in feeder["regcontrols"]:
+        target = str(rc["transformer"] or "").strip("\"' ").lower()
+        if target.startswith("transformer."):
+            target = target.split(".", 1)[1]
+        if target == name:
+            out.append(rc)
+    return out
+
+
+def _off(value, expected):
+    """True when value is more than REGULATOR_TOLERANCE from expected."""
+    return abs(value / expected - 1.0) > REGULATOR_TOLERANCE
+
+
+def _set_props(lines, numbers, edit):
+    """Rewrite property values of the statement held by the physical lines numbers of
+    lines, read as read_feeder reads them: outside ! comments and after New <class>.<name>
+    on the first line. edit(key, value) gets each property in order (key in lower case)
+    and returns the new value text, or None to keep the value."""
+    for i, n in enumerate(numbers):
+        line = lines[n - 1]
+        end = line.find("!")
+        end = len(line) if end < 0 else end
+        head = re.match(r"(?i)^\s*new\s+\S+", line) if i == 0 else None
+        parts, last = [], 0
+        for m in _PROP_RE.finditer(line, head.end() if head else 0, end):
+            now = edit(m.group(1).lower(), m.group(2))
+            if now is not None:
+                parts += [line[last:m.start(2)], now]
+                last = m.end(2)
+        lines[n - 1] = "".join(parts) + line[last:]
+
+
+def regulator_settings_from_voltage(feeder, lines):
+    """Repair C. Returns (changes, defects) as head_meters_on_regulator, each changed
+    statement with its own file and lines in place of Master.dss; it has no defect
+    without a repair."""
+    voltage = feeder_voltage(feeder)
+    if voltage is None or voltage <= 0:
+        return [], []
+    changes = []
+    for tr in feeder["transformers"]:
+        shape = regulator_shape(tr, voltage) if is_regulator(tr) else None
+        if shape is None:
+            continue
+        kv, monitored = shape
+        off = {i for i, (_, x) in enumerate(tr["windings"], start=1) if _off(x, kv)}
+        if off:
+            new = list(feeder["file_lines"][tr["file"]])
+            text = repr(round(kv, REGULATOR_KV_DECIMALS))
+            wdg = [1]
+
+            def edit(key, value):
+                if key == "wdg":
+                    wdg[0] = int(value)
+                elif key == "kv" and wdg[0] in off:
+                    return text
+                elif key == "kvs":
+                    count = [0]
+
+                    def entry(m):
+                        count[0] += 1
+                        return text if count[0] in off else m.group(0)
+                    return re.sub(r"[^\s,\[\]\(\)\"']+", entry, value)
+                return None
+            _set_props(new, tr["numbers"], edit)
+            changes.append((tr, new))
+        ratio = monitored * VOLTS_PER_KV / PT_BASE_VOLTS
+        for rc in _regcontrols_of(feeder, tr):
+            if rc["ptratio"] is not None and _off(rc["ptratio"], ratio):
+                new = list(feeder["file_lines"][rc["file"]])
+                _set_props(new, rc["numbers"], lambda key, value: repr(ratio) if key == "ptratio" else None)
+                changes.append((rc, new))
+    return changes, []
+
+
+def regulator_counts(feeder):
+    """(regulators not judged, RegControls without ptratio) of repair C on a feeder."""
+    voltage = feeder_voltage(feeder)
+    if voltage is None or voltage <= 0:
+        return 0, 0
+    not_judged, without = 0, 0
+    for tr in feeder["transformers"]:
+        if not is_regulator(tr):
+            continue
+        if regulator_shape(tr, voltage) is None:
+            not_judged += 1
+            continue
+        without += sum(1 for rc in _regcontrols_of(feeder, tr) if rc["ptratio"] is None)
+    return not_judged, without
+
+
 # The repairs, in the order they are applied. Each: (name, function, reason).
 REPAIRS = [
     ("head_meters_on_regulator", head_meters_on_regulator,
      "the head meters name a Line that no file defines; the head element is the regulator"),
     ("source_voltage_from_transformers", source_voltage_from_transformers,
      "the source voltage disagrees with the voltage of the feeder's own transformers"),
+    ("regulator_settings_from_voltage", regulator_settings_from_voltage,
+     "a regulator's winding kV or ptratio does not fit the feeder voltage and the phase nodes of its windings"),
 ]
 
 
@@ -289,7 +480,8 @@ def check(texts, feeder_name):
     (changes, defects). changes: one dict per changed statement, with feeder, repair,
     file, line (the statement's first line), was and now (the statement before and after),
     in the order of REPAIRS. defects: [(repair, text)]. The repairs change different
-    statements, so each is found on the texts as they are."""
+    statements, so each is found on the texts as they are. A statement of repair C sits in
+    its own file; every other statement in Master.dss."""
     master = _file(texts, MASTER)
     if master is None:
         return [], []
@@ -300,8 +492,10 @@ def check(texts, feeder_name):
         found, missing = rule(feeder, lines)
         defects.extend((name, text) for text in missing)
         for statement, new in found:
-            changes.append({"feeder": feeder_name, "repair": name, "file": master, "line": statement["line"],
-                            "numbers": statement["numbers"], "was": _statement(lines, statement["numbers"]),
+            file = statement.get("file", master)
+            old = lines if file == master else feeder["file_lines"][file]
+            changes.append({"feeder": feeder_name, "repair": name, "file": file, "line": statement["line"],
+                            "numbers": statement["numbers"], "was": _statement(old, statement["numbers"]),
                             "now": _statement(new, statement["numbers"]),
                             "new_lines": {n: new[n - 1] for n in statement["numbers"]}})
     return changes, defects
@@ -333,20 +527,20 @@ def repaired_texts(texts, changes):
 
 
 def repair_folder(folder, feeder_name):
-    """Apply the repairs to the feeder folder on disk (repaired_texts). Rewrites only
-    Master.dss, only the statements named, and keeps every other byte, line endings
-    included. A folder without a defect is not written. Returns (changes, defects) of
-    check."""
+    """Apply the repairs to the feeder folder on disk (repaired_texts). Rewrites only the
+    files a change names (Master.dss, and for repair C the files of the regulators and
+    their RegControls), only the statements named, and keeps every other byte, line
+    endings included. A folder without a defect is not written. Returns (changes,
+    defects) of check."""
     texts = read_texts(folder)
     changes, defects = check(texts, feeder_name)
-    if not changes:
-        return changes, defects
-    name = changes[0]["file"]
-    path = os.path.join(folder, name)
-    with open(path, "rb") as fh:
-        raw = fh.read().decode("utf-8", errors="surrogateescape")
-    with open(path, "wb") as fh:
-        fh.write(repaired_texts({name: raw}, changes)[name].encode("utf-8", errors="surrogateescape"))
+    for name in dict.fromkeys(c["file"] for c in changes):
+        path = os.path.join(folder, name)
+        with open(path, "rb") as fh:
+            raw = fh.read().decode("utf-8", errors="surrogateescape")
+        with open(path, "wb") as fh:
+            fh.write(repaired_texts({name: raw}, [c for c in changes if c["file"] == name])[name]
+                     .encode("utf-8", errors="surrogateescape"))
     return changes, defects
 
 
@@ -390,15 +584,23 @@ def main():
               "is made.")
         return 0
     feeders = case_feeders(cfg)
-    n_changes, repaired, fails = 0, 0, []
+    n_changes, repaired, fails, not_judged, without = 0, 0, [], 0, 0
     for feeder_name, folder in feeders:
-        changes, defects = check(read_texts(folder), feeder_name)
+        texts = read_texts(folder)
+        changes, defects = check(texts, feeder_name)
         for change in changes:
             print(repair_line(change))
         n_changes += len(changes)
         repaired += 1 if changes else 0
         fails.extend(fail_lines(feeder_name, defects))
-    print(f"[repair] {len(feeders)} feeders checked: {n_changes} statements to repair on {repaired} feeders.")
+        counts = regulator_counts(read_feeder(texts))
+        not_judged, without = not_judged + counts[0], without + counts[1]
+    summary = f"[repair] {len(feeders)} feeders checked: {n_changes} statements to repair on {repaired} feeders."
+    if not_judged:
+        summary += f" {not_judged} regulators of a shape regulator_settings_from_voltage does not judge."
+    if without:
+        summary += f" {without} RegControls without ptratio, not checked."
+    print(summary)
     for line in fails:
         print(line)
     return 1 if fails else 0

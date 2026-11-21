@@ -925,6 +925,37 @@ def test_regulator_rating_on_a_short_line():
     assert math.isclose(_regulator_amps(_short_line_files([lb_595]), "sw2"), 595.0)
 
 
+def _built_regcontrols(capsys, base_kv, ptratio):
+    files = dict(FILES, **{"Master.dss": MASTER.replace("basekV=12.47", f"basekV={base_kv}")})
+    substation = dict(SUBSTATION, regcontrol=dict(SUBSTATION["regcontrol"], ptratio=ptratio))
+    capsys.readouterr()
+    changed, _ = ng.apply_items(files, [{"step": "regulator", "line": "m2", "_peak": 0.92}], _catalog(), substation,
+                                EXPRESS)
+    added = changed["Transformers.dss"][len(TRANSFORMERS):].splitlines()
+    printed = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("[growth]")]
+    return [a for a in added if a.startswith("New RegControl.")], printed
+
+
+def test_built_regulator_copies_a_ptratio_that_fits(capsys):
+    for base_kv, ptratio, written in [
+        (12.47, 60.0, "60.0"),                                     # within 1 percent of 59.996: copied
+        (25.0, 120.28130608117205, "120.28130608117205"),
+        (4.0, 19.24, "19.24"),                                     # within 1 percent of 19.245: copied
+    ]:
+        regcontrols, printed = _built_regcontrols(capsys, base_kv, ptratio)
+        assert regcontrols == [f"New RegControl.ngreg1_{p} transformer=ngreg1_{p} winding=2 vreg=123.6 band=1.992 "
+                               f"ptratio={written}" for p in (1, 2, 3)]
+        assert printed == []
+
+
+def test_built_regulator_ptratio_from_its_own_voltage(capsys):
+    regcontrols, printed = _built_regcontrols(capsys, 25.0, 60.0)
+    assert regcontrols == [f"New RegControl.ngreg1_{p} transformer=ngreg1_{p} winding=2 vreg=123.6 band=1.992 "
+                           f"ptratio=120.28130608117205" for p in (1, 2, 3)]
+    assert printed == ["[growth] line regulator ngreg1_1, ngreg1_2, ngreg1_3: the substation RegControl's ptratio "
+                       "60.0 does not fit the winding of 14.43375673 kV; ptratio 120.28130608117205 written"]
+
+
 # ---------------------------------------------------------------------------
 # The order of the steps (N7) and the substation units (N17)
 # ---------------------------------------------------------------------------
