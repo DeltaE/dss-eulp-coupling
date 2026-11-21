@@ -53,12 +53,24 @@ CATALOG_FILE = "network_catalog.json"
 # phase: XHL 0.01 percent and %LoadLoss 0.01, the values of the regulator of the IEEE 13
 # node test case distributed with OpenDSS,
 # https://github.com/dss-extensions/electricdss-tst/blob/master/Version8/Distrib/IEEETestCases/13Bus/IEEE13Nodeckt.dss
-# ASSUMPTION: a line regulator takes those two values, the ampacity of its line and the
-# vreg, band and ptratio of the substation regulator of its SMART-DS topology, with the
-# OpenDSS default taps and delays and no line-drop compensation. A regulator with
-# line-drop compensation holds a different voltage downstream.
+# ASSUMPTION: a line regulator takes those two values, the ampacity of its line, the vreg
+# and band of the substation regulator of its SMART-DS topology, and that regulator's
+# ptratio when it is within REGULATOR_TOLERANCE of the unit's own winding kV x 1000 /
+# PT_BASE_VOLTS, else that value, with the OpenDSS default taps and delays and no
+# line-drop compensation. A regulator with line-drop compensation holds a different
+# voltage downstream.
 REGULATOR_XHL = 0.01
 REGULATOR_LOADLOSS = 0.01
+# ASSUMPTION: a ptratio more than 1 percent from the unit's own value is of another
+# voltage basis. The release writes full-precision ratios, so a 1 percent margin passes
+# every value that differs only by rounding (60.0 against 59.996) and catches a wrong
+# voltage basis (60.0 against 120.28 on a 25 kV system).
+REGULATOR_TOLERANCE = 0.01
+# The regulator voltage a ptratio gives at the winding voltage: 120 V, the default vreg
+# (vreg times ptratio gives the winding voltage, https://opendss.epri.com/Properties23.html;
+# ptratio 60 on a 12.47 kV system, https://opendss.epri.com/RegControl.html).
+PT_BASE_VOLTS = 120.0
+VOLTS_PER_KV = 1000.0  # the SI prefix kilo, https://www.bipm.org/en/measurement-units/si-prefixes
 
 _NEW_RE = re.compile(r"(?i)^\s*new\s+(\w+)\.(\S+)")
 _BUS_TOKEN = re.compile(r"(?i)(?<![\w%])(bus1|bus2|bus)(\s*=\s*)(\S+)")
@@ -1187,6 +1199,12 @@ def _apply_regulator(files, net, item, substation):
     kv = net["base_kv"] / math.sqrt(3.0)
     kva = amps * kv
     nodes = _nodes(spec, ln["phases"])
+    ptratio = reg["ptratio"]
+    own = kv * VOLTS_PER_KV / PT_BASE_VOLTS
+    if abs(ptratio / own - 1.0) > REGULATOR_TOLERANCE:
+        print(f"[growth] line regulator {', '.join(f'ngreg{k}_{p}' for p in nodes)}: the substation RegControl's "
+              f"ptratio {ptratio!r} does not fit the winding of {kv:.10g} kV; ptratio {own!r} written")
+        ptratio = own
     statements = []
     for p in nodes:
         unit = f"ngreg{k}_{p}"
@@ -1195,7 +1213,7 @@ def _apply_regulator(files, net, item, substation):
             f"wdg=1 conn=wye bus={spec.split('.')[0]}.{p} Kv={kv:.10g} kva={kva:.10g} "
             f"wdg=2 conn=wye bus={new_bus}.{p} Kv={kv:.10g} kva={kva:.10g}")
         statements.append(f"New RegControl.{unit} transformer={unit} winding=2 vreg={reg['vreg']!r} "
-                          f"band={reg['band']!r} ptratio={reg['ptratio']!r}")
+                          f"band={reg['band']!r} ptratio={ptratio!r}")
     target = files.file_of("transformer", "transformers.dss")
     if target is None:
         raise NetworkGrowthError("the circuit has no Transformers file for a regulator")
