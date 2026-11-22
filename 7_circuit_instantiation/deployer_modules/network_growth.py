@@ -18,11 +18,14 @@ solves again. This module holds the rules; the deploy holds the loop and the sol
 - The network (read_network): growth.read_feeder on the .dss files of
   ModifiedCircuitData. A regulator (growth.is_regulator: a SMART-DS voltage regulator
   or a line regulator of network growth) is crossed like a line, so the buses behind it
-  stay at medium voltage. A regulator is never a service transformer, and a head on a
-  regulator gets no new feeder and no rebuilt line (head_groups, next_step).
+  stay at medium voltage. A regulator is never a service transformer and a head on a
+  regulator is no line to rebuild (head_groups, next_step). A SMART-DS regulator over its
+  limit may take a larger rating (regulator_rating_items), and a head on a regulator may
+  get a new feeder under new_feeder_regulator copy or none (new_feeder_choice).
 - The tests (lines_over, transformers_over, head_groups, customers_under).
 - The steps (next_step): rebalance_moves, new_feeder_choice, reconductor_items,
-  transformer_items, regulator_choice. Each returns items in the built format.
+  transformer_items, regulator_rating_items, regulator_choice. Each returns items in the
+  built format.
 - The statements (apply_items): what each item writes into the .dss files.
 - The built format (read_built, write_built) and the substation units
   (substation_units).
@@ -41,10 +44,10 @@ import re
 import yaml
 
 import growth
-from growth import _PROP_RE, _logical_lines
+from growth import _ARRAY_BUS, _BUSES_VALUE, _PROP_RE, _logical_lines
 from planning_limits import SHORT_LINE_M, head_classes, head_lines
 
-STEPS = ("new_feeder", "reconductor", "service_transformer", "regulator")
+STEPS = ("new_feeder", "reconductor", "service_transformer", "regulator_rating", "regulator")
 ITEM_STEPS = ("rebalance_phases",) + STEPS
 BUILT_FILE = "network_growth_built.yaml"
 CATALOG_FILE = "network_catalog.json"
@@ -511,8 +514,15 @@ def new_feeder_choice(net, groups, line_rows, phase_amps, catalog, ng, limits, e
     lines when step 2 has none), and a later round may build another feeder. Under bus
     the candidates are the buses from the start.
     express: {linecode, normamps} of the head line of round 0, the code of every express
-    line; None when head 1 is a regulator. The step never applies to a head on a
-    regulator, nor to any head when express is None.
+    line; when head 1 is a regulator, regulator_express under new_feeder_regulator copy
+    or none, else None. The step never applies to any head when express is None, nor to
+    a head on a regulator under new_feeder_regulator skip. Under copy and none a head on a
+    regulator qualifies as a head line does, over its limit while the catalog holds no
+    larger rating of its class (transformer_key), or feeding a stuck line; under copy a
+    head regulator without a RegControl gives a note. A head regulator over its limit
+    while the catalog holds a larger rating of its class, with no stuck line and
+    regulator_rating not in ng["steps"], gives a note, once per circuit folder (state
+    noted, the key of regulator_notes), also when the step returns no item.
     ASSUMPTION: the new feeder is one express line of the head's LineCode along the
     existing route from the substation bus to the open point, and it serves nothing on
     the way. A real route can be longer, and the voltage beyond the open point then
@@ -524,15 +534,21 @@ def new_feeder_choice(net, groups, line_rows, phase_amps, catalog, ng, limits, e
                   and r["line"].lower() not in head_names and not _larger_codes(catalog, r)]
     qualified = []
     for g in groups:
-        # a head on a regulator gets no new feeder (express is None when head 1 is one);
-        # its stuck lines go to the reconductor step
-        if g.get("regulator") or express is None:
+        # a head on a regulator gets no new feeder under new_feeder_regulator skip (express
+        # is then None when head 1 is one); its stuck lines go to the reconductor step
+        if express is None or (g.get("regulator") and ng.get("new_feeder_regulator", "skip") == "skip"):
             continue
         if any(name.lower() in state["no_feeder"] for name in g["lines"]):
             continue
         fed = _fed_by(net, g)
-        head_row = {"linecode": g["code"], "normamps": g["normamps"] / len(g["lines"]), "phases": 3, "level": "mv"}
-        head_over = g["percent"] > limits["head_limit_percent"] and not _larger_codes(catalog, head_row)
+        if g.get("regulator"):
+            tr = net["transformer_of"][g["lines"][0].lower()]
+            larger = [e for e in catalog["transformers"].get(transformer_key(tr), [])
+                      if e["kva"] > (tr["windings"][0][3] or 0.0)]
+            head_over = g["percent"] > limits["head_limit_percent"] and not larger
+        else:
+            head_row = {"linecode": g["code"], "normamps": g["normamps"] / len(g["lines"]), "phases": 3, "level": "mv"}
+            head_over = g["percent"] > limits["head_limit_percent"] and not _larger_codes(catalog, head_row)
         stuck = []
         for r in stuck_rows:
             ln = net["line_of"][r["line"].lower()]
@@ -542,6 +558,15 @@ def new_feeder_choice(net, groups, line_rows, phase_amps, catalog, ng, limits, e
                               "far": path_length_m(net, way[1]) or 0.0})
         if head_over or stuck:
             qualified.append((g, head_over, stuck))
+        elif g.get("regulator") and g["percent"] > limits["head_limit_percent"] \
+                and "regulator_rating" not in ng["steps"] \
+                and ("head", g["lines"][0].lower()) not in state.setdefault("noted", set()):
+            # over its limit with a larger rating of its class, and no step acts on it
+            state["noted"].add(("head", g["lines"][0].lower()))
+            notes.append(f"head {g['k']} is the regulator {g['lines'][0]} at {g['percent']:.6g} percent, over "
+                         f"head_limit_percent; the catalog holds a larger rating of its class {transformer_key(tr)} "
+                         f"and regulator_rating is not in steps, so no new feeder is built and nothing is rebuilt "
+                         f"at the head")
     if not qualified:
         return [], notes
     g, head_over, stuck = max(qualified, key=lambda t: (t[0]["percent"], -t[0]["k"]))
@@ -626,7 +651,42 @@ def new_feeder_choice(net, groups, line_rows, phase_amps, catalog, ng, limits, e
     item = {"step": "new_feeder", "_peak": max(g["amps"].values()),
             "_detail": ";".join(f"{k}={v}" for k, v in detail.items())}
     item.update({"open": choice["line"]} if kind == "switch" else {"cut_bus": choice["down"]})
+    if g.get("regulator") and express.get("regulator") == "copy" and not express.get("regcontrol"):
+        notes.append(f"head {g['k']}: the head regulator {express.get('head', '')} has no RegControl; the regulator "
+                     f"copied for the new feeder has none")
     return [item], notes
+
+
+def regulator_express(net, head_row, mode, text):
+    """express of a circuit whose head 1 is a regulator, under new_feeder_regulator mode
+    copy or none: {linecode, normamps, regulator (mode), head (the regulator's name),
+    regcontrol (the name of the first RegControl that names it, None when none does)}.
+    linecode: the LineCode, as written, of the enabled three-phase line whose upstream bus
+    (orientation) is the regulator's winding-2 bus with the largest normamps, the first
+    name on a tie. normamps: under copy that of head_row (the head 1 row of heads.csv;
+    the copied regulator is the new head), under none that of the LineCode. head_row:
+    planning_limits.head_rows; text: the .dss files of the circuit joined. None when head 1
+    is no regulator, when no such line has a rated LineCode, or under copy when head_row
+    has no normamps."""
+    tr = net["transformer_of"].get(str(head_row["line"]).lower())
+    if tr is None or not growth.is_regulator(tr):
+        return None
+    down, found = tr["windings"][1][1], []
+    for ln in net["lines"]:
+        code = net["linecodes"].get(ln["linecode"]) or {}
+        way = orientation(net, ln)
+        if ln["enabled"] and ln["phases"] == 3 and way is not None and way[0] == down and code.get("normamps"):
+            found.append((-code["normamps"], ln["name"].lower(), ln))
+    if not found:
+        return None
+    amps, _, ln = min(found, key=lambda t: t[:2])
+    normamps = head_row["normamps"] if mode == "copy" else -amps
+    if not normamps:
+        return None
+    regcontrol = next((rc["name"] for rc in growth.read_regcontrols({"all": text})
+                       if rc["transformer"].lower() == tr["name"].lower()), None)
+    return {"linecode": ln["text_code"], "normamps": normamps, "regulator": mode, "head": tr["name"],
+            "regcontrol": regcontrol}
 
 
 # ---------------------------------------------------------------------------
@@ -722,6 +782,55 @@ def transformer_items(net, transformer_rows, catalog, ng, limits):
         items.append({"step": "service_transformer", "transformer": row["transformer"], "kva": kva, "units": units,
                       "_peak": peak, "_detail": f"units_before={len(members)};sum_kva={total:.6g}"})
     return items
+
+
+def regulator_rating_items(net, groups, transformer_rows, catalog, ng, limits, state):
+    """The SMART-DS regulators to replace by a larger rating, as ([items {step,
+    transformer, kva}], [notes]). A candidate is a regulator (growth.is_regulator) that
+    network growth did not build (is_regulator of its name false). It qualifies when its
+    row of transformer_rows is over transformer_limit_percent, or when it is the element
+    of a head group on a regulator whose measure is over head_limit_percent. For a
+    regulator with peak kVA S (its row's peak_kva): among the catalog ratings of its
+    class (transformer_key) above its own kVA, the smallest whose kVA x sizing_percent /
+    100 is at or above S; if none, the largest when S is within transformer_limit_percent
+    of it. The regulator keeps its name, its buses and its RegControl. If no rating
+    passes, nothing is built, and a note names the regulator, its percent and its class,
+    once per circuit folder (state noted).
+    ASSUMPTION: a regulator is never paralleled, because two regulators in parallel need
+    coordinated controls the release does not give."""
+    limit, sizing = limits["transformer_limit_percent"], ng["sizing_percent"] / 100.0
+    heads = {g["lines"][0].lower(): g["percent"] for g in groups
+             if g.get("regulator") and g["percent"] > limits["head_limit_percent"]}
+    items, notes, noted = [], [], state.setdefault("noted", set())
+    for row in sorted(transformer_rows, key=lambda r: r["transformer"].lower()):
+        low = row["transformer"].lower()
+        tr = net["transformer_of"].get(low)
+        if tr is None or not growth.is_regulator(tr) or is_regulator(tr["name"]) or not row["kva"] \
+                or row["peak_kva"] is None:
+            continue
+        over = row["loading_percent"] is not None and row["loading_percent"] > limit
+        if not over and low not in heads:
+            continue
+        peak = row["peak_kva"]
+        larger = [e["kva"] for e in catalog["transformers"].get(transformer_key(tr), []) if e["kva"] > row["kva"]]
+        fits = [k for k in larger if k * sizing >= peak]
+        if fits:
+            kva = fits[0]
+        elif larger and peak <= limit / 100.0 * larger[-1]:
+            kva = larger[-1]
+        else:
+            key = ("rating", low)
+            if key not in noted:
+                noted.add(key)
+                percent, which = (row["loading_percent"], "transformer_limit_percent") if over else \
+                    (heads[low], "head_limit_percent")
+                notes.append(f"the regulator {row['transformer']} is at {percent:.6g} percent, over {which}; the "
+                             f"catalog holds no larger rating of its class {transformer_key(tr)} that carries it, "
+                             f"and a regulator is not paralleled")
+            continue
+        items.append({"step": "regulator_rating", "transformer": row["transformer"], "kva": kva, "_peak": peak,
+                      "_detail": f"class={transformer_key(tr)}"})
+    return items, notes
 
 
 # ---------------------------------------------------------------------------
@@ -826,21 +935,28 @@ def new_state():
     return {"rebalanced": False, "no_feeder": set(), "noted": set()}
 
 
-def regulator_notes(net, groups, transformer_rows, limits, state):
+def regulator_notes(net, groups, transformer_rows, limits, state, ng=None):
     """The notes on regulators over their limit, each once per circuit folder (state
-    noted): a head group on a regulator over head_limit_percent, and a regulator over
-    transformer_limit_percent. A regulator is never replaced, and nothing is built at a
-    head on a regulator."""
+    noted). A head group on a regulator over head_limit_percent, when no step of ng can
+    act on it: new_feeder is not in ng["steps"] or new_feeder_regulator is skip, and
+    regulator_rating is not in ng["steps"]. A regulator over transformer_limit_percent
+    that network growth built, or any regulator when regulator_rating is not in
+    ng["steps"]. ng None gives the notes of a run without either step."""
+    steps = (ng or {}).get("steps", ())
+    rating = "regulator_rating" in steps
+    feeder = "new_feeder" in steps and (ng or {}).get("new_feeder_regulator", "skip") != "skip"
     notes, noted = [], state.setdefault("noted", set())
     for g in groups:
         key = ("head", g["lines"][0].lower())
-        if g.get("regulator") and g["percent"] > limits["head_limit_percent"] and key not in noted:
+        if g.get("regulator") and g["percent"] > limits["head_limit_percent"] and not (feeder or rating) \
+                and key not in noted:
             noted.add(key)
             notes.append(f"head {g['k']} is the regulator {g['lines'][0]} at {g['percent']:.6g} percent, over "
                          f"head_limit_percent; no new feeder is built and nothing is rebuilt at the head")
     for r in transformers_over(transformer_rows, limits["transformer_limit_percent"]):
         key = ("transformer", r["transformer"].lower())
-        if growth.is_regulator(net["transformer_of"][key[1]]) and key not in noted:
+        tr = net["transformer_of"][key[1]]
+        if growth.is_regulator(tr) and (is_regulator(tr["name"]) or not rating) and key not in noted:
             noted.add(key)
             notes.append(f"the regulator {r['transformer']} is at {r['loading_percent']:.6g} percent of its kVA, over "
                          f"transformer_limit_percent; a regulator is not a service transformer and is not replaced")
@@ -854,10 +970,11 @@ def next_step(net, head_rows, line_rows, transformer_rows, phase_amps, load_min,
     applies when a head or a three-phase medium-voltage line longer than 1 m is over its
     limit), then the steps of ng["steps"] in their order: new_feeder (one per round),
     reconductor (every line over its limit), service_transformer (every transformer
-    over its limit), regulator (one per round). step is None when no step applies. notes
-    start with regulator_notes."""
+    over its limit), regulator_rating (every SMART-DS regulator over its limit),
+    regulator (one per round). step is None when no step applies. notes start with
+    regulator_notes."""
     groups = head_groups(net, head_rows, phase_amps, ng["head_metric"])
-    notes = regulator_notes(net, groups, transformer_rows, limits, state)
+    notes = regulator_notes(net, groups, transformer_rows, limits, state, ng)
     if ng["rebalance_phases"] and not state["rebalanced"]:
         head_over = any(g["percent"] > limits["head_limit_percent"] for g in groups)
         line_over = any(r["phases"] == 3 and r["level"] == "mv"
@@ -875,6 +992,8 @@ def next_step(net, head_rows, line_rows, transformer_rows, phase_amps, load_min,
             items, more = reconductor_items(net, groups, line_rows, catalog, ng, limits), []
         elif step == "service_transformer":
             items, more = transformer_items(net, transformer_rows, catalog, ng, limits), []
+        elif step == "regulator_rating":
+            items, more = regulator_rating_items(net, groups, transformer_rows, catalog, ng, limits, state)
         else:
             items, more = regulator_choice(net, groups, customers_under(load_min, low), substation)
         notes.extend(more)
@@ -971,8 +1090,9 @@ def _element(files, cls, name, item):
     return found
 
 
-def _add_head(files, line_name):
-    """Make line_name a head: Monitors h<k>m1 (mode 0) and h<k>m2 (mode 1) on it after
+def _add_head(files, line_name, cls="Line"):
+    """Make the element <cls>.<line_name> (a Line, or the Transformer of a copied head
+    regulator) a head: Monitors h<k>m1 (mode 0) and h<k>m2 (mode 1) on it after
     the Monitors of the last head in Master.dss, and their Export lines after the last
     Export of a head Monitor. Returns k. The names matter: Phase 8 finds the exports of
     head 1 by the token m1 or m2, and h<k>m1 does not match it."""
@@ -986,8 +1106,8 @@ def _add_head(files, line_name):
     if not mon or not exp:
         raise NetworkGrowthError("Master.dss has no Monitor m2 or no Export of it for the Monitors of a new head")
     files.insert(master, exp[-1] + 1, [f"Export monitors h{k}m1", f"Export monitors h{k}m2"])
-    files.insert(master, mon[-1] + 1, [f"New Monitor.h{k}m1 element=Line.{line_name} mode=0",
-                                       f"New Monitor.h{k}m2 element=Line.{line_name} mode=1"])
+    files.insert(master, mon[-1] + 1, [f"New Monitor.h{k}m1 element={cls}.{line_name} mode=0",
+                                       f"New Monitor.h{k}m2 element={cls}.{line_name} mode=1"])
     return k
 
 
@@ -1023,12 +1143,39 @@ def _apply_rebalance(files, net, item):
                 sum(ln["length_m"] for ln in lat["mv_lines"]))
 
 
+def _regcontrol_line(files, transformer):
+    """(file, index) of the first New RegControl line whose transformer= names
+    transformer (any letter case); None when none does."""
+    for fname in sorted(files.lines):
+        for i, line in enumerate(files.lines[fname]):
+            m = _NEW_RE.match(line)
+            if m and m.group(1).lower() == "regcontrol":
+                d = {k.lower(): v for k, v in _PROP_RE.findall(line)}
+                if d.get("transformer", "").lower() == transformer.lower():
+                    return fname, i
+    return None
+
+
 def _apply_new_feeder(files, net, item, express):
+    """The new feeder of item. On a circuit whose head 1 is a regulator, express carries
+    regulator (new_feeder_regulator; see regulator_express). Under copy the head
+    regulator's statement is appended to its file as Transformer ng_express_<k>_reg,
+    winding 1 on the bus of the head regulator's winding 1 as written and winding 2 on
+    the new bus ng_express_<k>_bus with winding 2's nodes as written; its first RegControl,
+    renamed ng_express_<k>_reg with transformer=ng_express_<k>_reg, is appended to the
+    file that holds it; the new bus takes the coordinates of the source bus; the express
+    line starts at ng_express_<k>_bus.1.2.3 and the Monitors of head k watch the copied
+    regulator. Under none the express line starts at the source bus, as on a line head.
+    Without either (skip) the item stops."""
     heads = dict(head_lines(files.text()))
     head1 = net["transformer_of"].get(str(heads.get(1, "")).lower())
+    mode = None
     if head_classes(files.text()).get(1) == "transformer" and head1 is not None and growth.is_regulator(head1):
-        raise NetworkGrowthError(f"item {public(item)}: head 1 of feeder {item.get('feeder', '')} is the regulator "
-                                 f"{head1['name']}; no new feeder is built on a feeder whose head is a regulator")
+        mode = (express or {}).get("regulator")
+        if mode not in ("copy", "none"):
+            raise NetworkGrowthError(f"item {public(item)}: head 1 of feeder {item.get('feeder', '')} is the "
+                                     f"regulator {head1['name']}; no new feeder is built on a feeder whose head is a "
+                                     f"regulator")
     if "open" in item:
         ln = net["line_of"].get(str(item["open"]).lower())
         way = orientation(net, ln) if ln is not None and ln["enabled"] else None
@@ -1056,9 +1203,27 @@ def _apply_new_feeder(files, net, item, express):
     fname, index = _element(files, "line", ln["name"], item)
     k = max(k for k, _ in head_lines(files.text())) + 1
     name = f"{_EXPRESS}{k}"
-    files.append(fname, [f"New Line.{name} Units=m Length={length!r} bus1={net['source']}.1.2.3 bus2={way[1]}.1.2.3 "
+    start, head = f"{net['source']}.1.2.3", ("Line", name)
+    if mode == "copy":
+        # the new feeder starts behind a copy of the head regulator and its RegControl
+        reg, bus = f"{name}_reg", f"{name}_bus"
+        rfile, rindex = _element(files, "transformer", head1["name"], item)
+        spec2 = head1["windings"][1][0]
+        new2 = ".".join([bus] + spec2.split(".")[1:])
+        files.append(rfile, [retarget(files.lines[rfile][rindex].rstrip("\r\n"), reg,
+                                      [head1["windings"][0][0], new2])])
+        found = _regcontrol_line(files, head1["name"])
+        if found is not None:
+            cfile, cindex = found
+            copied = _set_prop(_rename(files.lines[cfile][cindex], "regcontrol", reg), "transformer", reg)
+            files.append(cfile, [copied.rstrip("\r\n")])
+        coords = next((f for f in files.lines if f.lower() == "buscoords.dss"), None)
+        if coords is not None and net["source"] in net["coords"]:
+            files.append(coords, [f"{bus} {net['coords'][net['source']][0]!r} {net['coords'][net['source']][1]!r}"])
+        start, head = f"{bus}.1.2.3", ("Transformer", reg)
+    files.append(fname, [f"New Line.{name} Units=m Length={length!r} bus1={start} bus2={way[1]}.1.2.3 "
                          f"switch=n enabled=y phases=3 Linecode={express['linecode']}"])
-    _add_head(files, name)
+    _add_head(files, head[1], head[0])
     return _row(item, name, was, express["linecode"], 0, 1, length)
 
 
@@ -1105,7 +1270,17 @@ def _apply_reconductor(files, net, item, catalog, heads):
 def retarget(statement, name, buses):
     """The New Transformer statement renamed to name, the bus of winding n set to
     buses[n - 1] (as written, with its nodes), winding by winding. The statement gives
-    its windings as wdg=<n> ... bus=<bus>."""
+    its windings as wdg=<n> ... bus=<bus>, or as one buses= array whose element n is set
+    to buses[n - 1], its brackets and separators kept."""
+    array = _BUSES_VALUE.search(statement)
+    if array:
+        found = _ARRAY_BUS.findall(array.group(2))
+        if len(found) != len(buses):
+            raise NetworkGrowthError(f"the catalog statement names {len(found)} winding buses; the transformer has "
+                                     f"{len(buses)}")
+        given = iter(buses)
+        value = _ARRAY_BUS.sub(lambda m: next(given), array.group(2))
+        return _rename(statement[:array.start(2)] + value + statement[array.end(2):], "transformer", name)
     out, pos, wdg, seen = [], 0, 1, set()
     for m in re.finditer(r"(?i)(?<![\w%])(wdg|bus)(\s*=\s*)(\S+)", statement):
         if m.group(1).lower() == "wdg":
@@ -1153,6 +1328,24 @@ def _apply_transformer(files, net, item, catalog):
             added.append(name)
     files.append(fname, [_rename(files.lines[fname][index], "transformer", name).rstrip("\r\n") for name in added])
     return _row(item, tr["name"], own, kva, len(members), len(members) + len(added), "", kva)
+
+
+def _apply_regulator_rating(files, net, item, catalog):
+    """The catalog statement of the item's rating, retargeted to the regulator's name and
+    buses (retarget), in the place of the regulator's statement. Its RegControl, which
+    names the transformer, stays as it is."""
+    base = str(item["transformer"])
+    tr = net["transformer_of"].get(base.lower())
+    if tr is None or not growth.is_regulator(tr) or is_regulator(tr["name"]):
+        raise NetworkGrowthError(f"regulator {base} of item {public(item)} is not a SMART-DS regulator of the circuit")
+    kva, own = float(item["kva"]), tr["windings"][0][3]
+    entry = next((e for e in catalog["transformers"].get(transformer_key(tr), []) if e["kva"] == kva), None)
+    if entry is None:
+        raise NetworkGrowthError(f"rating {kva:g} kVA of item {public(item)} is not in the catalog for "
+                                 f"transformers of class {transformer_key(tr)}")
+    fname, index = _element(files, "transformer", tr["name"], item)
+    files.set(fname, index, retarget(entry["statement"], tr["name"], [w[0] for w in tr["windings"]]))
+    return _row(item, tr["name"], own, kva, 1, 1, "", kva)
 
 
 def _apply_regulator(files, net, item, substation):
@@ -1251,6 +1444,8 @@ def apply_items(texts, items, catalog, substation, express):
             rows.append(_apply_reconductor(files, net, item, catalog, head_lines(files.text())))
         elif step == "service_transformer":
             rows.append(_apply_transformer(files, net, item, catalog))
+        elif step == "regulator_rating":
+            rows.append(_apply_regulator_rating(files, net, item, catalog))
         elif step == "regulator":
             rows.append(_apply_regulator(files, net, item, substation))
         else:

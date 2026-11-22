@@ -154,6 +154,33 @@ load_factors: []
 # year; it moves every existing PV and storage size with the use rates.
 der_resize_with_growth: false
 
+# SMART-DS voltage regulators under load growth. A regulator is a transformer whose windings
+# all have the same kV (README.md, section "Voltage regulators").
+regulators:
+  # with_control | never. with_control: a lateral that holds a regulator may be the template
+  # of a block; the copy carries the regulator and every RegControl that names it, renamed
+  # and on the new buses, each as the feeder writes it after the repairs. never: such a
+  # lateral is never a block template.
+  # ASSUMPTION: a block copied from a lateral that holds a regulator gets a regulator of the
+  # same rating and settings, as every other element of a block copies its template. A new
+  # district built without one has lower voltages beyond the regulator's place.
+  block_copies: with_control
+  # with_regulator | lines_only. The path impedance from the source bus to a bus, as
+  # named_load_bus strongest and weakest and the column bus_impedance_ohm of
+  # growth_named_loads.csv read it. with_regulator: each regulator on the path
+  # adds the series reactance XHL / 100 x kV^2 x 1000 / kVA ohm, with kV and kVA of its first
+  # winding as written. XHL is the percent reactance from winding 1 to winding 2 on the kVA
+  # base of winding 1, with kV phase to phase for a three-phase transformer and the winding kV
+  # otherwise: https://opendss.epri.com/Properties16.html . The conversion to ohm:
+  # https://cimhub-opendss.readthedocs.io/en/latest/schema_ref/XHL/ . XHL is the value of
+  # XHL or X12 of the statement, else the first value of XscArray, else 7, the OpenDSS
+  # default: https://cimhub-opendss.readthedocs.io/en/latest/schema_ref/Xhl/ . 1000 is the SI
+  # prefix kilo: https://www.bipm.org/en/measurement-units/si-prefixes . lines_only: a
+  # regulator adds nothing.
+  # ASSUMPTION: a regulator adds its leakage reactance only. Its winding resistance is left
+  # out, which lowers the magnitude of the path impedance a little.
+  path_impedance: with_regulator
+
 # Planning limits of the grown circuit. They are reported in every run with growth on, and
 # they tell network growth (below) when the network has to grow.
 planning_limits:
@@ -218,10 +245,21 @@ network_growth:
   #     second circuits.
   #   service_transformer: every transformer over its limit takes a larger rating of the
   #     catalog, or parallel units.
+  #   regulator_rating: every SMART-DS voltage regulator over transformer_limit_percent, or
+  #     at a head over head_limit_percent, takes a larger rating of its class (phases and
+  #     winding voltages) from the catalog and keeps its name and its RegControl.
   #   regulator: one line voltage regulator per round for customers under the voltage band.
+  # ASSUMPTION: a regulator is never paralleled, because two regulators in parallel need
+  # coordinated controls the release does not give. A regulator with no larger rating in the
+  # catalog stays as it is and the round notes it.
   # ASSUMPTION: the new feeder is one express line of the head's LineCode along the existing
   # route from the substation bus to the open point, and it serves nothing on the way. A real
   # route can be longer, and the voltage beyond the open point then lower.
+  # ASSUMPTION: on a circuit whose head is a voltage regulator, a new feeder starts behind a
+  # copy of that regulator and its RegControl at the substation bus, and its express line
+  # takes the LineCode of the line that leaves the head regulator. The circuit is held at the
+  # regulator's voltage, so its new feeder is held the same way; without the copy (none) the
+  # new feeder sees the voltage of the substation bus.
   # ASSUMPTION: a line regulator is one single-phase two-winding transformer per phase with
   # XHL 0.01 and %LoadLoss 0.01, the values of the regulator of the IEEE 13 node test case
   # distributed with OpenDSS,
@@ -231,7 +269,14 @@ network_growth:
   # either end of the line) and the vreg, band and ptratio of the substation regulator
   # of its SMART-DS topology, read from the substation folder in every run. A regulator with
   # line-drop compensation holds a different voltage downstream.
-  steps: [new_feeder, reconductor, service_transformer, regulator]
+  steps: [new_feeder, reconductor, service_transformer, regulator_rating, regulator]
+  # A new feeder on a circuit whose head 1 is a voltage regulator: copy | none | skip.
+  # copy: the express line starts behind a copy of the head regulator and its RegControl on
+  # the substation bus; none: the express line starts at the substation bus, with no
+  # regulator; skip: no new feeder is built on such a circuit. Under copy and none the
+  # express line takes the LineCode of the line that leaves the head regulator (the ASSUMPTION
+  # above).
+  new_feeder_regulator: copy
   # true: before any other step, once per circuit, single-phase laterals are moved from the
   # heaviest to the lightest phase of the head. It builds nothing.
   # ASSUMPTION: a single-phase lateral can be moved to another phase at its tap with no change

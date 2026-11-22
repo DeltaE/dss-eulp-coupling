@@ -936,3 +936,139 @@ def test_paths_across_a_regulator():
     # a service transformer still ends the walk
     assert growth.path_lines(net, "src", "h1") is None and growth.path_length_m(net, "h1") is None
     assert growth.path_impedance(net, "h2") is None
+
+
+# ---------------------------------------------------------------------------
+# Regulators in the building rules: settings, block copies and the path impedance
+# ---------------------------------------------------------------------------
+# the RegControls as the release writes them (vreg with spaces around =), in a file of their own
+REG_CONTROLS = """New RegControl.rc_lat transformer=REG_LAT winding=2 ptratio=60.0 band=2.4 vreg = 123.60000000000001
+New RegControl.rc_head transformer=reg_head winding=2 ptratio=59.99631547328862 band=2.4 vreg = 123.6
+"""
+
+
+def test_regulator_settings():
+    g = growth_settings(DEFAULTS)
+    assert g["regulators"] == {"block_copies": "with_control", "path_impedance": "with_regulator"}
+    today = {"regulators__block_copies": "never", "regulators__path_impedance": "lines_only"}
+    assert growth_settings(_with(**today))["regulators"] == {"block_copies": "never", "path_impedance": "lines_only"}
+    for change in ({"regulators": None}, {"regulators": "never"}, {"regulators__block_copies": "always"},
+                   {"regulators__block_copies": None}, {"regulators__block_copies": False},
+                   {"regulators__path_impedance": "with_regulators"}, {"regulators__path_impedance": 1}):
+        assert _stops(growth_settings, _with(**change)), change
+    # a key outside the block stops at the merge
+    assert _stops(merge_settings, DEFAULTS, {"regulators": {"parallel": True}}, "growth.yaml")
+
+
+def test_copy_text_with_a_buses_array():
+    busmap = {"r1": "r1_gb1", "r2": "r2_gb1"}
+    for written, copied in (("buses=(R1.2, r2.2)", "buses=(r1_gb1.2, r2_gb1.2)"),
+                            ("buses=(r1.2,r2.2)", "buses=(r1_gb1.2,r2_gb1.2)"),
+                            ("buses=[r1.1.2.3 r2.1.2.3]", "buses=[r1_gb1.1.2.3 r2_gb1.1.2.3]"),
+                            ('buses="r1.2 r2.2"', 'buses="r1_gb1.2 r2_gb1.2"'),
+                            ("buses='(r1.2, x.2)'", "buses='(r1_gb1.2, x.2)'"),     # a bus outside the map stays
+                            ("Buses = (r1, r2)", "Buses = (r1_gb1, r2_gb1)")):      # no nodes written
+        text = f"New Transformer.reg phases=1 windings=2 {written} kvs=(7.2, 7.2) kvas=(1000.0, 1000.0)"
+        assert growth.copy_text(text, "transformer", "reg_gb1", busmap) == \
+            f"New Transformer.reg_gb1 phases=1 windings=2 {copied} kvs=(7.2, 7.2) kvas=(1000.0, 1000.0)"
+    # bus=, bus1= and bus2= as before, and an array without a mapped bus unchanged
+    line = "New Line.x Units=km Length=0.1 bus1=r1.2 bus2=r2.2 switch=n enabled=y phases=1 Linecode=1P"
+    assert growth.copy_text(line, "line", "x_gb1", busmap) == line.replace("Line.x ", "Line.x_gb1 ").replace(
+        "bus1=r1.2 bus2=r2.2", "bus1=r1_gb1.2 bus2=r2_gb1.2")
+    assert growth.copy_text("New Transformer.t buses=(a.1, b.1)", "transformer", "t", busmap) == \
+        "New Transformer.t buses=(a.1, b.1)"
+
+
+def test_block_copies_of_a_lateral_with_a_regulator():
+    net = growth.read_feeder(REG_TEXTS)
+    laterals = growth.find_laterals(net)
+    reg_lateral = laterals[1]
+    assert (reg_lateral["root"], reg_lateral["regulator"]) == ("r1", True)
+    # block_copies never (the default of the function): left out; with_control: it fits
+    assert growth.eligible_templates(laterals, 9, 0, 0, [], {}, [], 0.0) == laterals[:1]
+    assert growth.eligible_templates(laterals, 9, 0, 0, [], {}, [], 0.0, with_regulator=True) == laterals
+    seed = growth.growth_seed(555, "sub", "feeder_reg")
+    plan = growth.plan_years(net, [reg_lateral], [_add(block_homes=1)], ["load_h1"], [], {}, [], seed, ["b"],
+                             with_regulator=True)
+    assert [(e["event"], e["template"]["root"], e["attach"]) for e in plan] == [("block", "r1", "b")]
+    never = growth.plan_years(net, [reg_lateral], [_add(block_homes=1)], ["load_h1"], [], {}, [], seed, ["b"])
+    assert [e["event"] for e in never] == ["home"] and never[0]["waiting"]
+
+
+def test_copy_lateral_with_a_regulator_and_its_regcontrol(capsys):
+    texts = dict(REG_TEXTS, **{"regulators.dss": REG_CONTROLS})
+    net = growth.read_feeder(texts)
+    regcontrols = growth.read_regcontrols(texts)
+    assert [(rc["name"], rc["transformer"]) for rc in regcontrols] == [("rc_lat", "REG_LAT"), ("rc_head", "reg_head")]
+    lat = growth.find_laterals(net)[1]
+    capsys.readouterr()
+    new = growth.copy_lateral(net, lat, "b1", "b", regcontrols)
+    assert capsys.readouterr().out == ""
+    assert new["transformers"][0] == ("New Transformer.reg_lat_gb1 phases=1 windings=2 buses=(r1_gb1.2,r2_gb1.2) "
+                                      "kvs=(7.2, 7.2) kvas=(1000.0, 1000.0) XHL=0.01")
+    assert new["regcontrols"] == ["New RegControl.rc_lat_gb1 transformer=reg_lat_gb1 winding=2 ptratio=60.0 band=2.4 "
+                                  "vreg = 123.60000000000001"]
+    assert new["lines"][0] == ("New Line.latb_gb1 Units=km Length=0.04 bus1=b.2 bus2=r1_gb1.2 switch=n enabled=y "
+                               "phases=1 Linecode=1P")
+    # the copy reads as a lateral that holds a regulator, crossed at medium voltage
+    grown = dict(texts, **{"lines.dss": REG_LINES + "\n".join(new["lines"]) + "\n",
+                           "transformers.dss": REGULATORS + REG_SERVICE + "\n".join(new["transformers"]) + "\n"})
+    after = growth.read_feeder(grown)
+    assert {"r1_gb1", "r2_gb1", "r3_gb1"} <= after["mv"]
+    assert [(x["root"], x["regulator"]) for x in growth.find_laterals(after)] == \
+        [("l1", False), ("r1", True), ("r1_gb1", True)]
+    # a regulator that no RegControl names is copied alone, and one line says so
+    alone = growth.copy_lateral(net, lat, "b2", "b", regcontrols[1:])
+    assert "regcontrols" not in alone and len(alone["transformers"]) == 2
+    assert capsys.readouterr().out == ("[growth] the regulator reg_lat of the lateral at r1 has no RegControl; its copy "
+                                       "reg_lat_gb2 has none\n")
+    # a lateral without a regulator gives no regcontrols key, as before
+    assert "regcontrols" not in growth.copy_lateral(net, growth.find_laterals(net)[0], "b3", "b", regcontrols)
+
+
+def _regulator_feeder(reg, phases=3, kv=12.47):
+    """A feeder src - regulator - a - line l1 (0.2 km) - b: three-phase on code 3P, or
+    single-phase on node 1 and code 1P. reg holds the regulator's XHL text."""
+    nodes, code = (".1.2.3", "3P") if phases == 3 else (".1", "1P")
+    return growth.read_feeder({
+        "master.dss": "New Circuit.f bus1=src basekV=12.47\n", "linecodes.dss": LINECODES,
+        "lines.dss": f"New Line.l1 Units=km Length=0.2 bus1=a{nodes} bus2=b{nodes} switch=n enabled=y "
+                     f"phases={phases} Linecode={code}\n",
+        "transformers.dss": f"New Transformer.reg phases={phases} windings=2 buses=(src{nodes},a{nodes}) "
+                            f"kvs=({kv}, {kv}) kvas=(10000.0, 10000.0) {reg}\n"})
+
+
+def test_path_impedance_counts_regulators():
+    three, one = complex(0.15, 0.4) * 0.2, complex(0.5, 0.7) * 0.2
+    # the reactance of a regulator with the OpenDSS default XHL of 7 percent: 7 / 100 x kV^2 x 1000 / kVA
+    for phases, kv, lines, x in ((1, 7.2, one, 0.36288), (3, 12.47, three, 1.08851), (3, 25.0, three, 4.375)):
+        for written in ("", "XHL=7", "x12=7.0", "XscArray=[7]", "xscarray=(7 7)"):
+            net = _regulator_feeder(written, phases, kv)
+            reg = net["transformers"][0]
+            assert reg["xhl"] == (None if not written else 7.0)
+            assert round(growth.regulator_reactance(reg), 5) == x
+            assert math.isclose(growth.path_impedance(net, "b", regulators=True),
+                                abs(lines + 1j * growth.regulator_reactance(reg)), rel_tol=1e-12)
+            # lines_only (the default of the function): the lines alone
+            assert math.isclose(growth.path_impedance(net, "b"), abs(lines), rel_tol=1e-12)
+            assert growth.path_length_m(net, "b") == 200.0
+    # XHL as written: 0.01 percent; X12 is XHL; XHL before XscArray
+    assert math.isclose(growth.regulator_reactance(_regulator_feeder("XHL=0.01")["transformers"][0]),
+                        0.01 / 100 * 12.47 ** 2 * 1000 / 10000.0)
+    assert _regulator_feeder("X12=2.5")["transformers"][0]["xhl"] == 2.5
+    assert _regulator_feeder("XscArray=[3] XHL=4")["transformers"][0]["xhl"] == 4.0
+    # every regulator on the path counts: the head and the mid-feeder regulator of REG_TEXTS
+    net = growth.read_feeder(REG_TEXTS)
+    x = sum(growth.regulator_reactance(t) for t in net["transformers"] if t["name"] in ("reg_head", "reg_mid"))
+    assert math.isclose(x, 2 * 0.01 / 100 * 12.47 ** 2 * 1000 / 10000.0)
+    assert math.isclose(growth.path_impedance(net, "m1", True), abs(complex(0.15, 0.4) * 0.53 + 1j * x))
+    assert growth.path_impedance(net, "h2", True) is None                  # a service transformer ends it
+    # a regulator without a kVA on its first winding: no path impedance
+    bare = growth.read_feeder({"master.dss": "New Circuit.f bus1=src\n", "linecodes.dss": LINECODES,
+                               "lines.dss": "New Line.l1 Units=km Length=0.2 bus1=a bus2=b phases=3 Linecode=3P\n",
+                               "transformers.dss": "New Transformer.reg phases=3 windings=2 buses=(src,a) "
+                                                   "kvs=(12.47, 12.47)\n"})
+    assert growth.path_impedance(bare, "b") is not None and growth.path_impedance(bare, "b", True) is None
+    # the strongest and the weakest bus read the same impedance
+    assert growth.named_bus(net, "weakest", "x", 1, regulators=True) == ("m1", "weakest")
+    assert growth.named_bus(net, "strongest", "x", 1, regulators=True) == ("a", "strongest")

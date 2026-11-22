@@ -557,6 +557,8 @@ GROWTH_CASES = ("low", "moderate", "high")
 GROWTH_RATES = ("households", "use_per_household", "floorspace", "use_per_ft2")
 GROWTH_COMPANIONS = ("feeder", "national", "aeo")
 GROWTH_NAMED_BUS = ("seeded", "strongest", "weakest")
+GROWTH_REGULATOR_BLOCKS = ("with_control", "never")
+GROWTH_REGULATOR_PATHS = ("with_regulator", "lines_only")
 GROWTH_LIMITS = ("line_limit_percent", "head_limit_percent", "transformer_limit_percent",
                  "substation_limit_percent")
 GROWTH_PLAN_DIR = "growth"
@@ -564,14 +566,16 @@ GROWTH_PLAN_FILE = "growth_plan.json"
 # Network growth (network_growth in growth.yaml; the rules are in
 # 7_circuit_instantiation/deployer_modules/network_growth.py)
 NETWORK_MODES = ("off", "planned", "as_needed")
-NETWORK_STEPS = ("new_feeder", "reconductor", "service_transformer", "regulator")
+NETWORK_STEPS = ("new_feeder", "reconductor", "service_transformer", "regulator_rating", "regulator")
+NETWORK_FEEDER_REGULATOR = ("copy", "none", "skip")
 NETWORK_OPEN_POINTS = ("switch", "switch_then_bus", "bus")
 NETWORK_HEAD_METRICS = ("largest_phase", "three_phase_kva")
 NETWORK_CATALOGS = ("region", "substation", "feeder")
 # An item of network_growth_built.yaml: {feeder, mix, step, ...} with these keys per step
 NETWORK_ITEM_KEYS = {"rebalance_phases": ("lateral", "to_phase"), "new_feeder": (),
                      "reconductor": ("line", "linecode", "circuits"),
-                     "service_transformer": ("transformer", "kva", "units"), "regulator": ("line",)}
+                     "service_transformer": ("transformer", "kva", "units"),
+                     "regulator_rating": ("transformer", "kva"), "regulator": ("line",)}
 
 
 def _growth_fail(key, value, expected):
@@ -700,6 +704,12 @@ def growth_settings(raw, topology_id=None):
             _growth_fail(f"{key}.peak_factor", entry["peak_factor"], "a number above 0, or no peak_factor key")
     if not isinstance(g.get("der_resize_with_growth"), bool):
         _growth_fail("der_resize_with_growth", g.get("der_resize_with_growth"), "true or false")
+    regs = g.get("regulators")
+    if not isinstance(regs, dict):
+        _growth_fail("regulators", regs, "a map with block_copies and path_impedance")
+    for key, values in (("block_copies", GROWTH_REGULATOR_BLOCKS), ("path_impedance", GROWTH_REGULATOR_PATHS)):
+        if not (isinstance(regs.get(key), str) and regs[key] in values):
+            _growth_fail(f"regulators.{key}", regs.get(key), "one of " + ", ".join(values))
     limits = g.get("planning_limits")
     if not isinstance(limits, dict):
         _growth_fail("planning_limits", limits, "a map")
@@ -731,8 +741,8 @@ def growth_settings(raw, topology_id=None):
         _growth_fail("network_growth.steps", steps, "a list of " + ", ".join(NETWORK_STEPS) + ", each at most once")
     if not isinstance(ng.get("rebalance_phases"), bool):
         _growth_fail("network_growth.rebalance_phases", ng.get("rebalance_phases"), "true or false")
-    for key, values in (("open_point", NETWORK_OPEN_POINTS), ("head_metric", NETWORK_HEAD_METRICS),
-                        ("catalog", NETWORK_CATALOGS)):
+    for key, values in (("new_feeder_regulator", NETWORK_FEEDER_REGULATOR), ("open_point", NETWORK_OPEN_POINTS),
+                        ("head_metric", NETWORK_HEAD_METRICS), ("catalog", NETWORK_CATALOGS)):
         if not (isinstance(ng.get(key), str) and ng[key] in values):
             _growth_fail(f"network_growth.{key}", ng.get(key), "one of " + ", ".join(values))
     value = ng.get("sizing_percent")
@@ -761,7 +771,8 @@ def network_item_error(item):
     """None for a well-formed item of network_growth_built.yaml, else what it should be.
     An item is a map with feeder, mix, step and the keys of its step: rebalance_phases
     {lateral, to_phase 1 to 3}; new_feeder {open} or {cut_bus}; reconductor {line,
-    linecode, circuits}; service_transformer {transformer, kva, units}; regulator {line}.
+    linecode, circuits}; service_transformer {transformer, kva, units}; regulator_rating
+    {transformer, kva}; regulator {line}.
     round is optional and ignored."""
     if not isinstance(item, dict) or item.get("step") not in NETWORK_ITEM_KEYS:
         return "a map with feeder, mix, step (one of " + ", ".join(NETWORK_ITEM_KEYS) + ") and the keys of its step"

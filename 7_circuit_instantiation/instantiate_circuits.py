@@ -28,7 +28,10 @@ instantiate_circuits.py  (procedural; mixes with EV split)
     * the new Line and Transformer statements, Load lines, loadshapes and bus
       coordinates of the plan are appended to the circuit folder's Lines.dss,
       Transformers.dss, Loads.dss, LoadShapes.dss and Buscoords.dss, in plan order; the
-      existing lines of those files stay as they are. A new Load line is its template's
+      existing lines of those files stay as they are. The RegControls of a block copied
+      from a lateral that holds a regulator are appended to the file that holds the first
+      New RegControl statement (files in sorted lower-case order); a feeder without one
+      stops with [FAIL]. A new Load line is its template's
       line with the new name, bus and loadshape, kW and kvar = the template's share x
       the new customer's factor; a named load connected at medium voltage with no line
       to copy is one three-phase Load line with the whole customer's kW and kvar
@@ -697,6 +700,21 @@ for feeder in feeders:
                     if key == "coords":
                         continue
                     print(f"[FAIL] {dst_feeder_sub} has no {file_name} for the new elements of load growth.")
+                    sys.exit(1)
+                text = path.read_text(encoding='utf-8')
+                with path.open('a', encoding='utf-8', newline='') as f:
+                    f.write(("" if text.endswith("\n") or not text else "\n") + "".join(added))
+            # The RegControls of a block copied from a lateral that holds a regulator, after the
+            # existing ones in the file of the first New RegControl (files in sorted lower-case order)
+            added = ["\n" + text + "\n" for unit in grow["units"] for text in unit.get("regcontrols", [])]
+            if added:
+                path = next((dst_feeder_sub / nm for nm in sorted(os.listdir(dst_feeder_sub), key=str.lower)
+                             if nm.lower().endswith(".dss") and re.search(
+                                 r"(?im)^\s*new\s+regcontrol\.", (dst_feeder_sub / nm).read_text(encoding='utf-8'))),
+                            None)
+                if path is None:
+                    print(f"[FAIL] feeder {feeder_name}: {dst_feeder_sub} has no file with a New RegControl statement "
+                          f"for the RegControls of load growth.")
                     sys.exit(1)
                 text = path.read_text(encoding='utf-8')
                 with path.open('a', encoding='utf-8', newline='') as f:

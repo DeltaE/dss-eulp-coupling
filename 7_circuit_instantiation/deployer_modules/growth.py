@@ -33,7 +33,10 @@ curves. Per circuit (one SMART-DS feeder):
 - Regulators. A voltage regulator (is_regulator) is crossed like a line of its own
   phases wherever the medium-voltage network is walked (read_feeder,
   three_phase_mv_buses, find_laterals, path_lines); every other transformer ends it. A
-  lateral that holds a regulator is never a block template.
+  lateral that holds a regulator is a block template only under regulators.block_copies
+  with_control, and its copy carries each RegControl of its transformers
+  (read_regcontrols, copy_lateral). Under regulators.path_impedance with_regulator the
+  path impedance counts the reactance of each regulator on the path.
 - Named loads. Loads of one ComStock building type, each on a three-phase
   medium-voltage bus, connected like the existing customer of the nearest size
   (connect_named). When that customer sits behind a service transformer and no
@@ -68,6 +71,11 @@ EARTH_RADIUS_M = 6371008.8
 
 # Length of one unit of a Line's Units= in metres (OpenDSS length units).
 UNIT_M = {"km": 1000.0, "m": 1.0, "kft": 304.8, "ft": 0.3048, "mi": 1609.344, "in": 0.0254, "cm": 0.01}
+
+# XHL of a transformer statement that writes no XHL, X12 or XscArray: 7 percent, the
+# OpenDSS default, https://cimhub-opendss.readthedocs.io/en/latest/schema_ref/Xhl/
+XHL_DEFAULT_PERCENT = 7.0
+KILO = 1000.0  # the SI prefix kilo, https://www.bipm.org/en/measurement-units/si-prefixes
 
 SEGMENT_RATE = {"residential": "use_per_household", "commercial": "use_per_ft2"}
 
@@ -181,6 +189,9 @@ def _props(rest):
     return [(k.lower(), v) for k, v in _PROP_RE.findall(rest)]
 
 
+_NUMBER = r"[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?"
+
+
 def _base(full):
     """The customer of a Load line: its name without the _<n> leg suffix (Phase 7b)."""
     return re.sub(r"_[0-9]+$", "", full)
@@ -239,6 +250,23 @@ def is_regulator(tr):
     return len(kvs) >= 2 and None not in kvs and len(set(kvs)) == 1
 
 
+def regulator_reactance(tr):
+    """The series reactance (ohm) of regulator tr (read_feeder): XHL / 100 x kV^2 x KILO /
+    kVA, with kV and kVA of its first winding as written and XHL that of read_feeder, else
+    XHL_DEFAULT_PERCENT. XHL is the percent reactance from winding 1 to winding 2 on the
+    kVA base of winding 1, kV phase to phase for a three-phase transformer and the winding
+    kV otherwise (https://opendss.epri.com/Properties16.html); the conversion to ohm:
+    https://cimhub-opendss.readthedocs.io/en/latest/schema_ref/XHL/ . None when the first
+    winding has no kV or no kVA.
+    ASSUMPTION: a regulator adds its leakage reactance only; its winding resistance is left
+    out, which lowers the magnitude of a path impedance a little."""
+    _, _, kv, kva = tr["windings"][0] if tr["windings"] else (None, None, None, None)
+    if not kv or not kva:
+        return None
+    xhl = XHL_DEFAULT_PERCENT if tr.get("xhl") is None else tr["xhl"]
+    return xhl / 100.0 * kv * kv * KILO / kva
+
+
 def read_feeder(texts):
     """The network of one feeder. texts: {file name, lower case: text} with lines.dss,
     transformers.dss, loads.dss and master.dss (linecodes.dss and buscoords.dss when
@@ -248,7 +276,8 @@ def read_feeder(texts):
     - lines: one dict per New Line (name, text, bus1, bus2 as written, b1, b2 lower case
       without nodes, phases, length_m, linecode, switch, enabled);
     - transformers: one dict per New Transformer (name, text, windings [(bus as written,
-      bus, kV, kVA)], phases);
+      bus, kV, kVA)], phases, xhl: the value of XHL or X12, else the first value of
+      XscArray, None when the statement writes none);
     - loads: one dict per New Load (name, base, text, bus1, bus, kv, phases, kw, kvar,
       yearly);
     - customers: {base: {loads, bus (None when its lines sit on several buses), kw,
@@ -279,6 +308,7 @@ def read_feeder(texts):
         if not m:
             continue
         wdg, buses, kvs, kvas, phases = 1, {}, {}, {}, 3
+        xhl = xsc = None
         for k, v in _props(m.group(2)):
             if k == "wdg":
                 wdg = int(v)
@@ -296,9 +326,14 @@ def read_feeder(texts):
                 kvs.update({i: float(x) for i, x in enumerate(_array(v), start=1)})
             elif k == "kvas":
                 kvas.update({i: float(x) for i, x in enumerate(_array(v), start=1)})
+            elif k in ("xhl", "x12") and re.fullmatch(_NUMBER, v):
+                xhl = float(v)
+            elif k == "xscarray" and _array(v) and re.fullmatch(_NUMBER, _array(v)[0]):
+                xsc = float(_array(v)[0])
         windings = [(buses.get(i), _bus(buses[i]) if i in buses else None, kvs.get(i), kvas.get(i))
                     for i in sorted(set(buses) | set(kvs))]
-        transformers.append({"name": m.group(1), "text": st, "windings": windings, "phases": phases})
+        transformers.append({"name": m.group(1), "text": st, "windings": windings, "phases": phases,
+                             "xhl": xhl if xhl is not None else xsc})
     for st in _logical_lines(texts.get("loads.dss", "")):
         m = re.match(r"(?i)^new\s+load\.(\S+)\s*(.*)$", st)
         if not m:
@@ -454,6 +489,9 @@ def customer_connection(net, base, tr_map, served):
 # Copies
 # ---------------------------------------------------------------------------
 _BUS_VALUE = re.compile(r"(?i)\b(bus1|bus2|bus)=(\S+)")
+# a buses= array in brackets, parentheses or quotes, and one bus of it
+_BUSES_VALUE = re.compile(r"(?i)\b(buses\s*=\s*)(\[[^\]]*\]|\([^\)]*\)|\"[^\"]*\"|'[^']*')")
+_ARRAY_BUS = re.compile(r"[^\s,()\[\]\"']+")
 
 
 def new_name(name, unit):
@@ -465,7 +503,9 @@ def new_name(name, unit):
 def copy_text(text, kind, name, busmap):
     """The New <kind>.<...> statement text with the element renamed to name and every
     bus1, bus2 or bus value whose bus is a key of busmap (lower case, no nodes) set to
-    the mapped bus, its nodes kept."""
+    the mapped bus, its nodes kept. The same holds for each bus of a buses= array
+    (buses=(a.1, b.1), buses=[a.1 b.1] or quoted); its brackets, separators and every
+    other character stay as written."""
     out = re.sub(rf"(?i)^(\s*new\s+{kind}\.)\S+", lambda m: m.group(1) + name, text, count=1)
 
     def swap(m):
@@ -473,6 +513,12 @@ def copy_text(text, kind, name, busmap):
         new = busmap.get(bare.lower())
         return f"{m.group(1)}={new}{dot}{nodes}" if new else m.group(0)
 
+    def swap_bus(m):
+        bare, dot, nodes = m.group(0).partition(".")
+        new = busmap.get(bare.lower())
+        return f"{new}{dot}{nodes}" if new else m.group(0)
+
+    out = _BUSES_VALUE.sub(lambda m: m.group(1) + _ARRAY_BUS.sub(swap_bus, m.group(2)), out)
     return _BUS_VALUE.sub(swap, out)
 
 
@@ -651,18 +697,20 @@ def attach_bus(candidates, xy, centre, bearing, radius, earlier):
 
 
 def eligible_templates(laterals, homes_waiting, companions_waiting, placed, businesses, buildings,
-                       excluded_types, mean):
+                       excluded_types, mean, with_regulator=False):
     """The laterals that fit: homes-only and mixed laterals with no more homes than
     homes_waiting. A mixed lateral also needs no more businesses than companions_waiting,
     each with a known building, a type outside excluded_types and a floor area no larger
     than (placed + b) x mean, placed being the companions placed so far and b the
     lateral's businesses (companion_candidates at the index of its last business). A
-    lateral that holds a regulator never fits: a copy rewrites bus=, bus1= and bus2=
-    values only, and a regulator statement may name its buses with buses=."""
+    lateral that holds a regulator fits only with with_regulator (regulators.block_copies
+    with_control); its copy then carries the regulator and its RegControl
+    (copy_lateral)."""
     businesses = set(businesses)
     out = []
     for lat in laterals:
-        if lat["kind"] not in ("homes", "mixed") or lat["homes"] > homes_waiting or lat["regulator"]:
+        if (lat["kind"] not in ("homes", "mixed") or lat["homes"] > homes_waiting
+                or (lat["regulator"] and not with_regulator)):
             continue
         if lat["kind"] == "mixed":
             members = [b for b in lat["customers"] if b in businesses]
@@ -674,10 +722,11 @@ def eligible_templates(laterals, homes_waiting, companions_waiting, placed, busi
 
 
 def plan_years(net, laterals, additions, home_order, businesses, buildings, excluded_types, seed,
-               given_buses=()):
+               given_buses=(), with_regulator=False):
     """The growth plan of one circuit as a list of events in plan order, built year by
     year from additions (year_additions). The events of the first N years are the plan
     of horizon N apart from the waiting events, so plans nest across horizons.
+    with_regulator goes to eligible_templates.
 
     Inside year t, in this order:
     1. The year's infill homes take the next positions of home_order (the seeded order
@@ -747,7 +796,7 @@ def plan_years(net, laterals, additions, home_order, businesses, buildings, excl
         companions_waiting += add["block_companions"]
         while True:
             fits = eligible_templates(laterals, homes_waiting, companions_waiting, state["k"], businesses,
-                                      buildings, excluded_types, mean)
+                                      buildings, excluded_types, mean, with_regulator)
             if not fits:
                 break
             state["blocks"] += 1
@@ -785,16 +834,49 @@ def plan_years(net, laterals, additions, home_order, businesses, buildings, excl
     return events
 
 
-def copy_lateral(net, lateral, unit, attach):
+def read_regcontrols(texts):
+    """The New RegControl statements of a feeder's texts ({file name: text}, every file
+    in sorted order, ~ continuation lines joined): [{name, transformer (as written, ""
+    when none is), text}]."""
+    out = []
+    for fname in sorted(texts):
+        for st in _logical_lines(texts[fname]):
+            m = re.match(r"(?i)^new\s+regcontrol\.(\S+)\s*(.*)$", st)
+            if m:
+                out.append({"name": m.group(1), "transformer": dict(_props(m.group(2))).get("transformer", ""),
+                            "text": st})
+    return out
+
+
+def copy_lateral(net, lateral, unit, attach, regcontrols=()):
     """The new elements of a copy of lateral as unit, its tap on bus attach
     (copy_elements): every line, transformer and customer of the lateral, the new buses
-    named <bus>_g<unit>. The first line keeps its own phase at the attach bus."""
+    named <bus>_g<unit>. The first line keeps its own phase at the attach bus.
+    regcontrols (read_regcontrols): every RegControl whose transformer= names a
+    transformer of the lateral (any letter case) is copied under the name
+    new_name(name, unit), with transformer= the copied transformer's new name and any bus=
+    value through the bus map; every other property stays as written. The elements then
+    hold regcontrols, the copied statements, when there is one. A regulator of the lateral
+    that no RegControl names is copied alone, and one [growth] line names it."""
     busmap = _new_buses(lateral["buses"], unit)
     for tr in lateral["transformers"]:
         for _, b, _, _ in tr["windings"][1:]:
             busmap.setdefault(b, f"{b}_g{unit}")
     busmap[lateral["tap"]] = attach
-    return copy_elements(net, unit, lateral["lines"], lateral["transformers"], lateral["customers"], busmap)
+    out = copy_elements(net, unit, lateral["lines"], lateral["transformers"], lateral["customers"], busmap)
+    copies = []
+    for tr in lateral["transformers"]:
+        own = [rc for rc in regcontrols if rc["transformer"].lower() == tr["name"].lower()]
+        for rc in own:
+            text = copy_text(rc["text"], "regcontrol", new_name(rc["name"], unit), busmap)
+            copies.append(re.sub(r"(?i)\b(transformer\s*=\s*)\S+", lambda m: m.group(1) + new_name(tr["name"], unit),
+                                 text, count=1))
+        if not own and is_regulator(tr):
+            print(f"[growth] the regulator {tr['name']} of the lateral at {lateral['root']} has no RegControl; its "
+                  f"copy {new_name(tr['name'], unit)} has none")
+    if copies:
+        out["regcontrols"] = copies
+    return out
 
 
 def shifted_coords(net, buses, shift_from=None, shift_to=None):
@@ -811,11 +893,13 @@ def shifted_coords(net, buses, shift_from=None, shift_to=None):
 # ---------------------------------------------------------------------------
 # Named loads
 # ---------------------------------------------------------------------------
-def path_impedance(net, bus):
+def path_impedance(net, bus, regulators=False):
     """The magnitude of the positive-sequence impedance (ohm) of the lines from the
     source bus to bus: the sum of z1 of each line's LineCode x its length. A regulator
-    on the path adds nothing (path_lines). None when the path crosses another
-    transformer or a line without a LineCode impedance."""
+    on the path adds nothing (path_lines), or, with regulators (regulators.path_impedance
+    with_regulator), j x its regulator_reactance. None when the path crosses another
+    transformer, a line without a LineCode impedance or, with regulators, a regulator
+    without a kV or a kVA on its first winding."""
     lines = path_lines(net, net["source"], bus)
     if lines is None:
         return None
@@ -825,6 +909,13 @@ def path_impedance(net, bus):
         if code is None or code["z1"] is None:
             return None
         total += code["z1"] * ln["length_m"] / UNIT_M.get(code["units"], 1.0)
+    while regulators and bus != net["source"]:
+        kind, element, bus = net["parent"][bus]
+        if kind == "transformer":
+            x = regulator_reactance(element)
+            if x is None:
+                return None
+            total += 1j * x
     return abs(total)
 
 
@@ -835,12 +926,12 @@ def path_length_m(net, bus):
     return None if lines is None else sum(ln["length_m"] for ln in lines)
 
 
-def named_bus(net, rule, name, seed, bus=None):
+def named_bus(net, rule, name, seed, bus=None, regulators=False):
     """The bus of a named load. bus, when given, must be a three-phase medium-voltage bus
     of the feeder. Else by rule: seeded, a draw called name among those buses; strongest,
-    the one with the lowest path_impedance; weakest, the highest (the first name on a
-    tie). Returns (bus, why). Raises GrowthError when the bus is not one of them or the
-    feeder has none."""
+    the one with the lowest path_impedance (regulators goes to it); weakest, the highest
+    (the first name on a tie). Returns (bus, why). Raises GrowthError when the bus is not
+    one of them or the feeder has none."""
     buses = three_phase_mv_buses(net)
     if bus is not None:
         if bus.lower() not in buses:
@@ -850,7 +941,7 @@ def named_bus(net, rule, name, seed, bus=None):
         raise GrowthError("the feeder has no three-phase medium-voltage bus")
     if rule == "seeded":
         return buses[draw(name, seed).randrange(len(buses))], "seeded"
-    z = [(path_impedance(net, b), b) for b in buses]
+    z = [(path_impedance(net, b, regulators), b) for b in buses]
     z = [(v, b) for v, b in z if v is not None]
     if not z:
         raise GrowthError("no three-phase medium-voltage bus has a path impedance")

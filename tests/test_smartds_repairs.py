@@ -6,7 +6,8 @@ function keeps in each file it writes, the phase pre command and its stops, and 
 setting smartds_repairs. Also
 the repairs in memory (repaired_texts) that phase growth reads. Also the Phase 8 head of a
 regulator (8_results_analysis/aggregate_m1_m2_with_circuits.py):
-feeder_head_kva and the head columns. No OpenDSS and no SMART-DS data.
+feeder_head_kva and the head columns, with one head and with a second head of network
+growth. No OpenDSS and no SMART-DS data.
 
 Run under pytest: pytest tests/test_smartds_repairs.py
 """
@@ -472,10 +473,10 @@ M2_LINE = ["hour", " t(sec)", " S1 (kVA)", " Ang1", " S2 (kVA)", " Ang2", " S3 (
 M2_REG = M2_LINE + [" S4 (kVA)", " Ang4"]
 
 
-def _export(path, columns, steps=96):
+def _export(path, columns, steps=96, base=100.0):
     rows = []
     for k in range(steps):
-        rows.append([f"{(k + 1) * 0.25}", f"{k * 900}"] + [f"{100.0 + k + i * 7.5}" for i in range(len(columns) - 2)])
+        rows.append([f"{(k + 1) * 0.25}", f"{k * 900}"] + [f"{base + k + i * 7.5}" for i in range(len(columns) - 2)])
     if "S4 (kVA)" in " ".join(columns):
         for row in rows:
             row[columns.index(" S4 (kVA)")] = "0"
@@ -524,3 +525,111 @@ def test_phase8_regulator_head(tmp_path):
     p = sum(raw[f" S{i} (kVA)"] * pd.Series(raw[f" Ang{i}"]).map(lambda a: math.cos(math.radians(a)))
             for i in (1, 2, 3))
     assert data["P_3ph (kW)"].tolist() == pytest.approx(p.tolist())
+
+
+# ---------------------------------------------------------------- Phase 8, a second head of network growth
+COPY = "ng_express_2_reg"
+REG_COPY = (f"New Transformer.{COPY} phases=3 windings=2 buses=(src.1.2.3,ng_bus.1.2.3) "
+            f"kvs=(12.47, 12.47) kvas=(10000.0, 10000.0)\n")
+EXPRESS = "New Line.ng_express_2 bus1=src.1.2.3 bus2=b2.1.2.3 phases=3 linecode=lc2 length=185 units=m\n"
+EXPRESS_CODE = "New Linecode.lc2 nphases=3 r1=0.1 x1=0.2 units=km normamps=350.0\n"
+HEADS = {"reg": (f"Transformer.trans_{REG}", True), "copy": (f"Transformer.{COPY}", True),
+         "line": ("Line.l1", False), "express": ("Line.ng_express_2", False)}
+
+
+def _grown(work, head1, head2):
+    """A circuit folder after network growth with two heads (HEADS keys): Monitors m1 and m2
+    on head1, h2m1 and h2m2 on head2, their exports (the fourth channels for a head on a
+    regulator, other values on head 2), and the growth tables Phase 8 reads."""
+    folder = work / "7_circuit_instantiation" / "sub_circuit_1_baseline"
+    mcd = folder / "ModifiedCircuitData"
+    texts = feeder(head=HEADS[head1][0], transformers=REG_LINE + REG_COPY + SERVICE_72)
+    texts["Master.dss"] = texts["Master.dss"].replace(
+        "new energymeter.m3", f"New Monitor.h2m1 element={HEADS[head2][0]} mode=0\n"
+                              f"New Monitor.h2m2 element={HEADS[head2][0]} mode=1\nnew energymeter.m3")
+    texts["Lines.dss"], texts["LineCodes.dss"] = LINES + EXPRESS, LINECODES + EXPRESS_CODE
+    write(mcd, texts)
+    for mon, head, base in (("", head1, 100.0), ("h2", head2, 40.0)):
+        _export(mcd / f"feeder_x_Mon_{mon}m1_1.csv", M1_REG if HEADS[head][1] else M1_LINE, base=base)
+        _export(mcd / f"feeder_x_Mon_{mon}m2_1.csv", M2_REG if HEADS[head][1] else M2_LINE, base=base)
+    write(folder, {"scenario_assignments.json": "{}\n"})
+    write(mcd, {"planning_limits.csv": "limit,setting,elements_checked,elements_over,worst_element,worst_value,"
+                                       "worst_step,worst_date\nhead,100 percent,2,0,l1,50.0,1,2018-07-18\n",
+                "network_growth_rounds.csv": "round,step,items,converged\n0,,0,1\n1,new_feeder,1,1\n",
+                "network_growth.csv": "round,step,element,was,now,count_before,count,length_m,kva,peak,detail\n",
+                "network_growth_built.yaml": "[]\n"})
+    return mcd
+
+
+def _aggregate_grown(work):
+    settings = work / "settings"
+    write(settings, {"growth.yaml": "growth_years: 10\nnetwork_growth:\n  steps: [new_feeder]\n"})
+    env = dict(os.environ, PIPELINE_WORK_ROOT=work.as_posix(), PYTHONIOENCODING="utf-8",
+               PIPELINE_SMART_DS_ROOT=settings.as_posix())
+    env[SETTINGS_ENV] = settings.as_posix()
+    p = subprocess.run([sys.executable, "aggregate_m1_m2_with_circuits.py"], cwd=os.path.join(REPO_ROOT, "8_results_analysis"),
+                       env=env, capture_output=True, text=True, encoding="utf-8")
+    root = work / "7_circuit_instantiation"
+    assert p.returncode == 0 and not (root / "problem_circuits.txt").exists(), p.stdout + p.stderr
+    return (pd.read_csv(root / "aggregate_m1.csv", low_memory=False), pd.read_csv(root / "aggregate_m2.csv", low_memory=False),
+            pd.read_csv(root / "circuit_summary.csv"))
+
+
+def _without_neutral(path, regulator):
+    frame = pd.read_csv(path)
+    return agg._drop_neutral_channels(frame, 3) if regulator else frame
+
+
+def _check_rows(mcd, head1, head2, m1, m2):
+    """The data rows equal head_totals of the two heads' exports without the neutral's
+    channels; the head rows equal each head's own export without them."""
+    for folder in ("7_circuit_instantiation", os.path.join("7_circuit_instantiation", "deployer_modules")):
+        if os.path.join(REPO_ROOT, folder) not in sys.path:
+            sys.path.append(os.path.join(REPO_ROOT, folder))
+    import planning_limits
+    own = {k: [_without_neutral(mcd / f"feeder_x_Mon_{mon}{m}_1.csv", HEADS[head][1]) for m in ("m1", "m2")]
+           for k, mon, head in ((1, "", head1), (2, "h2", head2))}
+    totals = planning_limits.head_totals([own[1][0], own[2][0]], [own[1][1], own[2][1]])
+    for agg_frame, total, i in ((m1, totals[0], 0), (m2, totals[1], 1)):
+        data = agg_frame[agg_frame["row_type"] == "data"].reset_index(drop=True)
+        assert len(data) == 96
+        for col in total.columns:
+            assert data[col].tolist() == pytest.approx(total[col].astype(float).tolist(), rel=1e-12), col
+        for k in (1, 2):
+            rows = agg_frame[(agg_frame["row_type"] == "head") & (agg_frame["head"] == k)].reset_index(drop=True)
+            assert len(rows) == 96
+            for col in own[k][i].columns:
+                assert rows[col].tolist() == pytest.approx(own[k][i][col].astype(float).tolist(), rel=1e-12), col
+
+
+@pytest.mark.parametrize("head2, kva", [("copy", 10000.0 + 10000.0),
+                                        ("express", 10000.0 + 350.0 * 12.47 * math.sqrt(3.0))])
+def test_phase8_regulator_head_and_a_second_head(tmp_path, head2, kva):
+    mcd = _grown(tmp_path / "w", "reg", head2)
+    files = sorted(mcd.glob("*.dss"))
+    # feeder_head_kva: the regulator's kVA plus the rating of the second head
+    assert agg._feeder_head_kva(files) == pytest.approx(kva, rel=1e-12)
+    m1, m2, summary = _aggregate_grown(tmp_path / "w")
+    assert summary["feeder_head_kva"].tolist() == [pytest.approx(kva, rel=1e-12)]
+    assert m1.loc[m1["row_type"] == "summary", "feeder_head_kva"].tolist() == [pytest.approx(kva, rel=1e-12)]
+    # the columns of a circuit with two line heads: no channel of a neutral
+    m1_lines, m2_lines, _ = _aggregate_grown(_grown(tmp_path / "w_lines", "line", "express").parents[2])
+    assert list(m1.columns) == list(m1_lines.columns)
+    assert list(m2.columns) == list(m2_lines.columns)
+    assert not any(c.strip() in ("V4", "VAngle4", "I4", "IAngle4", "S4 (kVA)", "Ang4") for c in list(m1) + list(m2))
+    _check_rows(mcd, "reg", head2, m1, m2)
+    # the head of each Monitor: a copy of the regulator is a head on a transformer
+    assert agg._head_transformer(files) == {"name": f"trans_{REG}", "phases": 3, "kva": 10000.0}
+    assert agg._head_transformer(files, "h2m1") == ({"name": COPY, "phases": 3, "kva": 10000.0}
+                                                    if head2 == "copy" else None)
+
+
+def test_phase8_two_line_heads_keep_their_rule(tmp_path):
+    mcd = _grown(tmp_path / "w", "line", "express")
+    files = sorted(mcd.glob("*.dss"))
+    kva = (325.0 + 350.0) * 12.47 * math.sqrt(3.0)
+    assert agg._head_transformer(files) is None
+    assert agg._feeder_head_kva(files) == pytest.approx(kva, rel=1e-12)
+    m1, m2, summary = _aggregate_grown(tmp_path / "w")
+    assert summary["feeder_head_kva"].tolist() == [pytest.approx(kva, rel=1e-12)]
+    _check_rows(mcd, "line", "express", m1, m2)
