@@ -245,10 +245,21 @@ network_growth:
   #     second circuits.
   #   service_transformer: every transformer over its limit takes a larger rating of the
   #     catalog, or parallel units.
+  #   regulator_rating: every SMART-DS voltage regulator over transformer_limit_percent, or
+  #     at a head over head_limit_percent, takes a larger rating of its class (phases and
+  #     winding voltages) from the catalog and keeps its name and its RegControl.
   #   regulator: one line voltage regulator per round for customers under the voltage band.
+  # ASSUMPTION: a regulator is never paralleled, because two regulators in parallel need
+  # coordinated controls the release does not give. A regulator with no larger rating in the
+  # catalog stays as it is and the round notes it.
   # ASSUMPTION: the new feeder is one express line of the head's LineCode along the existing
   # route from the substation bus to the open point, and it serves nothing on the way. A real
   # route can be longer, and the voltage beyond the open point then lower.
+  # ASSUMPTION: on a circuit whose head is a voltage regulator, a new feeder starts behind a
+  # copy of that regulator and its RegControl at the substation bus, and its express line
+  # takes the LineCode of the line that leaves the head regulator. The circuit is held at the
+  # regulator's voltage, so its new feeder is held the same way; without the copy (none) the
+  # new feeder sees the voltage of the substation bus.
   # ASSUMPTION: a line regulator is one single-phase two-winding transformer per phase with
   # XHL 0.01 and %LoadLoss 0.01, the values of the regulator of the IEEE 13 node test case
   # distributed with OpenDSS,
@@ -258,7 +269,14 @@ network_growth:
   # either end of the line) and the vreg, band and ptratio of the substation regulator
   # of its SMART-DS topology, read from the substation folder in every run. A regulator with
   # line-drop compensation holds a different voltage downstream.
-  steps: [new_feeder, reconductor, service_transformer, regulator]
+  steps: [new_feeder, reconductor, service_transformer, regulator_rating, regulator]
+  # A new feeder on a circuit whose head 1 is a voltage regulator: copy | none | skip.
+  # copy: the express line starts behind a copy of the head regulator and its RegControl on
+  # the substation bus; none: the express line starts at the substation bus, with no
+  # regulator; skip: no new feeder is built on such a circuit. Under copy and none the
+  # express line takes the LineCode of the line that leaves the head regulator (the ASSUMPTION
+  # above).
+  new_feeder_regulator: copy
   # true: before any other step, once per circuit, single-phase laterals are moved from the
   # heaviest to the lightest phase of the head. It builds nothing.
   # ASSUMPTION: a single-phase lateral can be moved to another phase at its tap with no change

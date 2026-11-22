@@ -30,6 +30,8 @@ DEFAULTS = load_growth(settings_dir="")
 LIMITS = {"line_limit_percent": 100, "head_limit_percent": 100, "transformer_limit_percent": 100,
           "substation_limit_percent": 100}
 NG = dict(growth_settings(DEFAULTS)["network_growth"])
+# the settings that build nothing at a regulator: no regulator_rating step, no new feeder on a regulator head
+NG_T = dict(NG, steps=["new_feeder", "reconductor", "service_transformer", "regulator"], new_feeder_regulator="skip")
 DATES = ["2018-06-16"]
 
 # ---------------------------------------------------------------------------
@@ -175,7 +177,9 @@ def _raises(fn, *args):
 def test_tracked_network_growth_block():
     g = growth_settings(DEFAULTS)
     assert g["network_growth"] == {
-        "mode": "as_needed", "steps": ["new_feeder", "reconductor", "service_transformer", "regulator"],
+        "mode": "as_needed",
+        "steps": ["new_feeder", "reconductor", "service_transformer", "regulator_rating", "regulator"],
+        "new_feeder_regulator": "copy",
         "rebalance_phases": False, "open_point": "switch", "head_metric": "largest_phase", "sizing_percent": 75,
         "max_rounds": 5, "catalog": "region", "carry_forward": None, "planned": []}
     assert tuple(g["network_growth"]["steps"]) == ng.STEPS
@@ -1050,10 +1054,10 @@ def test_head_on_a_regulator():
     assert ng.new_feeder_choice(net, [group], _rows(net, {}), at, _catalog(), NG, LIMITS, None, ng.new_state()) == \
         ([], [])
     assert ng.reconductor_items(net, [group], _rows(net, {}), _catalog(region=True), NG, LIMITS) == []
-    # the note on the head, once per circuit folder
+    # the note on the head, once per circuit folder, with the steps of a run that builds nothing at a regulator
     state = ng.new_state()
     trs = pl.transformer_rows(net, {"reg_head": (12000.0, 4)}, DATES)
-    args = (net, [_reg_head(head)], _rows(net, {"m2": 140.0}), trs, at, {}, _catalog(), SUBSTATION, NG, LIMITS,
+    args = (net, [_reg_head(head)], _rows(net, {"m2": 140.0}), trs, at, {}, _catalog(), SUBSTATION, NG_T, LIMITS,
             0.95, None, state)
     step, found, notes = ng.next_step(*args)
     assert step == "reconductor" and [i["line"] for i in found] == ["m2"]
@@ -1129,6 +1133,238 @@ def test_substation_units():
     assert ng.substation_units({"transformers": []}, 5.0, None, 75, True)["units_existing"] == 0
 
 
+# ---------------------------------------------------------------------------
+# Regulators in the building rules: the settings, a larger rating, a new feeder behind a
+# copy of the head regulator, the notes and the Phase 8 column
+# ---------------------------------------------------------------------------
+REG_CONTROL = "New RegControl.rc_head transformer=REG_HEAD winding=2 ptratio=59.99631547328862 band=2.4 vreg = 123.6\n"
+REG_FILES_RC = dict(REG_FILES, **{"Regulators.dss": REG_CONTROL})
+# another feeder folder of the region with three-phase 12.47 kV regulators of 16,000 and 31,500 kVA
+REG_OTHER = {"linecodes.dss": LINECODES, "lines.dss": "", "loads.dss": "",
+             "master.dss": "New Circuit.other bus1=o basekV=12.47\n",
+             "transformers.dss": "New Transformer.big16 phases=3 windings=2 buses=(o.1.2.3,p.1.2.3) kvs=(12.47, 12.47) "
+                                 "kvas=(16000.0, 16000.0) XHL=0.02\n"
+                                 "New Transformer.big31 phases=3 windings=2 buses=(p.1.2.3,q.1.2.3) kvs=(12.47, 12.47) "
+                                 "kvas=(31500.0, 31500.0) XHL=0.03\n"}
+
+
+def _reg_catalog(ratings=("big16", "big31")):
+    other = dict(REG_OTHER, **{"transformers.dss": "".join(
+        ln + "\n" for ln in REG_OTHER["transformers.dss"].splitlines() if ln.split()[1][12:] in ratings)})
+    return ng.build_catalog(ng.inventory({name.lower(): text for name, text in REG_FILES.items()}),
+                            [ng.inventory(other)])
+
+
+def test_regulator_settings_and_items():
+    for changes in ({"new_feeder_regulator": "always"}, {"new_feeder_regulator": None},
+                    {"new_feeder_regulator": False}, {"steps": ["regulator_rating", "regulator_rating"]},
+                    {"steps": ["rating"]}):
+        assert _stops(growth_settings, _with(**changes)), changes
+    for value in ("copy", "none", "skip"):
+        assert growth_settings(_with(new_feeder_regulator=value))["network_growth"]["new_feeder_regulator"] == value
+    assert growth_settings(_with(steps=["regulator_rating"]))["network_growth"]["steps"] == ["regulator_rating"]
+    item = {"feeder": "f", "mix": "all", "step": "regulator_rating", "transformer": "reg_head", "kva": 16000.0}
+    assert network_item_error(item) is None and network_item_error(dict(item, round=2)) is None
+    for bad in (dict(item, kva=0), dict(item, transformer=""), dict(item, units=1),
+                {k: v for k, v in item.items() if k != "kva"}):
+        assert network_item_error(bad) is not None, bad
+    assert ng.ITEM_STEPS[-2:] == ("regulator_rating", "regulator")
+
+
+def test_retarget_a_buses_array():
+    # the wdg= and bus= form, as before
+    assert ng.retarget("New Transformer.x wdg=1 bus=a.1 kv=7.2 wdg=2 bus=b.1.0 kv=0.12", "y", ["p.2", "q.1.0"]) == \
+        "New Transformer.y wdg=1 bus=p.2 kv=7.2 wdg=2 bus=q.1.0 kv=0.12"
+    # the buses= array of the release: each element takes the bus of its winding, the rest as written
+    big = "New Transformer.big16 phases=3 windings=2 buses=(o.1.2.3,p.1.2.3) kvs=(12.47, 12.47) kvas=(16000.0, 16000.0)"
+    assert ng.retarget(big, "reg_head", ["src.1.2.3", "a.1.2.3"]) == \
+        "New Transformer.reg_head phases=3 windings=2 buses=(src.1.2.3,a.1.2.3) kvs=(12.47, 12.47) kvas=(16000.0, 16000.0)"
+    assert ng.retarget("New Transformer.r buses=[o.2 p.2] kvs=[7.2 7.2]", "s", ["x.3", "y.3"]) == \
+        "New Transformer.s buses=[x.3 y.3] kvs=[7.2 7.2]"
+    assert ng.retarget("New Transformer.r Buses='o.2, p.2'", "s", ["x.3", "y.3"]) == "New Transformer.s Buses='x.3, y.3'"
+    assert _raises(ng.retarget, big, "reg_head", ["src.1.2.3"])
+
+
+def _rating(peaks, catalog=None, heads=None, limits=LIMITS, files=REG_FILES, state=None):
+    net = ng.read_network(_text(files))
+    rows = pl.transformer_rows(net, {name: (kva, 4) for name, kva in peaks.items()}, DATES)
+    groups = ng.head_groups(net, heads or [], {1: {}}, "largest_phase")
+    return ng.regulator_rating_items(net, groups, rows, catalog or _reg_catalog(), NG, limits, state or ng.new_state())
+
+
+def test_regulator_rating_rules_and_statements():
+    # reg_head: 10,000 kVA, three-phase, 12.47 kV. 75 percent of 16,000 kVA is 12,000 kVA
+    items, notes = _rating({"reg_head": 11000.0})
+    assert [ng.public(i) for i in items] == [{"step": "regulator_rating", "transformer": "reg_head", "kva": 16000.0}]
+    assert items[0]["_peak"] == 11000.0 and notes == []
+    assert _rating({"reg_head": 13000.0})[0][0]["kva"] == 31500.0           # the smallest that carries it by sizing
+    only16 = _reg_catalog(("big16",))
+    assert _rating({"reg_head": 13000.0}, only16)[0][0]["kva"] == 16000.0    # the largest, within its limit
+    assert _rating({"reg_head": 9000.0}) == ([], [])                         # within its limit: nothing
+    # no rating passes: nothing is built, and one note per circuit folder
+    state = ng.new_state()
+    items, notes = _rating({"reg_head": 17000.0}, only16, state=state)
+    assert items == [] and notes == ["the regulator reg_head is at 170 percent, over transformer_limit_percent; the "
+                                     "catalog holds no larger rating of its class 3|12.47,12.47 that carries it, and "
+                                     "a regulator is not paralleled"]
+    assert _rating({"reg_head": 17000.0}, only16, state=state) == ([], [])
+    items, notes = _rating({"reg_lb": 1500.0})                               # no larger rating of its class
+    assert items == [] and "the regulator reg_lb is at 150 percent" in notes[0] and "class 1|7.2,7.2" in notes[0]
+    # a regulator network growth built is left out, and so is a service transformer
+    built, _ = ng.apply_items(REG_FILES, [{"step": "regulator", "line": "m2"}], _catalog(), SUBSTATION, None)
+    assert _rating({"ngreg1_1": 9000.0, "t1": 30.0}, files=dict(REG_FILES, **built)) == ([], [])
+    # a head regulator over head_limit_percent only (its kVA within transformer_limit_percent)
+    head = _reg_head(_amps(220.0, 150.0, 180.0))                             # 110 percent
+    items, _ = _rating({"reg_head": 9000.0}, heads=[head])
+    assert [(i["transformer"], i["kva"]) for i in items] == [("reg_head", 16000.0)]
+    items, notes = _rating({"reg_head": 9000.0}, _reg_catalog(()), heads=[head])
+    assert items == [] and notes[0].startswith("the regulator reg_head is at 110 percent, over head_limit_percent")
+    # the statement: the catalog's, under the regulator's name and on its buses, in its place; the RegControl stays
+    changed, rows = ng.apply_items(REG_FILES_RC, [{"step": "regulator_rating", "transformer": "reg_head",
+                                                   "kva": 16000.0, "_peak": 11000.0}], _reg_catalog(), SUBSTATION, None)
+    assert sorted(changed) == ["Transformers.dss"]
+    assert changed["Transformers.dss"].splitlines()[0] == (
+        "New Transformer.reg_head phases=3 windings=2 buses=(src.1.2.3,a.1.2.3) kvs=(12.47, 12.47) "
+        "kvas=(16000.0, 16000.0) XHL=0.02")
+    assert changed["Transformers.dss"].splitlines()[1:] == REG_FILES["Transformers.dss"].splitlines()[1:]
+    assert {k: rows[0][k] for k in ("step", "element", "was", "now", "count_before", "count", "kva", "peak")} == \
+        {"step": "regulator_rating", "element": "reg_head", "was": 10000.0, "now": 16000.0, "count_before": 1,
+         "count": 1, "kva": 16000.0, "peak": 11000.0}
+    assert rows[0]["changed"] == [("transformer", "reg_head")]
+    # a planned item of this step is checked like the others
+    for bad in ({"transformer": "t1", "kva": 50.0}, {"transformer": "reg_head", "kva": 20000.0},
+                {"transformer": "nope", "kva": 16000.0}):
+        assert _raises(ng.apply_items, REG_FILES, [dict(bad, step="regulator_rating")], _reg_catalog(), SUBSTATION,
+                       None)
+    assert _raises(ng.apply_items, dict(REG_FILES, **built),
+                   [{"step": "regulator_rating", "transformer": "ngreg1_1", "kva": 16000.0}], _reg_catalog(),
+                   SUBSTATION, None)
+    # in the order of the steps: capacity before voltage, after the service transformers
+    net = ng.read_network(_text(REG_FILES))
+    trs = pl.transformer_rows(net, {"reg_head": (11000.0, 4), "t1": (30.0, 4)}, DATES)
+    args = (net, [_reg_head(_amps(90.0, 90.0, 90.0))], _rows(net, {}), trs, {1: {}}, {}, _reg_catalog(), SUBSTATION)
+    assert ng.next_step(*args, NG, LIMITS, 0.95, None, ng.new_state())[0] == "service_transformer"
+    step, items, _ = ng.next_step(*args, dict(NG, steps=["regulator_rating", "service_transformer"]), LIMITS, 0.95,
+                                  None, ng.new_state())
+    assert step == "regulator_rating" and [i["transformer"] for i in items] == ["reg_head"]
+    assert ng.next_step(*args, NG_T, LIMITS, 0.95, None, ng.new_state())[0] == "service_transformer"
+
+
+def test_regulator_notes_by_the_settings():
+    net = ng.read_network(_text(REG_FILES))
+    groups = ng.head_groups(net, [_reg_head(_amps(220.0, 150.0, 180.0))], {1: {}}, "largest_phase")
+    trs = pl.transformer_rows(net, {"reg_head": (12000.0, 4)}, DATES)
+    head_note = ("head 1 is the regulator reg_head at 110 percent, over head_limit_percent; no new feeder is built "
+                 "and nothing is rebuilt at the head")
+    tr_note = ("the regulator reg_head is at 120 percent of its kVA, over transformer_limit_percent; a regulator is "
+               "not a service transformer and is not replaced")
+
+    def notes(settings):
+        return ng.regulator_notes(net, groups, trs, LIMITS, ng.new_state(), settings)
+
+    # the settings of today: both notes as before (no settings at all gives the same)
+    assert notes(NG_T) == [head_note, tr_note] == notes(None)
+    # the defaults: a step can act on both, so no note
+    assert notes(NG) == []
+    assert notes(dict(NG, steps=["new_feeder"])) == [tr_note]                # a new feeder is built at the head
+    assert notes(dict(NG, steps=["new_feeder"], new_feeder_regulator="skip")) == [head_note, tr_note]
+    assert notes(dict(NG_T, steps=["regulator_rating"])) == []               # the rating step acts on both
+    # a regulator network growth built is never replaced: its note stays under the defaults
+    built, _ = ng.apply_items(REG_FILES, [{"step": "regulator", "line": "m2"}], _catalog(), SUBSTATION, None)
+    after = ng.read_network(_text(dict(REG_FILES, **built)))
+    rows = pl.transformer_rows(after, {"ngreg1_1": (12000.0, 4)}, DATES)
+    found = ng.regulator_notes(after, [], rows, LIMITS, ng.new_state(), NG)
+    assert found[0].startswith("the regulator ngreg1_1 is at ") and found[0].endswith("is not replaced")
+
+
+def test_new_feeder_on_a_regulator_head():
+    net = ng.read_network(_text(REG_FILES_RC))
+    head = _reg_head(_amps(220.0, 150.0, 180.0))                           # 110 percent of 200 A
+    at = {1: {"sw1": _amps(90.0, 80.0, 85.0), "sw3": _amps(60.0, 50.0, 45.0)}}
+    (group,) = ng.head_groups(net, [head], at, "largest_phase")
+    text = _text(REG_FILES_RC)
+    # the express LineCode: the largest normamps among the three-phase lines that leave the regulator (m1 and
+    # sw3, both 200 A: the first name, m1); its normamps that of the head under copy, of the code under none
+    copy = ng.regulator_express(net, head, "copy", text)
+    assert copy == {"linecode": "3P_OH_B", "normamps": 200.0, "regulator": "copy", "head": "reg_head",
+                    "regcontrol": "rc_head"}
+    larger = dict(REG_FILES_RC, **{"LineCodes.dss": LINECODES + "New Linecode.3P_OH_C units=km nphases=3 "
+                                                                "Rmatrix=(0.1 ) Xmatrix=(0.5 ) normamps=400.0\n",
+                                   "Lines.dss": REG_FILES["Lines.dss"].replace(
+                                       "bus1=a.1.2.3 bus2=x.1.2.3 switch=y enabled=y phases=3 Linecode=3P_OH_B",
+                                       "bus1=a.1.2.3 bus2=x.1.2.3 switch=y enabled=y phases=3 Linecode=3P_OH_C")})
+    net_c = ng.read_network(_text(larger))
+    assert ng.regulator_express(net_c, head, "none", _text(larger))["linecode"] == "3P_OH_C"
+    assert ng.regulator_express(net_c, head, "none", _text(larger))["normamps"] == 400.0
+    assert ng.regulator_express(net_c, head, "copy", _text(larger))["normamps"] == 200.0
+    none = ng.regulator_express(net, head, "none", _text(REG_FILES))
+    assert none == {"linecode": "3P_OH_B", "normamps": 200.0, "regulator": "none", "head": "reg_head",
+                    "regcontrol": None}
+    assert ng.regulator_express(ng.read_network(_text()), _head(_amps(1.0, 1.0, 1.0)), "copy", _text()) is None
+
+    def choose(express, settings, catalog=None):
+        return ng.new_feeder_choice(net, [group], _rows(net, {}), at, catalog or _catalog(), settings, LIMITS, express,
+                                    ng.new_state())
+
+    # copy and none: the regulator head over its limit with no larger rating of its class qualifies
+    items, notes = choose(copy, NG)
+    assert [ng.public(i) for i in items] == [{"step": "new_feeder", "open": "sw1"}] and notes == []
+    assert ng.public(choose(none, dict(NG, new_feeder_regulator="none"))[0][0]) == {"step": "new_feeder", "open": "sw1"}
+    assert choose(copy, dict(NG, new_feeder_regulator="skip")) == ([], [])     # skip: as before
+    assert choose(None, NG) == ([], [])                                        # no express: as before
+    assert choose(copy, NG, _reg_catalog()) == ([], [])                        # a larger rating of its class exists
+    # a head regulator without a RegControl gets a note under copy
+    assert choose(dict(copy, regcontrol=None), NG)[1] == [
+        "head 1: the head regulator reg_head has no RegControl; the regulator copied for the new feeder has none"]
+
+    # copy: the express line starts behind a copy of the head regulator and its RegControl
+    changed, rows = ng.apply_items(REG_FILES_RC, [{"step": "new_feeder", "open": "sw1", "_peak": 220.0}], _catalog(),
+                                   SUBSTATION, copy)
+    assert sorted(changed) == ["Buscoords.dss", "Lines.dss", "Master.dss", "Regulators.dss", "Transformers.dss"]
+    assert changed["Transformers.dss"] == REG_FILES["Transformers.dss"] + (
+        "New Transformer.ng_express_2_reg phases=3 windings=2 buses=(src.1.2.3,ng_express_2_bus.1.2.3) "
+        "kvs=(12.47, 12.47) kvas=(10000.0, 10000.0) XHL=0.01\n")
+    assert changed["Regulators.dss"] == REG_CONTROL + ("New RegControl.ng_express_2_reg transformer=ng_express_2_reg "
+                                                       "winding=2 ptratio=59.99631547328862 band=2.4 vreg = 123.6\n")
+    assert changed["Lines.dss"].endswith("New Line.ng_express_2 Units=m Length=201.0 bus1=ng_express_2_bus.1.2.3 "
+                                         "bus2=c.1.2.3 switch=n enabled=y phases=3 Linecode=3P_OH_B\n")
+    assert changed["Buscoords.dss"] == BUSCOORDS + "ng_express_2_bus 0.0 0.0\n"
+    master = changed["Master.dss"].splitlines()
+    assert ["New Monitor.h2m1 element=Transformer.ng_express_2_reg mode=0",
+            "New Monitor.h2m2 element=Transformer.ng_express_2_reg mode=1"] == \
+        [ln for ln in master if ln.startswith("New Monitor.h2")]
+    assert pl.head_lines(changed["Master.dss"]) == [(1, "reg_head"), (2, "ng_express_2_reg")]
+    assert pl.head_classes(changed["Master.dss"]) == {1: "transformer", 2: "transformer"}
+    assert (rows[0]["element"], rows[0]["was"], rows[0]["now"], rows[0]["length_m"]) == \
+        ("ng_express_2", "sw1", "3P_OH_B", 201.0)
+    # the circuit after the step: c and beyond hang on the express line behind the copied regulator, a head
+    # group of its own with the rating of the head regulator
+    after = ng.read_network(_text(dict(REG_FILES_RC, **changed)))
+    assert after["parent"]["c"][1]["name"] == "ng_express_2" and not after["extra_lines"]
+    assert after["parent"]["ng_express_2_bus"][1]["name"] == "ng_express_2_reg"
+    copied = after["transformer_of"]["ng_express_2_reg"]
+    assert growth.is_regulator(copied) and copied["windings"][0][3] == 10000.0
+    assert {"ng_express_2_bus", "c", "d", "f"} <= after["mv"]
+    rows2 = [head, dict(_reg_head(_amps(90.0, 80.0, 85.0)), head=2, line="ng_express_2_reg")]
+    groups = ng.head_groups(after, rows2, {1: {}, 2: {}}, "largest_phase")
+    assert [(g["k"], g["lines"], g["up"], g["down"], g.get("regulator")) for g in groups] == \
+        [(1, ["reg_head"], "src", "a", True), (2, ["ng_express_2_reg"], "src", "ng_express_2_bus", True)]
+    # without a RegControl the regulator is copied alone
+    alone, _ = ng.apply_items(REG_FILES, [{"step": "new_feeder", "open": "sw1"}], _catalog(), SUBSTATION,
+                              dict(copy, regcontrol=None))
+    assert "New Transformer.ng_express_2_reg " in alone["Transformers.dss"] and "Regulators.dss" not in alone
+    # none: the express line starts at the source bus, with its Monitors on the line
+    changed, _ = ng.apply_items(REG_FILES_RC, [{"step": "new_feeder", "cut_bus": "c"}], _catalog(), SUBSTATION, none)
+    assert sorted(changed) == ["Lines.dss", "Master.dss"]
+    assert changed["Lines.dss"].endswith("New Line.ng_express_2 Units=m Length=201.0 bus1=src.1.2.3 bus2=c.1.2.3 "
+                                         "switch=n enabled=y phases=3 Linecode=3P_OH_B\n")
+    assert pl.head_lines(changed["Master.dss"]) == [(1, "reg_head"), (2, "ng_express_2")]
+    assert pl.head_classes(changed["Master.dss"]) == {1: "transformer", 2: "line"}
+    # skip: a planned item stops, as before
+    assert _raises(ng.apply_items, REG_FILES_RC, [{"step": "new_feeder", "open": "sw1"}], _catalog(), SUBSTATION,
+                   dict(copy, regulator="skip"))
+
+
 def test_block_copy_of_a_regulator_lateral_is_not_moved():
     # the lateral at d holds the regulator g0-g; its block copy at c holds a copy of it
     net = ng.read_network(_text(LAT_FILES))
@@ -1140,3 +1376,14 @@ def test_block_copy_of_a_regulator_lateral_is_not_moved():
     grown = ng.read_network(_text(files))
     assert {(x["root"], x["regulator"]) for x in growth.find_laterals(grown)} >= {("g0", True), ("g0_gb1", True)}
     assert not {"g0", "g0_gb1"} & {x["root"] for x in ng.single_phase_laterals(grown)}
+
+
+def test_summary_counts_the_replaced_regulators():
+    # Phase 8 writes network_growth_summary.csv in its main block: its last column counts the rows of
+    # network_growth.csv whose step is regulator_rating
+    with open(os.path.join(REPO_ROOT, "8_results_analysis", "aggregate_m1_m2_with_circuits.py"), encoding="utf-8") as f:
+        source = f.read()
+    row = source[source.index("growth_summary_rows.append({"):]
+    row = row[:row.index("})") + 2]
+    assert row.endswith('"regulators_replaced": len(by_step["regulator_rating"])})')
+    assert "regulator_rating" in ng.ITEM_STEPS

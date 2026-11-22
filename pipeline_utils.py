@@ -566,14 +566,16 @@ GROWTH_PLAN_FILE = "growth_plan.json"
 # Network growth (network_growth in growth.yaml; the rules are in
 # 7_circuit_instantiation/deployer_modules/network_growth.py)
 NETWORK_MODES = ("off", "planned", "as_needed")
-NETWORK_STEPS = ("new_feeder", "reconductor", "service_transformer", "regulator")
+NETWORK_STEPS = ("new_feeder", "reconductor", "service_transformer", "regulator_rating", "regulator")
+NETWORK_FEEDER_REGULATOR = ("copy", "none", "skip")
 NETWORK_OPEN_POINTS = ("switch", "switch_then_bus", "bus")
 NETWORK_HEAD_METRICS = ("largest_phase", "three_phase_kva")
 NETWORK_CATALOGS = ("region", "substation", "feeder")
 # An item of network_growth_built.yaml: {feeder, mix, step, ...} with these keys per step
 NETWORK_ITEM_KEYS = {"rebalance_phases": ("lateral", "to_phase"), "new_feeder": (),
                      "reconductor": ("line", "linecode", "circuits"),
-                     "service_transformer": ("transformer", "kva", "units"), "regulator": ("line",)}
+                     "service_transformer": ("transformer", "kva", "units"),
+                     "regulator_rating": ("transformer", "kva"), "regulator": ("line",)}
 
 
 def _growth_fail(key, value, expected):
@@ -739,8 +741,8 @@ def growth_settings(raw, topology_id=None):
         _growth_fail("network_growth.steps", steps, "a list of " + ", ".join(NETWORK_STEPS) + ", each at most once")
     if not isinstance(ng.get("rebalance_phases"), bool):
         _growth_fail("network_growth.rebalance_phases", ng.get("rebalance_phases"), "true or false")
-    for key, values in (("open_point", NETWORK_OPEN_POINTS), ("head_metric", NETWORK_HEAD_METRICS),
-                        ("catalog", NETWORK_CATALOGS)):
+    for key, values in (("new_feeder_regulator", NETWORK_FEEDER_REGULATOR), ("open_point", NETWORK_OPEN_POINTS),
+                        ("head_metric", NETWORK_HEAD_METRICS), ("catalog", NETWORK_CATALOGS)):
         if not (isinstance(ng.get(key), str) and ng[key] in values):
             _growth_fail(f"network_growth.{key}", ng.get(key), "one of " + ", ".join(values))
     value = ng.get("sizing_percent")
@@ -769,7 +771,8 @@ def network_item_error(item):
     """None for a well-formed item of network_growth_built.yaml, else what it should be.
     An item is a map with feeder, mix, step and the keys of its step: rebalance_phases
     {lateral, to_phase 1 to 3}; new_feeder {open} or {cut_bus}; reconductor {line,
-    linecode, circuits}; service_transformer {transformer, kva, units}; regulator {line}.
+    linecode, circuits}; service_transformer {transformer, kva, units}; regulator_rating
+    {transformer, kva}; regulator {line}.
     round is optional and ignored."""
     if not isinstance(item, dict) or item.get("step") not in NETWORK_ITEM_KEYS:
         return "a map with feeder, mix, step (one of " + ", ".join(NETWORK_ITEM_KEYS) + ") and the keys of its step"

@@ -490,7 +490,8 @@ if __name__ == "__main__":
                 "regulator_kva": (regs["count"] * regs["kva"]).sum(),
                 "laterals_moved": len(moved), "laterals_moved_km": moved["length_m"].sum() / 1000.0,
                 "limits_over": ";".join(f"{r['limit']}:{r['elements_over']}" for _, r in limits_frame.iterrows()
-                                        if r["limit"] != "voltage_band" and r["elements_over"] > 0)})
+                                        if r["limit"] != "voltage_band" and r["elements_over"] > 0),
+                "regulators_replaced": len(by_step["regulator_rating"])})
 
         # Record a clean, time-independent summary row for this circuit
         summary_rows.append({
