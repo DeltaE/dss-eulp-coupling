@@ -1127,3 +1127,16 @@ def test_substation_units():
                                                                 "units_in_all": 2, "units_added": 0}
     assert ng.substation_units(two, 61000.0, 1, 100, True)["units_in_all"] == 4
     assert ng.substation_units({"transformers": []}, 5.0, None, 75, True)["units_existing"] == 0
+
+
+def test_block_copy_of_a_regulator_lateral_is_not_moved():
+    # the lateral at d holds the regulator g0-g; its block copy at c holds a copy of it
+    net = ng.read_network(_text(LAT_FILES))
+    lat = next(x for x in growth.find_laterals(net) if x["root"] == "g0")
+    new = growth.copy_lateral(net, lat, "b1", "c")
+    files = dict(LAT_FILES, **{"Lines.dss": LAT_FILES["Lines.dss"] + "".join(t + "\n" for t in new["lines"]),
+                               "Transformers.dss": LAT_FILES["Transformers.dss"]
+                               + "".join(t + "\n" for t in new["transformers"])})
+    grown = ng.read_network(_text(files))
+    assert {(x["root"], x["regulator"]) for x in growth.find_laterals(grown)} >= {("g0", True), ("g0_gb1", True)}
+    assert not {"g0", "g0_gb1"} & {x["root"] for x in ng.single_phase_laterals(grown)}

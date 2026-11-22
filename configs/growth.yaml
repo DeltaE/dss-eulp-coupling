@@ -154,6 +154,33 @@ load_factors: []
 # year; it moves every existing PV and storage size with the use rates.
 der_resize_with_growth: false
 
+# SMART-DS voltage regulators under load growth. A regulator is a transformer whose windings
+# all have the same kV (README.md, section "Voltage regulators").
+regulators:
+  # with_control | never. with_control: a lateral that holds a regulator may be the template
+  # of a block; the copy carries the regulator and every RegControl that names it, renamed
+  # and on the new buses, each as the feeder writes it after the repairs. never: such a
+  # lateral is never a block template.
+  # ASSUMPTION: a block copied from a lateral that holds a regulator gets a regulator of the
+  # same rating and settings, as every other element of a block copies its template. A new
+  # district built without one has lower voltages beyond the regulator's place.
+  block_copies: with_control
+  # with_regulator | lines_only. The path impedance from the source bus to a bus, as
+  # named_load_bus strongest and weakest and the column bus_impedance_ohm of
+  # growth_named_loads.csv read it. with_regulator: each regulator on the path
+  # adds the series reactance XHL / 100 x kV^2 x 1000 / kVA ohm, with kV and kVA of its first
+  # winding as written. XHL is the percent reactance from winding 1 to winding 2 on the kVA
+  # base of winding 1, with kV phase to phase for a three-phase transformer and the winding kV
+  # otherwise: https://opendss.epri.com/Properties16.html . The conversion to ohm:
+  # https://cimhub-opendss.readthedocs.io/en/latest/schema_ref/XHL/ . XHL is the value of
+  # XHL or X12 of the statement, else the first value of XscArray, else 7, the OpenDSS
+  # default: https://cimhub-opendss.readthedocs.io/en/latest/schema_ref/Xhl/ . 1000 is the SI
+  # prefix kilo: https://www.bipm.org/en/measurement-units/si-prefixes . lines_only: a
+  # regulator adds nothing.
+  # ASSUMPTION: a regulator adds its leakage reactance only. Its winding resistance is left
+  # out, which lowers the magnitude of the path impedance a little.
+  path_impedance: with_regulator
+
 # Planning limits of the grown circuit. They are reported in every run with growth on, and
 # they tell network growth (below) when the network has to grow.
 planning_limits:

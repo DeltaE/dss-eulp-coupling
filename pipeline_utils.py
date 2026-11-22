@@ -557,6 +557,8 @@ GROWTH_CASES = ("low", "moderate", "high")
 GROWTH_RATES = ("households", "use_per_household", "floorspace", "use_per_ft2")
 GROWTH_COMPANIONS = ("feeder", "national", "aeo")
 GROWTH_NAMED_BUS = ("seeded", "strongest", "weakest")
+GROWTH_REGULATOR_BLOCKS = ("with_control", "never")
+GROWTH_REGULATOR_PATHS = ("with_regulator", "lines_only")
 GROWTH_LIMITS = ("line_limit_percent", "head_limit_percent", "transformer_limit_percent",
                  "substation_limit_percent")
 GROWTH_PLAN_DIR = "growth"
@@ -700,6 +702,12 @@ def growth_settings(raw, topology_id=None):
             _growth_fail(f"{key}.peak_factor", entry["peak_factor"], "a number above 0, or no peak_factor key")
     if not isinstance(g.get("der_resize_with_growth"), bool):
         _growth_fail("der_resize_with_growth", g.get("der_resize_with_growth"), "true or false")
+    regs = g.get("regulators")
+    if not isinstance(regs, dict):
+        _growth_fail("regulators", regs, "a map with block_copies and path_impedance")
+    for key, values in (("block_copies", GROWTH_REGULATOR_BLOCKS), ("path_impedance", GROWTH_REGULATOR_PATHS)):
+        if not (isinstance(regs.get(key), str) and regs[key] in values):
+            _growth_fail(f"regulators.{key}", regs.get(key), "one of " + ", ".join(values))
     limits = g.get("planning_limits")
     if not isinstance(limits, dict):
         _growth_fail("planning_limits", limits, "a map")

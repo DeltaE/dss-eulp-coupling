@@ -28,7 +28,8 @@ Inputs
 Outputs, all under <work_root>/growth/
 - growth_plan.json: the merged settings and, per feeder, its seed, factors, counts,
   the units (one per infill copy, block, companion or named load, each with the year it
-  arrives, its new Line and Transformer statements, its new Load lines, its new bus
+  arrives, its new Line and Transformer statements, the new RegControl statements of a
+  block that holds a regulator (regcontrols, only then), its new Load lines, its new bus
   coordinates and its new customers), the loadshapes new to the feeder and their
   constant kvar over kW. The plan is built year by year (growth.plan_years), so the
   plan of a longer horizon holds every unit of a shorter one; the units marked waiting
@@ -304,9 +305,12 @@ def main():
 
         def add_unit(label, kind, elements, customers, year, remainder=False, waiting=False, shift=None):
             coords = growth.shifted_coords(net, elements["buses"], *(shift or (None, None)))
+            # regcontrols: the RegControls of a block copied from a lateral that holds a regulator
             units.append({"unit": label, "kind": kind, "year": year, "remainder": remainder, "waiting": waiting,
                           "lines": elements["lines"],
-                          "transformers": elements["transformers"], "loads": elements["loads"],
+                          "transformers": elements["transformers"],
+                          **({"regcontrols": elements["regcontrols"]} if elements.get("regcontrols") else {}),
+                          "loads": elements["loads"],
                           "coords": {b: list(xy) for b, xy in sorted(coords.items())}, "customers": customers})
 
         def customer_row(label, kind, new_base, template, elements, year, remainder=False, waiting=False,
@@ -343,9 +347,14 @@ def main():
         # blocks in the order they arrive
         home_order = growth.seeded_order(homes, "infill_homes", seed)
         laterals = growth.find_laterals(net)
+        # regulators.block_copies with_control: a lateral that holds a regulator may be a
+        # template, and its copy carries the RegControls of its transformers
+        with_control = g["regulators"]["block_copies"] == "with_control"
+        regcontrols = growth.read_regcontrols(texts) if with_control else ()
         try:
             events = growth.plan_years(net, laterals, additions, home_order, businesses, buildings,
-                                       g["companion_excluded_types"], seed, g["block_attach_buses"].get(feeder, []))
+                                       g["companion_excluded_types"], seed, g["block_attach_buses"].get(feeder, []),
+                                       with_control)
         except growth.GrowthError as e:
             fail(f"{feeder}: {e}.")
         block_rows = {}
@@ -390,7 +399,7 @@ def main():
                 tally["blocks_built"] += 1
                 tally["block_homes_built"] += lat["homes"]
                 tally["block_businesses_built"] += lat["businesses"]
-                elements = growth.copy_lateral(net, lat, label, ev["attach"])
+                elements = growth.copy_lateral(net, lat, label, ev["attach"], regcontrols)
                 elements["transformer_of"] = {}
                 for base in lat["customers"]:
                     names_tr = {tr_map.get(ld["name"]) for ld in cust[base]["loads"]}
@@ -401,8 +410,10 @@ def main():
                          [customer_row(label, "block", growth.new_name(base, label), base, elements, ev["year"])
                           for base in lat["customers"]], ev["year"], shift=(lat["tap"], ev["attach"]))
 
-        # 6. Named loads
+        # 6. Named loads; regulators.path_impedance with_regulator: a regulator on the path
+        # counts in the path impedance
         new_shapes, n_named = {}, 0
+        with_regulator = g["regulators"]["path_impedance"] == "with_regulator"
         for e, entry in enumerate(g["named_loads"], start=1):
             if entry["feeder"] != feeder or int(entry["year"]) > years:
                 continue
@@ -433,7 +444,8 @@ def main():
                 ratio = cust[template]["kvar"] / cust[template]["kw"]
                 peak_kva = peak_kw * math.sqrt(1.0 + ratio * ratio)
                 try:
-                    bus, why = growth.named_bus(net, g["named_load_bus"], f"named_bus_{e}_{j}", seed, entry.get("bus"))
+                    bus, why = growth.named_bus(net, g["named_load_bus"], f"named_bus_{e}_{j}", seed, entry.get("bus"),
+                                                with_regulator)
                 except growth.GrowthError as err:
                     fail(f"named_loads[{e - 1}]: {err}.")
                 new_to_feeder = bldg not in own_ids
@@ -471,7 +483,7 @@ def main():
                     "Feeder": feeder, "entry": e, "number": j, "unit": label, "name": new_base, "type": entry["type"],
                     "bldg_id": bldg, "drawn_from": source, "candidates": len(candidates), "zone": zone,
                     "new_to_feeder": int(new_to_feeder), "loadshape": shape, "bus": bus, "bus_rule": why,
-                    "bus_impedance_ohm": growth.path_impedance(net, bus), "template": template,
+                    "bus_impedance_ohm": growth.path_impedance(net, bus, with_regulator), "template": template,
                     "template_kw": cust[template]["kw"], "pattern": elements["pattern"], "peak_kw": peak_kw,
                     "kvar_per_kw_template": ratio, "kvar_per_kw_constant": ratio_used, "peak_kva": peak_kva,
                     "transformer": elements["transformer"], "transformer_kva": elements["transformer_kva"] or "",
