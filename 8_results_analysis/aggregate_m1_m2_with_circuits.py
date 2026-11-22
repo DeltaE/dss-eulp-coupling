@@ -29,10 +29,13 @@ Created on Tue Nov 11 20:35:25 2025
 # With growth off nothing is added.
 # With network growth on (network_growth.mode other than "off" in growth.yaml) the deploy
 # may add heads to a circuit (a new feeder, a second circuit of a head line), each with
-# Monitors h<k>m1 and h<k>m2. feeder_head_kva is then the sum of the ratings of the heads and
+# Monitors h<k>m1 and h<k>m2. feeder_head_kva is then the sum of the ratings of the heads (the
+# kVA of the first winding of each head on a regulator, the rating of each head on a line) and
 # the data rows of aggregate_m1.csv and aggregate_m2.csv hold the sum over the heads
 # (planning_limits.head_totals), so every reader of the data rows sees the whole circuit; one
 # extra set of rows per head carries row_type head and the head's number in the column head.
+# The exports of every head on a transformer lose the channels of its neutral before the sum,
+# so the data rows and the head rows have the columns of a line head.
 # The summary rows and circuit_summary.csv get heads and network_growth_rounds, and this
 # script writes network_growth_summary.csv (one row per circuit folder: what was built, as
 # quantities) and network_growth_built.yaml (the items of every circuit folder, in the format
@@ -98,30 +101,45 @@ def _feeder_head_kva(dss_files):
     """The rating of the feeder head: normamps of the LineCode of the Line that Monitor m1
     watches x base kV x sqrt(3). With more heads (the Lines of Monitors h<k>m1, network
     growth), the sum of the ratings of the heads. When Monitor m1 watches a Transformer (a
-    regulator head, smartds_repairs.py), the kVA of its first winding (_head_transformer)."""
+    regulator head, smartds_repairs.py), the kVA of its first winding (_head_transformer),
+    plus the rating of every further head h<k>m1 of network growth: the kVA of the first
+    winding of a Transformer (a copy of the head regulator) as Transformers.dss writes it,
+    the rating of a Line as above, and 0.0 for a head without a rating."""
     master_path = _find_dss_file(dss_files, "Master.dss")
     lines_path = _find_dss_file(dss_files, "Lines.dss")
     linecodes_path = _find_dss_file(dss_files, "LineCodes.dss")
     if not (master_path and lines_path and linecodes_path):
         return None
     head_transformer = _head_transformer(dss_files)
-    if head_transformer is not None:
-        return head_transformer["kva"]
 
     monitor_line_name = None
     more_heads = []
+    further = []  # (monitor, element) of every Monitor h<k>m1, as Master.dss writes them
     base_kv = None
     for command in _iter_dss_commands(_read_dss_text(master_path)):
         if re.search(r"\bnew\s+monitor\.m1\b", command, re.IGNORECASE):
             element = _dss_value(command, "element")
             if element and element.lower().startswith("line."):
                 monitor_line_name = element.split(".", 1)[1]
-        if re.search(r"\bnew\s+monitor\.h\d+m1\b", command, re.IGNORECASE):
+        more = re.search(r"\bnew\s+monitor\.(h\d+m1)\b", command, re.IGNORECASE)
+        if more:
             element = _dss_value(command, "element")
             if element and element.lower().startswith("line."):
                 more_heads.append(element.split(".", 1)[1])
+            further.append((more.group(1), element or ""))
         if re.search(r"\bnew\s+circuit\.", command, re.IGNORECASE):
             base_kv = _float_or_none(_dss_value(command, "basekv"))
+    if head_transformer is not None:
+        if head_transformer["kva"] is None or not further:
+            return head_transformer["kva"]
+
+        def further_kva(monitor, element):
+            if element.lower().startswith("transformer."):
+                return _head_transformer(dss_files, monitor)["kva"] or 0.0
+            if element.lower().startswith("line.") and base_kv is not None:
+                return _head_line_kva(element.split(".", 1)[1], base_kv, lines_path, linecodes_path) or 0.0
+            return 0.0
+        return head_transformer["kva"] + sum(further_kva(monitor, element) for monitor, element in further)
     if not (monitor_line_name and base_kv is not None):
         return None
     first = _head_line_kva(monitor_line_name, base_kv, lines_path, linecodes_path)
@@ -152,16 +170,17 @@ def _head_line_kva(monitor_line_name, base_kv, lines_path, linecodes_path):
 
     return normamps * base_kv * np.sqrt(3.0)
 
-def _head_transformer(dss_files):
-    """{"name", "phases", "kva"} of the Transformer that Monitor m1 of Master.dss watches,
+def _head_transformer(dss_files, monitor="m1"):
+    """{"name", "phases", "kva"} of the Transformer that Monitor m1 of Master.dss watches
+    (or the Monitor named monitor, h<k>m1 for head k of network growth),
     from its New Transformer statement in Transformers.dss: phases as written (None when
     the statement does not set it) and kva, the kVA of its first winding (the first value
-    of kvas=, or kva= of winding 1); None when Monitor m1 watches no Transformer."""
+    of kvas=, or kva= of winding 1); None when that Monitor watches no Transformer."""
     master_path = _find_dss_file(dss_files, "Master.dss")
     transformers_path = _find_dss_file(dss_files, "Transformers.dss")
     name = None
     for command in _iter_dss_commands(_read_dss_text(master_path)) if master_path else []:
-        if re.search(r"\bnew\s+monitor\.m1\b", command, re.IGNORECASE):
+        if re.search(rf"\bnew\s+monitor\.{re.escape(monitor)}\b", command, re.IGNORECASE):
             element = _dss_value(command, "element")
             if element and element.lower().startswith("transformer."):
                 name = element.split(".", 1)[1]
@@ -525,6 +544,11 @@ if __name__ == "__main__":
                     mon = "" if head_k == 1 else f"h{head_k}"
                     head_raw[head_k] = (pd.read_csv(mcd / f"{prefix}_Mon_{mon}m1_1.csv"),
                                         pd.read_csv(mcd / f"{prefix}_Mon_{mon}m2_1.csv"))
+                    head_tr = _head_transformer(dss_files, f"{mon}m1")
+                    if head_tr is not None and head_tr["phases"] is not None:
+                        # A head on a transformer: its neutral's channels are left out
+                        head_raw[head_k] = tuple(_drop_neutral_channels(df, head_tr["phases"])
+                                                 for df in head_raw[head_k])
                 df_m1, df_m2 = planning_limits.head_totals([pair[0] for pair in head_raw.values()],
                                                            [pair[1] for pair in head_raw.values()])
 
