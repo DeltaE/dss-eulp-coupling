@@ -519,7 +519,10 @@ def new_feeder_choice(net, groups, line_rows, phase_amps, catalog, ng, limits, e
     a head on a regulator under new_feeder_regulator skip. Under copy and none a head on a
     regulator qualifies as a head line does, over its limit while the catalog holds no
     larger rating of its class (transformer_key), or feeding a stuck line; under copy a
-    head regulator without a RegControl gives a note.
+    head regulator without a RegControl gives a note. A head regulator over its limit
+    while the catalog holds a larger rating of its class, with no stuck line and
+    regulator_rating not in ng["steps"], gives a note, once per circuit folder (state
+    noted, the key of regulator_notes), also when the step returns no item.
     ASSUMPTION: the new feeder is one express line of the head's LineCode along the
     existing route from the substation bus to the open point, and it serves nothing on
     the way. A real route can be longer, and the voltage beyond the open point then
@@ -555,6 +558,15 @@ def new_feeder_choice(net, groups, line_rows, phase_amps, catalog, ng, limits, e
                               "far": path_length_m(net, way[1]) or 0.0})
         if head_over or stuck:
             qualified.append((g, head_over, stuck))
+        elif g.get("regulator") and g["percent"] > limits["head_limit_percent"] \
+                and "regulator_rating" not in ng["steps"] \
+                and ("head", g["lines"][0].lower()) not in state.setdefault("noted", set()):
+            # over its limit with a larger rating of its class, and no step acts on it
+            state["noted"].add(("head", g["lines"][0].lower()))
+            notes.append(f"head {g['k']} is the regulator {g['lines'][0]} at {g['percent']:.6g} percent, over "
+                         f"head_limit_percent; the catalog holds a larger rating of its class {transformer_key(tr)} "
+                         f"and regulator_rating is not in steps, so no new feeder is built and nothing is rebuilt "
+                         f"at the head")
     if not qualified:
         return [], notes
     g, head_over, stuck = max(qualified, key=lambda t: (t[0]["percent"], -t[0]["k"]))

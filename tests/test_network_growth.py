@@ -1277,6 +1277,50 @@ def test_regulator_notes_by_the_settings():
     assert found[0].startswith("the regulator ngreg1_1 is at ") and found[0].endswith("is not replaced")
 
 
+def test_note_of_a_head_regulator_no_step_acts_on():
+    net = ng.read_network(_text(REG_FILES_RC))
+    head = _reg_head(_amps(220.0, 150.0, 180.0))                           # 110 percent of 200 A
+    at = {1: {"sw1": _amps(90.0, 80.0, 85.0), "sw3": _amps(60.0, 50.0, 45.0)}}
+    express = {mode: ng.regulator_express(net, head, mode, _text(REG_FILES_RC)) for mode in ("copy", "none")}
+    note = ("head 1 is the regulator reg_head at 110 percent, over head_limit_percent; the catalog holds a larger "
+            "rating of its class 3|12.47,12.47 and regulator_rating is not in steps, so no new feeder is built and "
+            "nothing is rebuilt at the head")
+    head_note = ("head 1 is the regulator reg_head at 110 percent, over head_limit_percent; no new feeder is built "
+                 "and nothing is rebuilt at the head")
+    only = dict(NG, steps=["new_feeder"])
+    trs = pl.transformer_rows(net, {"reg_head": (9000.0, 4)}, DATES)          # within its kVA
+
+    def step(settings, catalog, state=None, peaks=None):
+        found = ng.next_step(net, [head], _rows(net, peaks or {}), trs, at, {}, catalog, SUBSTATION, settings, LIMITS,
+                             0.95, express.get(settings["new_feeder_regulator"]), state or ng.new_state())
+        return found[0], [ng.public(i) for i in found[1]], found[2]
+
+    # the defaults: the rating step replaces the regulator, no note
+    assert step(NG, _reg_catalog()) == ("regulator_rating", [{"step": "regulator_rating", "transformer": "reg_head",
+                                                               "kva": 16000.0}], [])
+    # new_feeder alone under copy, no larger rating of its class: a new feeder, no note
+    assert step(only, _catalog()) == ("new_feeder", [{"step": "new_feeder", "open": "sw1"}], [])
+    # new_feeder alone under copy or none, a larger rating of its class: nothing is built, and the note says why
+    assert step(only, _reg_catalog()) == (None, [], [note])
+    assert step(dict(only, new_feeder_regulator="none"), _reg_catalog()) == (None, [], [note])
+    # skip: the head note of regulator_notes, as before
+    assert step(dict(only, new_feeder_regulator="skip"), _reg_catalog()) == (None, [], [head_note])
+    # once per circuit folder: the second call on one state gives no note
+    state = ng.new_state()
+    assert step(only, _reg_catalog(), state) == (None, [], [note])
+    assert step(only, _reg_catalog(), state) == (None, [], [])
+    (group,) = ng.head_groups(net, [head], at, "largest_phase")
+    assert ng.new_feeder_choice(net, [group], _rows(net, {}), at, _reg_catalog(), only, LIMITS, express["copy"],
+                                state) == ([], [])
+    # regulator_rating in the steps, or a stuck line behind the head (m1, the largest code): no note
+    assert step(dict(only, steps=["new_feeder", "regulator_rating"]), _reg_catalog())[2] == []
+    assert step(only, _reg_catalog(), peaks={"m1": 250.0}) == ("new_feeder", [{"step": "new_feeder", "open": "sw1"}],
+                                                               [])
+    # the settings T: the notes of before
+    assert step(NG_T, _reg_catalog()) == (None, [], [head_note])
+    assert step(NG_T, _catalog()) == (None, [], [head_note])
+
+
 def test_new_feeder_on_a_regulator_head():
     net = ng.read_network(_text(REG_FILES_RC))
     head = _reg_head(_amps(220.0, 150.0, 180.0))                           # 110 percent of 200 A
