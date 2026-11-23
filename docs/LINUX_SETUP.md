@@ -29,7 +29,8 @@ micromamba activate dsseulp
 pip install -r requirements.txt
 ```
 
-`requirements.txt` pins every package to the exact version verified on the
+`requirements.txt` pins every package, apart from `selenium`, `comtypes` and
+`opendssdirect.py`, to the exact version verified on the
 Windows machine that produced all existing results (numpy 1.26.4, pandas
 2.1.4, pyarrow 14.0.2, matplotlib 3.8.0, PyYAML 6.0.1, requests
 2.31.0, urllib3 2.0.7). It declares the platform split for the OpenDSS engine:
@@ -60,16 +61,19 @@ python tests/test_dss_engine_linux.py
 ## 3. Environment variables
 
 `run_case.py` sets every `PIPELINE_*` variable from `configs/local.yaml` and
-`configs/cases/*.yaml`. The table in [workflow.md](workflow.md) lists them. A
+`configs/cases/*.yaml`. The table in [workflow.md](workflow.md), section 3.4, lists them, and the text above
+it describes `PIPELINE_SETTINGS_DIR`. A
 phase script exits 1 when a run value it reads is unset, so run the phases
 through `run_case.py`.
 
 ### `configs/local.yaml`
 
-Per-machine, gitignored. Copy the example and set the three machine paths.
+Per-machine, gitignored. Copy the example and set the machine paths.
 `smart_ds_base` is the SMART-DS data root. `eulp_metadata_root` is the folder
 that holds `Metadata_<ST>_Residential/` and `Metadata_<ST>_Commercial/`. Both
 must exist. `runs_root` is where each case-season writes its workspace.
+`evwatts_extract_dir` is the EV WATTS extract that the default
+`ev_cars: evwatts_sessions` reads (README, "Prerequisites for a cold clone").
 
 ```bash
 cp configs/local.yaml.example configs/local.yaml
@@ -79,6 +83,7 @@ cp configs/local.yaml.example configs/local.yaml
 smart_ds_base: "/local-scratch/<you>/smartds"
 eulp_metadata_root: "/local-scratch/<you>/eulp_metadata"
 runs_root: "/local-scratch/<you>/runs"
+evwatts_extract_dir: "/local-scratch/<you>/evwatts_extract"
 ```
 
 ## 4. Getting the data onto this machine
@@ -113,7 +118,8 @@ export PYTHONIOENCODING=utf-8
 ```
 
 File I/O passes `encoding="utf-8"` explicitly wherever the pipeline reads or
-writes text. The platform default is cp1252 on Windows and utf-8 here, so the
+writes text, apart from two reads of numeric loadshape CSVs in
+`instantiate_circuits.py`. The platform default is cp1252 on Windows and utf-8 here, so the
 setting above only affects the output stream. File contents are the same on both.
 
 ## 6. Path constraints
@@ -142,4 +148,5 @@ None of these need real SMART-DS or EULP data:
 for f in tests/test_*.py; do python "$f" || echo "FAILED: $f"; done
 ```
 
-`pytest tests/` runs the same files, since every file is pytest-discoverable.
+`pytest tests/` runs every test. The loop above runs the tests of a file only
+when the file has a `__main__` block.

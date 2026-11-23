@@ -168,7 +168,7 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 - PV: the lesser of the roof cap and the annual use cap (moderate entries)
 - Storage: 1.0 x PV kW (0.5 above 100 kW commercial), 2 h
 - Rule: `schedule`, each host's start chosen on a grid from the reserve to full (`schedule_start: best`; `best_window` chooses it over the whole window)
-- Start and reserve: 20%
+- Reserve: 20%; under `schedule_start: fixed` and the controller rules every battery also starts at 20%
 ```
 
 ## 3.4 Running with `run_case.py`
@@ -200,6 +200,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 | `PIPELINE_EULP_DOWNLOAD_DATE` | Date stamp in the EULP download folder names, from `eulp_download_date` of the donor in `configs/donor_registry.yaml`. |
 | `PIPELINE_MIXES_FILE` | Mixes file that Phase 7a copies, from `mixes_file` in `configs/defaults.yaml`, absolute, with forward slashes. |
 | `PIPELINE_EVWATTS_EXTRACT_DIR` | Folder of the EV WATTS extract, from `evwatts_extract_dir` in `configs/local.yaml`; set only when that key is present. The Phase 7 deploy reads it under `ev_cars` `evwatts_sessions` and `session_rows`. |
+| `PIPELINE_PV_PROFILE_FILE` | PV profile of the donor: `smart_ds_base` from `configs/local.yaml`, then `pv_profile.file` of the donor in `configs/donor_registry.yaml`. The Phase 7 deploy reads it. |
 
 `pipeline_config.yaml` holds the method parameters, one top-level key each:
 
@@ -219,6 +220,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 - `ev_home_window` keeps controlled charging inside the time the car is plugged in at home (section 3.3; README, "EV cars").
 - `ev_day` picks the typical or stress value set of `ev_inputs.yaml` (section 3.3; README, "EV cars").
 - `ev_work_share_case` picks the share of the charging cars that charge at a workplace, a commercial load of the circuit (section 3.3; README, "EV cars").
+- `smartds_repairs` turns on the repairs of the SMART-DS release in phase `pre`, phase `growth` and Phase 7b (README, "Repairs of the SMART-DS release").
 
 ### Phase outputs
 

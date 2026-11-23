@@ -13,14 +13,14 @@
 
 - Audience: **Researchers**, planners, and utilities (PhD research).
 - Objective: **Distribution system planning** under deep uncertainty using ensembles on realistic feeders.
-- Datasets: **SMART-DS** (North Carolina, Texas, California), with circuits with connection issues filtered out.
+- Datasets: **SMART-DS** (North Carolina, Texas).
 - Profiles/Data: **NREL EULP** (via OEDI, open access).
 
 ### Capabilities
 
-- Experimental designs via **Latin Hypercube Sampling (LHS)** and **Sobol sequences**.
+- Experimental designs via **Latin Hypercube Sampling (LHS)** and **Sobol sequences** come from https://github.com/DeltaE/j-uncertainty-grid-modernisation, which writes the mixes file.
 - Seasonal analysis (**summer/winter**) and multiple profile variants (baseline; dm, a heat pump that keeps a fuel backup; uncontrolled, a heat pump with electric backup).
-- EV/PV/Storage placement & control, per-feeder time-series simulation (96×15-min timesteps).
+- EV/PV/Storage placement & control, per-feeder time-series simulation (96 x `horizon_days` 15-min timesteps).
 
 ## 1.2 System Architecture
 

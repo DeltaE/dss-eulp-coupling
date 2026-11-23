@@ -3,9 +3,9 @@
 ## 4.1 Primary Files
 
 ### `aggregate_m2_combined.csv`
-A feeder‑level **time series** of power flows plus a one‑line metadata “summary” row for each circuit/scenario/season/design.
+A feeder-level **time series** of power flows plus a one-line metadata “summary” row for each circuit/scenario/season/design.
 
-- **Time‑series rows:** 96 x `horizon_days` per circuit, season, design and scenario (one per 15-minute timestep; 96 at `horizon_days: 1`)
+- **Time-series rows:** 96 x `horizon_days` per circuit, season, design and scenario (one per 15-minute timestep; 96 at `horizon_days: 1`)
 - **Summary rows:** one per circuit, season, design and scenario
 
 **Selected columns (typical):**
@@ -23,7 +23,7 @@ The head columns are the same for every head. A head on a transformer, the regul
 - **Imbalance:** `S_sum_3ph - S_3ph` as a simple metric
 
 ### `circuit_summary_combined.csv`
-One row per circuit/scenario/season/design—metadata to contextualize the time series.
+One row per circuit/scenario/season/design: metadata to contextualize the time series.
 
 - Fields: `n_loads` (without the battery standby Loads `standby_storage_<unit>` that `storage_standby_element: load` writes in `Storage.dss`), `n_evs`, `n_storage`, `n_pv`, `feeder_head_kva`, etc.
 - `feeder_head_kva`: the rating of the head, `normamps` of the LineCode of the head Line x `basekV` x sqrt(3). A head on a regulator (README, "Repairs of the SMART-DS release") takes the kVA of the regulator's first winding as `Transformers.dss` of the circuit writes it. With several heads the value is the sum over the heads (see "With more than one head in a circuit" below).
@@ -53,7 +53,7 @@ The band is `voltage_band` in `pipeline_config.yaml`: 0.95 to 1.05 per unit, ANS
 
 ### EV car file
 
-When a circuit has EV cars, the Phase 7 deploy writes `<circuit>/EVControl/ev_cars.csv`, beside `ModifiedCircuitData/`: one row per car, uncontrolled cars first. Phase 8 does not read it. Intervals are 1 to 96. With `horizon_days` above 1 the file holds each car's record on day X, as in the one-day run; `ev_car_days.csv` holds every day (see "Outputs of the multi-day window" below).
+When a circuit has EV cars, the Phase 7 deploy writes `<circuit>/EVControl/ev_cars.csv`, beside `ModifiedCircuitData/`: one row per car, uncontrolled cars first. Phase 8 reads it only with load growth on, to give each EV load the home host of its car. Intervals are 1 to 96. With `horizon_days` above 1 the file holds each car's record on day X, as in the one-day run; `ev_car_days.csv` holds every day (see "Outputs of the multi-day window" below).
 
 - `car`: `EVu_<i>` or `EVc_<j>`, its shape in `LoadShapes_EV.dss`.
 - `host`: the EV host load. `group`: `uncontrolled` or `controlled`.
