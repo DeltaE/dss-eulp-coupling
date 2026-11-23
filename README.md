@@ -102,7 +102,7 @@ Each run writes its workspace to `<runs_root>/<case>/<season>/workspace/`. `--al
 
 ### Reproduction record
 
-Verified on 2026-09-21. A fresh clone at `61461cd` reproduced all eight case-seasons on Windows, with Python 3.11.7 and OpenDSS 9.8.0.1 through the COM interface. The comparison covered 110,268 output files. All matched byte for byte. Eight `row_counts.csv` files are excluded because they record absolute paths. `validation_summary.csv` is no longer produced.
+Verified on 2026-11-22. A fresh clone at `9ff13bd` reproduced all eight case-seasons on Windows, with Python 3.11.7 and OpenDSS 9.8.0.1 through the COM interface, against a second fresh clone at the same commit. The comparison covered 357,756 output files. All matched byte for byte, apart from three classes left out because they record the run and not its results. The 16 `run_log.txt` files record the start time, the paths of the run and the time each step took. The eight `resolved_case.yaml` files record the start time. The 48 copies of `power_flow_sim_daily_EV_STO_DG_deploy.py` in the circuit folders record the path of their clone in the line `ROOT`.
 
 ## Run Sequence
 

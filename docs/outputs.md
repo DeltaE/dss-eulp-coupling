@@ -10,7 +10,7 @@ A feeder-level **time series** of power flows plus a one-line metadata “summar
 
 **Selected columns (typical):**
 
-- Per-phase apparent/real/reactive: `S1-3 (kVA)`, `P1-3 (kW)`, `Q1-3 (kVAr)`, `Ang1-3 (deg)`  
+- Per-phase apparent/real/reactive: `S1-3 (kVA)`, `P1-3 (kW)`, `Q1-3 (kVAr)`, `Ang1-3` (degrees)
 - Three-phase totals: `P_3ph (kW)`, `Q_3ph (kVAr)`, `S_3ph (kVA)`, `S_sum_3ph (kVA)`  
 - Keys to join with summary: `circuit_folder`, `season`, `design`, `scenario`
 
