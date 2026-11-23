@@ -6,6 +6,9 @@ the general topology, donor and case model. This page covers the platform-specif
 parts: interpreter, dependencies, environment variables, and where the SMART-DS
 and EULP data go.
 
+The release is tested on Windows with the OpenDSS COM interface. The Linux setup
+of this page is not tested at this release.
+
 Verified against `srye-deltae-08` (Ubuntu 20.04, glibc 2.31). The version numbers
 below are hard constraints. The acceptance bar for this port is zero numerical
 change against the Windows baseline. That bar is only checkable if numpy, pandas
