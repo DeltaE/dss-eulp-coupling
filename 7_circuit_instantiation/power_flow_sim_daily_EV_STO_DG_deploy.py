@@ -813,10 +813,14 @@ def retarget_master_to_daily(master_path, npts=96, stepsize="15m", comment_plots
 
 PEAK_FROM_ORIGINAL_KW = []  # loads sized from Loads_original.dss kW instead of a profile CSV
 
-def peak_kw_for_load(full_name):
+def peak_kw_for_load(full_name, shape=None):
     """
     Return the peak kW used to size storage or PV on load full_name.
 
+    0. With shape given (a stretched customer of load growth, see host_sizes): the
+       maximum of the first column of <shape>.csv in the folder of step 1, of day X with
+       horizon_days above 1. If that CSV is missing, print [FAIL] with the host and the
+       file and exit 1.
     1. For each daily loadshape of the load's base name (full_name without its _<n>
        suffix), in sorted order: if <circuit>/../profiles_use_bench/<circuit>/<shape>.csv
        exists, return the maximum of its first column (read with header=None). Read errors are ignored and the next shape is tried.
@@ -827,6 +831,15 @@ def peak_kw_for_load(full_name):
        PEAK_FROM_ORIGINAL_KW, which the script counts.
     3. Else, print [FAIL] and exit 1.
     """
+    if shape is not None:
+        csv_path = os.path.join(PROFILES_PATH, f"{shape}.csv")
+        if not os.path.exists(csv_path):
+            print(f"[FAIL] No peak kW for host {full_name}: loadshape CSV {csv_path} not found.")
+            sys.exit(1)
+        df = pd.read_csv(csv_path, header=None)
+        if HORIZON_DAYS > 1:  # the peak of day X, not of the window
+            return day_peak(df[0].to_numpy(), X_INDEX, IRRADIANCE_NPTS)
+        return float(df[0].max())
     base = re.sub(r"_[0-9]+$", "", full_name)
     for dn in sorted(base_to_daily.get(base, set())):
         csv_path = os.path.join(PROFILES_PATH, f"{dn}.csv")
@@ -1461,7 +1474,12 @@ def host_sizes(base, seg, bldg, yld, use_factor=1.0):
     floor_stories and by metadata, and PV kW (Pmpp), inverter kVA and storage kW, kWh
     and kVA under the segment's pv_rule (step 4 of the module docstring). Under
     peak_ratio the peak is the day X peak of peak_kw_for_load x use_factor, the factor
-    on the host's annual use under load growth (growth.der_use_factor; 1 without growth)."""
+    on the host's annual use under load growth (growth.der_use_factor; 1 without growth).
+    A stretched customer, whose Load points at a loadshape of its own (a key of
+    GROWTH["shape_building"]), carries its growth in that loadshape: its peak is the day X
+    peak of the loadshape it was stretched from when der_resize_with_growth is false and
+    it is not a new customer, else the day X peak of its own loadshape, and no factor
+    multiplies it."""
     p = SIZE[seg]
     roof_fs = roof_area_m2(seg, "floor_stories", bldg["floor_ft2"], bldg["stories"], bldg["roof_column"],
                            p["roof_tilt_deg"])
@@ -1475,7 +1493,12 @@ def host_sizes(base, seg, bldg, yld, use_factor=1.0):
            "roof_used_m2": None, "pv_cap_roof_kw": None, "pv_cap_use_kw": None, "roof_binds": None,
            "peak_kw": None}
     if PV_RULE[seg] == "peak_ratio":
-        pk = peak_kw_for_load(base) * use_factor
+        own = sorted(base_to_daily.get(base, set()))[:1]
+        if GROWTH is not None and own and own[0] in GROWTH["shape_building"]:
+            resized = GROWTH_SETTINGS["der_resize_with_growth"] or base in NEW_CUSTOMERS
+            pk = peak_kw_for_load(base, own[0] if resized else GROWTH["shape_building"][own[0]])
+        else:
+            pk = peak_kw_for_load(base) * use_factor
         row["peak_kw"] = pk
         row["pv_kw"] = max(PV_MIN_KW, round(PV_KW_PER_PEAK * pk, 1))
         row["storage_kw"] = max(STORAGE_MIN_KW, round(STORAGE_KW_PER_PEAK * pk, 3))
