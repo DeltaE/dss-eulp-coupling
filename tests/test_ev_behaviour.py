@@ -60,6 +60,57 @@ def test_load_mixes():
     assert mixes["mixed"]["shares"] == {"baseline": 0.5, "dm": 0.3, "un": 0.2}
 
 
+def _phase_7a(work_root, mixes_file):
+    """Phase 7a (bridge_phase5c_to_phase7.py) on a workspace that holds an empty
+    5c_csv_conversion folder, with mixes_file as the mixes file."""
+    import subprocess
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PIPELINE_")}
+    env.update({"PIPELINE_STATE": "NC", "PIPELINE_SEASON": "summer", "PIPELINE_WORK_ROOT": work_root,
+                "PIPELINE_FEEDER_REGISTRY_PATH": os.path.join(work_root, "feeder_registry.json"),
+                "PIPELINE_MIXES_FILE": mixes_file, "PYTHONIOENCODING": "utf-8"})
+    return subprocess.run([sys.executable, os.path.join(REPO_ROOT, "bridge_phase5c_to_phase7.py")],
+                          cwd=REPO_ROOT, capture_output=True, text=True, encoding="utf-8", timeout=120, env=env)
+
+
+def test_phase_7a_leaves_one_mixes_copy():
+    """A --phase 7a rerun with a mixes file of another extension: a .yaml copy, then a
+    .json copy with other content, leaves only mixes.json in the workspace, with one line
+    for the removed copy, and the reader of Phase 7b and the deploy returns the new mixes."""
+    new = {"stress": {"shares": {"baseline": 0.0, "dm": 0.5, "un": 0.5}, "ev_perc": 0.5}}
+    with tempfile.TemporaryDirectory() as d:
+        work_root, src = os.path.join(d, "ws"), os.path.join(d, "src")
+        os.makedirs(os.path.join(work_root, "5c_csv_conversion"))
+        os.makedirs(src)
+        with open(os.path.join(src, "m.yaml"), "w", encoding="utf-8") as f:
+            f.write("baseline:\n  shares: {baseline: 1.0, dm: 0.0, un: 0.0}\n  ev_perc: 0.10\n")
+        with open(os.path.join(src, "m.json"), "w", encoding="utf-8") as f:
+            json.dump(new, f)
+        folder = os.path.join(work_root, "7_circuit_instantiation")
+        proc = _phase_7a(work_root, os.path.join(src, "m.yaml"))
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert sorted(n for n in os.listdir(folder) if n.startswith("mixes")) == ["mixes.yaml"]
+        proc = _phase_7a(work_root, os.path.join(src, "m.json"))
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert sorted(n for n in os.listdir(folder) if n.startswith("mixes")) == ["mixes.json"]
+        assert sum("Removed" in ln and "mixes.yaml" in ln for ln in proc.stdout.splitlines()) == 1, proc.stdout
+        from pipeline_utils import work_mixes_file
+        assert load_mixes(work_mixes_file(folder)) == new
+
+
+def test_two_mixes_copies_stop_the_reader():
+    """The reader of Phase 7b and the deploy: one copy is read as before, none gives
+    mixes.yaml, and two copies placed by hand stop it with [FAIL] and exit 1."""
+    from pipeline_utils import work_mixes_file
+    with tempfile.TemporaryDirectory() as d:
+        assert work_mixes_file(d) == os.path.join(d, "mixes.yaml")
+        with open(os.path.join(d, "mixes.yml"), "w", encoding="utf-8") as f:
+            f.write("{}\n")
+        assert work_mixes_file(d) == os.path.join(d, "mixes.yml")
+        with open(os.path.join(d, "mixes.json"), "w", encoding="utf-8") as f:
+            f.write("{}\n")
+        assert _stops(work_mixes_file, d)
+
+
 def test_stress_pool_filters():
     ev = pd.DataFrame({
         "session_id": [1, 2, 3, 4, 5], "evse_id": [10, 10, 11, 11, 12],

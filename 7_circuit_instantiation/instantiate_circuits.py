@@ -65,6 +65,7 @@ from der_sizing import SEGMENTS, der_choice, der_switch, pick_hosts, segment_cou
 import growth as growth_rules
 import smartds_repairs
 from pipeline_utils import smartds_repairs_on
+from pipeline_utils import work_mixes_file
 
 # ==== GLOBAL COLLECTORS (heating assignments across all circuits/mixes) ====
 # Toggle if you want the very detailed per-loadshape file (can be large)
@@ -147,10 +148,9 @@ MIX_KEYS_REQUIRED = ("ev_lvl2_perc", "pv_res_perc", "pv_com_perc", "storage_res_
 # Optional: default split between controlled vs uncontrolled EVs when a mix omits it
 EV_SPLIT_CTL_DEFAULT = float(os.environ.get('EV_SPLIT_CONTROLLED', '0.5'))  # 0..1
 
-# The mixes file, copied there by Phase 7a with its extension kept
+# The mixes file, copied there by Phase 7a with its extension kept; stops on more than one copy
 MIXES_DIR = Path(resolve_work_path("7_circuit_instantiation"))
-MIXES_FILE = next((MIXES_DIR / f"mixes{ext}" for ext in (".yaml", ".yml", ".json")
-                   if (MIXES_DIR / f"mixes{ext}").is_file()), MIXES_DIR / "mixes.yaml")
+MIXES_FILE = Path(work_mixes_file(MIXES_DIR))
 MIXES = load_mixes(MIXES_FILE)
 
 # print('Check the mixes')

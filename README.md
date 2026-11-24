@@ -152,7 +152,7 @@ python .\0_download_smartds\download_smartds.py `
 
 The saved time-of-use rates in `7_circuit_instantiation/data_tariffs/` are tracked, so a cold clone needs no API key. To fetch them again, set `openei_api_key_file` in `configs/local.yaml` to a text file that holds an OpenEI API key and run `python 7_circuit_instantiation/fetch_tou_rates.py` from the repository root. `--all` does not run it.
 
-The mixes file is an input. Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names, by default `0_experimental_design/mixes_fixed.yaml`. https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment.
+The mixes file is an input. Phase 7a copies the file that `mixes_file` in `configs/defaults.yaml` names, by default `0_experimental_design/mixes_fixed.yaml`, and first removes any other `mixes.yaml`, `mixes.yml` or `mixes.json` an earlier run left in the workspace. https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment.
 
 ## Settings from a caller
 

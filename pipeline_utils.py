@@ -5,6 +5,7 @@ import datetime
 import json
 import math
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -86,6 +87,34 @@ def load_mixes(path):
         sys.exit(1)
     with open(path, encoding="utf-8") as f:
         return json.load(f) if suffix == ".json" else yaml.safe_load(f)
+
+
+MIXES_COPY_NAMES = ("mixes.yaml", "mixes.yml", "mixes.json")
+
+
+def copy_mixes(src, dst):
+    """Phase 7a: copy the mixes file src byte for byte to dst, named mixes plus the
+    lower-case extension of src. Every other mixes.yaml, mixes.yml and mixes.json in the
+    folder of dst is removed first, with one line each, so the folder holds one copy."""
+    dst = Path(dst)
+    for name in MIXES_COPY_NAMES:
+        old = dst.parent / name
+        if name != dst.name and old.is_file():
+            old.unlink()
+            print(f"  Removed {old}, an earlier mixes copy")
+    shutil.copyfile(src, dst)
+
+
+def work_mixes_file(folder):
+    """The mixes copy of Phase 7a in folder, os.path.join(folder, name): the one of
+    mixes.yaml, mixes.yml and mixes.json that exists, else mixes.yaml. When the folder
+    holds more than one, prints [FAIL] with the files and exits 1."""
+    found = [name for name in MIXES_COPY_NAMES if os.path.isfile(os.path.join(folder, name))]
+    if len(found) > 1:
+        print(f"[FAIL] {folder} holds {len(found)} mixes copies: {', '.join(found)}; expected one. "
+              f"Run Phase 7a again.")
+        sys.exit(1)
+    return os.path.join(folder, found[0] if found else "mixes.yaml")
 
 
 PEAK_DAY_RULES = ("per_group", "per_circuit", "given", "per_substation")

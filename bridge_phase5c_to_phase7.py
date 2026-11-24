@@ -10,7 +10,8 @@ What this script does:
   1. Builds profhp bridge directories (<STATE>_4_profhp, <STATE>_6_profhp_dm, <STATE>_7_profhp_un)
      by copying CSVs from 5c_csv_conversion into the structure Phase 7 expects.
   2. Copies the mixes file named by PIPELINE_MIXES_FILE (mixes_file in configs/defaults.yaml)
-     byte for byte to <workspace>/7_circuit_instantiation/mixes<ext>, keeping its extension.
+     byte for byte to <workspace>/7_circuit_instantiation/mixes<ext>, keeping its extension,
+     after removing any other mixes.yaml, mixes.yml or mixes.json in that folder.
      Exits 1 if that file is missing.
   3. Checks for data_ev/ and warns if missing (cannot auto-generate).
   4. Prints a pre-flight summary.
@@ -27,6 +28,7 @@ from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from pipeline_utils import load_config, load_mixes, resolve_config_path, resolve_day_path
+from pipeline_utils import copy_mixes
 
 # ── CONFIG ──────────────────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parent
@@ -169,10 +171,11 @@ if not MIXES_PATH.is_file():
 
 mixes = load_mixes(MIXES_PATH)
 
-# 7b reads the mixes from the workspace; copy the file byte for byte, keeping its extension
+# 7b reads the mixes from the workspace; copy the file byte for byte, keeping its extension,
+# after removing any other mixes copy of an earlier run
 WORK_MIXES_PATH = Path(resolve_day_path("7_circuit_instantiation", "mixes" + MIXES_PATH.suffix.lower()))
 WORK_MIXES_PATH.parent.mkdir(parents=True, exist_ok=True)
-shutil.copyfile(MIXES_PATH, WORK_MIXES_PATH)
+copy_mixes(MIXES_PATH, WORK_MIXES_PATH)
 print(f"  ✅ Copied {MIXES_PATH} → {WORK_MIXES_PATH}")
 
 print(f"  Mixes defined: {list(mixes.keys())}")

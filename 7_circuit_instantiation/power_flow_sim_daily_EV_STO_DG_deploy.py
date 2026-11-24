@@ -442,6 +442,7 @@ from der_sizing import day_peak, loadshape_building
 # Load growth (growth.yaml): the pieces used with growth on only
 from pipeline_utils import WINDOW_YEAR, growth_on, growth_settings, load_growth, planning_band, read_growth_plan
 from pipeline_utils import network_growth_items, network_growth_on
+from pipeline_utils import work_mixes_file
 from ev_cars import seed as ev_draw_seed
 import growth as growth_rules
 import planning_limits
@@ -886,9 +887,7 @@ def simulated_day(feeder, season):
     if PEAK_DAY_RULE in ("per_circuit", "given", "per_substation"):
         m_mix = re.match(r"^.*_circuit_\d+_(.+)$", CIRCUIT_FOLDER)
         mixes_dir = os.path.join(CFG["work_root"], "7_circuit_instantiation")
-        mixes_path = next((os.path.join(mixes_dir, f"mixes{ext}") for ext in (".yaml", ".yml", ".json")
-                           if os.path.exists(os.path.join(mixes_dir, f"mixes{ext}"))),
-                          os.path.join(mixes_dir, "mixes.yaml"))
+        mixes_path = work_mixes_file(mixes_dir)  # stops on more than one mixes copy
         mixes = load_mixes(mixes_path) if os.path.exists(mixes_path) else {}
         if not m_mix or m_mix.group(1) not in mixes:
             print(f"[FAIL] No mix for circuit folder {CIRCUIT_FOLDER} in {mixes_path}.")
