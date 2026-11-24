@@ -234,6 +234,69 @@ def test_planned_files_for_release_folder():
         shutil.rmtree(settings)
 
 
+def _build_env_with_inherited(local):
+    """run_case.build_env for a made-up case with local as the configs/local.yaml values,
+    called while the caller's environment holds PIPELINE_MIX and
+    PIPELINE_EVWATTS_EXTRACT_DIR. Returns the environment."""
+    import run_case
+    resolved = {"base_env": {"PYTHONHASHSEED": "0"}, "work_root": "ws", "donor_state": "NC",
+                "runs_root": "runs", "smart_ds_root": "sds", "max_feeders": "null",
+                "parquet_root": "pq", "eulp_metadata_root": "meta", "eulp_download_date": "2025-03-30",
+                "mixes_file": "mixes.yaml", "pv_profile_file": "pv.csv", "local": local}
+    inherited = {"PIPELINE_MIX": "made_up_mix", "PIPELINE_EVWATTS_EXTRACT_DIR": "inherited_extract"}
+    saved = {k: os.environ.get(k) for k in inherited}
+    try:
+        os.environ.update(inherited)
+        return run_case.build_env(resolved, "summer")
+    finally:
+        for key, value in saved.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
+def test_build_env_drops_inherited_pipeline_variables():
+    """A PIPELINE_* variable of the caller's environment never reaches the phases: with
+    no evwatts_extract_dir in configs/local.yaml, neither PIPELINE_MIX nor
+    PIPELINE_EVWATTS_EXTRACT_DIR is in the environment."""
+    env = _build_env_with_inherited({})
+    assert "PIPELINE_MIX" not in env and "PIPELINE_EVWATTS_EXTRACT_DIR" not in env
+    assert env["PIPELINE_STATE"] == "NC" and env["PYTHONHASHSEED"] == "0"
+
+
+def test_build_env_takes_evwatts_extract_dir_from_local_yaml():
+    """With evwatts_extract_dir in configs/local.yaml, PIPELINE_EVWATTS_EXTRACT_DIR holds
+    that value, not the inherited one, and the inherited PIPELINE_MIX is dropped."""
+    env = _build_env_with_inherited({"evwatts_extract_dir": "local_extract"})
+    assert env["PIPELINE_EVWATTS_EXTRACT_DIR"] == "local_extract"
+    assert "PIPELINE_MIX" not in env
+
+
+def test_dry_run_names_ignored_inherited_variables():
+    """run_case.py --dry-run from a shell that holds PIPELINE_MIX prints the line
+    [env] ignored inherited PIPELINE_MIX (the name, never the value) and passes no
+    PIPELINE_MIX to the phases."""
+    local_path, metadata_dir = _ensure_local_yaml()
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PIPELINE_")}
+    env["PIPELINE_MIX"] = "made_up_mix"
+    case_path = os.path.join(REPO_ROOT, "configs", "cases", "NC_GSO_urban__NC.yaml")
+    try:
+        proc = subprocess.run(
+            [sys.executable, os.path.join(REPO_ROOT, "run_case.py"), "--case", case_path,
+             "--all", "--season", "summer", "--dry-run"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=60, env=env,
+        )
+        assert proc.returncode == 0, proc.stderr
+        lines = [ln.strip() for ln in proc.stdout.splitlines()]
+        assert "[env] ignored inherited PIPELINE_MIX" in lines, proc.stdout
+        assert "made_up_mix" not in proc.stdout
+    finally:
+        if metadata_dir:
+            os.remove(local_path)
+            os.rmdir(metadata_dir)
+
+
 if __name__ == "__main__":
     tests = [(name, fn) for name, fn in sorted(globals().items())
              if name.startswith("test_") and callable(fn)]
