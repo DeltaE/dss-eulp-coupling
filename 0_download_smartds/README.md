@@ -45,7 +45,7 @@ By default the script downloads:
 - `solar_data/` CSVs as `solar_data/`
 - `load_data/` parquets as `parquet_data/`
 
-Use `--only-opendss` when you only need circuit definitions.
+Use `--skip-profiles` to leave out the `profiles/` CSVs, as the download command of the root README does. `--only-opendss` also skips the `solar_data/` CSVs, which the donor PV profile reads (`configs/donor_registry.yaml`), and the `load_data/` parquets.
 
 ## Stage Plain Circuits
 

@@ -1,7 +1,8 @@
-# DSS-EULP Coupling Pipeline — Python dependencies
+# DSS-EULP Coupling Pipeline: Python dependencies
 # Pinned to Python 3.11 (matches the Windows machine that produced all existing
-# results). Every version below is pinned deliberately, not just the ones that
-# can move numbers (numpy/pandas/pyarrow) -- pinning the rest is free and
+# results). Every version below is pinned deliberately, apart from selenium,
+# comtypes and opendssdirect.py, which carry no version. The pins cover more than
+# the packages that can move numbers (numpy/pandas/pyarrow); pinning the rest is free and
 # removes variables. Do not upgrade/downgrade without re-validating outputs
 # against the Windows baseline.
 # Install with: pip install -r requirements.txt

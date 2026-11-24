@@ -2,7 +2,7 @@
 project = "DSS-DMDU"
 author = "Luis Victor Gallardo"
 copyright = "2025, Luis Víctor Gallardo (Delta-E+, SEE, SFU)"
-html_title = "DSS-DMDU – Distribution System DMDU Tool"
+html_title = "DSS-DMDU: Distribution System DMDU Tool"
 
 # -- General configuration ---------------------------------------------------
 extensions = [
