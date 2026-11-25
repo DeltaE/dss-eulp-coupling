@@ -2,8 +2,9 @@
 
 This layer turns the SMART-DS x EULP pipeline into explicit, reproducible **cases**. A case
 pins one **topology** (which SMART-DS circuit) and one **donor** (which EULP state), runs the
-deterministic instantiation chain, and writes a provenance manifest. It does **not** touch
-scenario mixes or the LHS - those are downstream (see *Out of scope*).
+deterministic instantiation chain, and writes a provenance manifest. It does **not** design
+scenario mixes: it reads the mixes file that `mixes_file` in `configs/defaults.yaml` names
+(see *Out of scope*).
 
 ## The two dimensions
 
@@ -73,23 +74,22 @@ or of the other season of the same case, as an absolute path or relative to the 
 
 ## Adding a new donor
 
-Add an entry to `configs/donor_registry.yaml` with `donor_state`, `eulp_download_date`, and the
-metadata filenames. Set `status: ready`.
+Add an entry to `configs/donor_registry.yaml` with `donor_state`, `eulp_download_date`, the
+metadata filenames and `pv_profile` (`source: smartds` and `file`, relative to `smart_ds_base`).
+Set `status: ready`.
 
 ## Phase boundary (why these phases)
 
 The layer runs the chain configured in `configs/defaults.yaml`:
-`pre -> 1 -> 2 -> 3 -> 4 -> growth -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> 7a -> 7b -> 7c -> 8`.
+`pre -> 1 -> 2 -> 3 -> 4 -> growth -> 5a -> 5b -> 5d -> 5b_variants -> 5c -> 5c_variants -> 6 -> 6_variants -> mix_days -> 7a -> 7b -> 7c -> 8`.
 Note "pre" here is `0_download_smartds` (circuit staging), NOT
 `0_experimental_design`. Phases 2-6 were verified to have **zero** dependency on
-`0_experimental_design` (the LHS); that stage and Phase 7 (DER deployment) consume the mixes and
-are deliberately downstream.
+`0_experimental_design` (the mixes file); Phase 7 (DER deployment) is the first phase that
+reads the mixes.
 
 ## Out of scope (downstream RDM)
 
 - Designed experiments and their mixes files (https://github.com/DeltaE/j-uncertainty-grid-modernisation).
-- Phase 7 - DER deployment (EV/PV/storage), which consumes the mixes.
-- Phase 8 - results analysis.
 - Scenario mixes are **not** a dimension of this layer.
 
 ## Provenance
@@ -97,7 +97,8 @@ are deliberately downstream.
 Each run writes `<runs_root>/<case_id>/<season>/`:
 - `resolved_case.yaml` - topology, donor, season, `eulp_download_date`, git branch+commit, timestamp.
 - `run_log.txt` - every command/copy executed.
-- `phase_status.json` - per-phase ok/failed.
+- `phase_status.json` - ok or failed for each phase of the last call of `run_case.py`; a call
+  with `--phase` records that phase only.
 
 ## Pending
 

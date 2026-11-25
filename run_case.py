@@ -178,9 +178,16 @@ def resolve_case(case_path: Path, settings=None) -> dict:
     }
 
 
+def inherited_pipeline_names() -> list:
+    """The names of the PIPELINE_* variables of the caller's environment, sorted."""
+    return sorted(k for k in os.environ if k.startswith("PIPELINE_"))
+
+
 def build_env(resolved: dict, season: str) -> dict:
-    """Compose the PIPELINE_* contract the existing scripts read (pipeline_utils.py)."""
-    env = dict(os.environ)
+    """Compose the PIPELINE_* contract the existing scripts read (pipeline_utils.py).
+    Every PIPELINE_* variable of the caller's environment is dropped first, so the phases
+    see only the values set here (inherited_pipeline_names lists the dropped names)."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("PIPELINE_")}
     env.update({k: str(v) for k, v in resolved["base_env"].items()})
     work_root = resolved["work_root"]
     env["PIPELINE_STATE"] = resolved["donor_state"]            # donor side
@@ -463,6 +470,10 @@ def main() -> None:
         print(f"  PIPELINE_WORK_ROOT={resolved['work_root']}")
         run_dir = runs_root / resolved["case_id"] / season
         env = build_env(resolved, season)
+        ignored = inherited_pipeline_names()
+        env_note = f"[env] ignored inherited {', '.join(ignored)}" if ignored else None
+        if env_note:
+            print(env_note)
         if args.dry_run:
             # A dry run writes nothing: no records, no workspace, no log.
             for key in sorted(k for k in env if k.startswith("PIPELINE_")):
@@ -476,6 +487,8 @@ def main() -> None:
         with log_file as log:
             log.write(f"\n##### run {_dt.datetime.now().isoformat(timespec='seconds')} "
                       f"season={season} phases={phase_ids} dry_run={args.dry_run}\n")
+            if env_note:
+                log.write(env_note + "\n")
             for pid in phase_ids:
                 if pid not in phases:
                     log.write(f"  (no definition for phase {pid}, skipping)\n")

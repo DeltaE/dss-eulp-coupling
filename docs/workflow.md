@@ -34,7 +34,7 @@ dss-eulp-coupling/
 
 `configs/phases.yaml` defines the steps of each phase. `run_case.py` sets `PIPELINE_WORK_ROOT` to `<runs_root>/<case>/<season>/workspace/`, written `<ws>` below. `runs_root` comes from `configs/local.yaml` and is `runs` by default. Every phase reads and writes under `<ws>`. Before anything runs, `--all` checks the workspace of every requested season and refuses to start when any exists. Delete those folders to rerun the case-seasons. `--phase <id>` reruns one phase in the existing workspace. `--dry-run` prints the resolved variables and every command, and writes nothing.
 
-`--all` does not run `0_experimental_design`. The mixes file is an input. Phase 7a copies the mixes file that `mixes_file` in `configs/defaults.yaml` names, the tracked `0_experimental_design/mixes_fixed.yaml`, into the workspace. https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment.
+`--all` does not run `0_experimental_design`. The mixes file is an input. Phase 7a copies the mixes file that `mixes_file` in `configs/defaults.yaml` names, the tracked `0_experimental_design/mixes_fixed.yaml`, into the workspace, and first removes any other mixes copy an earlier run left there. https://github.com/DeltaE/j-uncertainty-grid-modernisation writes the mixes file of a designed experiment.
 
 ### Phase pre: SMART-DS staging (0_download_smartds)
 
@@ -120,8 +120,8 @@ To switch, set `peak_day_rule` to `per_circuit`, `per_group`, `given` or `per_su
 
 ### Phases 7a, 7b and 7c: circuit instantiation and simulation (7_circuit_instantiation)
 
-- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.yaml`) byte for byte to `<ws>/7_circuit_instantiation/mixes.yaml`, keeping the extension of the mixes file (`.yaml`, `.yml` or `.json`), and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
-- `7b` runs `instantiate_circuits.py`. It reads `<ws>/7_circuit_instantiation/mixes.yaml` (`mixes.yml` or `mixes.json` for a mixes file with that extension) with `pipeline_utils.load_mixes`. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
+- `7a` runs `bridge_phase5c_to_phase7.py` from the repository root. It builds the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un` in `<ws>/7_circuit_instantiation/` from the Phase 5c CSVs. It copies the file in `PIPELINE_MIXES_FILE` (`mixes_file` in `configs/defaults.yaml`, the tracked `0_experimental_design/mixes_fixed.yaml`) byte for byte to `<ws>/7_circuit_instantiation/mixes.yaml`, keeping the extension of the mixes file (`.yaml`, `.yml` or `.json`), after it removes any other `mixes.yaml`, `mixes.yml` or `mixes.json` in that folder, and exits 1 when that file is missing. It prints the mix names and the expected circuit folders from that file. It checks the feeder registry at `<ws>/feeder_registry.json`.
+- `7b` runs `instantiate_circuits.py`. It reads `<ws>/7_circuit_instantiation/mixes.yaml` (`mixes.yml` or `mixes.json` for a mixes file with that extension) with `pipeline_utils.load_mixes`, and stops with `[FAIL]` when that folder holds more than one of the three copies. For each feeder and mix, it prepares a circuit folder, assigns EV, PV, storage and heat pump profiles, and copies and patches the runner `power_flow_sim_daily_EV_STO_DG_deploy.py` into the folder. It writes `heating_assignment__SUMMARY.csv`, `heating_assignment__FULL.csv` and `heating_assignment__FULL.json` to `<ws>/7_circuit_instantiation/`.
   - Right after it copies a feeder into a circuit folder, it repairs that copy when `smartds_repairs` is true (README, "Repairs of the SMART-DS release"). Only `Master.dss`, `Transformers.dss` and `Regulators.dss` of the copy can change, and only the statements of the repair, so the deploy and Phase 8 read the repaired files. It prints one `[repair]` line per changed statement and writes `<circuit>/smartds_repairs.csv`, a header only when nothing changed or the repairs are off. It stops with `[FAIL]` on a defect that phase `pre` would stop on.
   - The heating split counts the unit that `heating_label_unit` in `pipeline_config.yaml` names: `building` (the default), each yearly loadshape of the feeder gets one group, with exact counts over loadshapes; `customer`, the counts are over load names and a shared loadshape keeps the group of the last load dealt. Phase `mix_days` uses the same setting.
   - It classes each load as residential (every loadshape starts `res_`), commercial (every one starts `com_`) or unclassified with `heating_split.load_segment`, prints the counts per circuit, and draws the EV hosts among the residential loads: `ev_perc` of the mix is the share of homes.
@@ -168,7 +168,7 @@ Phase 8 covers one case-season. `gather_m2_cases.py` stacks `aggregate_m2_combin
 - PV: the lesser of the roof cap and the annual use cap (moderate entries)
 - Storage: 1.0 x PV kW (0.5 above 100 kW commercial), 2 h
 - Rule: `schedule`, each host's start chosen on a grid from the reserve to full (`schedule_start: best`; `best_window` chooses it over the whole window)
-- Start and reserve: 20%
+- Reserve: 20%; under `schedule_start: fixed` and the controller rules every battery also starts at 20%
 ```
 
 ## 3.4 Running with `run_case.py`
@@ -200,6 +200,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 | `PIPELINE_EULP_DOWNLOAD_DATE` | Date stamp in the EULP download folder names, from `eulp_download_date` of the donor in `configs/donor_registry.yaml`. |
 | `PIPELINE_MIXES_FILE` | Mixes file that Phase 7a copies, from `mixes_file` in `configs/defaults.yaml`, absolute, with forward slashes. |
 | `PIPELINE_EVWATTS_EXTRACT_DIR` | Folder of the EV WATTS extract, from `evwatts_extract_dir` in `configs/local.yaml`; set only when that key is present. The Phase 7 deploy reads it under `ev_cars` `evwatts_sessions` and `session_rows`. |
+| `PIPELINE_PV_PROFILE_FILE` | PV profile of the donor: `smart_ds_base` from `configs/local.yaml`, then `pv_profile.file` of the donor in `configs/donor_registry.yaml`. The Phase 7 deploy reads it. |
 
 `pipeline_config.yaml` holds the method parameters, one top-level key each:
 
@@ -219,6 +220,7 @@ Copy `configs/local.yaml.example` to `configs/local.yaml`. Set the machine paths
 - `ev_home_window` keeps controlled charging inside the time the car is plugged in at home (section 3.3; README, "EV cars").
 - `ev_day` picks the typical or stress value set of `ev_inputs.yaml` (section 3.3; README, "EV cars").
 - `ev_work_share_case` picks the share of the charging cars that charge at a workplace, a commercial load of the circuit (section 3.3; README, "EV cars").
+- `smartds_repairs` turns on the repairs of the SMART-DS release in phase `pre`, phase `growth` and Phase 7b (README, "Repairs of the SMART-DS release").
 
 ### Phase outputs
 
@@ -274,6 +276,6 @@ The `phase*.py` scripts are thin wrappers around the implementation scripts.
 - Phase 5b_variants and Phase 5c read the Phase 5d controls from `5d_scenario_controls/get_scenario_csv_controls/`.
 - Phase 5c reads the daily parquets from `5b_profile_generation/daily_parquets/`.
 - Phase 6 reads the Phase 5b mapping CSV, the Phase 5c CSV folders and `folder_timestamps.pkl`.
-- Phase 7a copies `0_experimental_design/mixes_fixed.yaml` to `7_circuit_instantiation/mixes.yaml` in the workspace. Phase 7b reads that copy.
+- Phase 7a copies `0_experimental_design/mixes_fixed.yaml` to `7_circuit_instantiation/mixes.yaml` in the workspace, after it removes any other `mixes.yaml`, `mixes.yml` or `mixes.json` in that folder. Phase 7b reads that copy.
 - Phase 7 reads the profile roots `<STATE>_4_profhp`, `<STATE>_6_profhp_dm` and `<STATE>_7_profhp_un`. It indexes the CSVs under their `daily_csvs/` subfolders. Phase 7a builds these roots from the Phase 5c CSVs.
 - Phase 8 reads the Phase 7 outputs from `7_circuit_instantiation/`.

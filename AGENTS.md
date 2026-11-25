@@ -34,7 +34,8 @@ generated and untracked.
 
 ## Layout
 
-Phase folders `0_` to `8_` run in numeric order. `configs/phases.yaml`
+Phase folders `0_download_smartds/` to `8_results_analysis/` run in the order of
+`phase_order` in `configs/defaults.yaml`. `configs/phases.yaml`
 and `run_case.py` define what `--all` executes; they are the authority on
 which scripts are live. Thin `phaseN_*.py` wrappers invoke the
 implementation scripts.

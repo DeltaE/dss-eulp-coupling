@@ -1,38 +1,38 @@
 # 5. Examples
 
-## 5.1 Peak Reduction from Storage
+## 5.1 Peak and Storage by Circuit
+
+Every scenario of `0_experimental_design/mixes_fixed.yaml` places batteries, `baseline` included, so the outputs of the README cases hold no run without storage. `n_storage` sits on the summary rows only.
 
 ```python
 import pandas as pd
 
 ts = pd.read_csv("aggregate_m2_combined.csv")
 ts_data = ts[ts["row_type"] == "data"]
+summary = ts[ts["row_type"] == "summary"]
 
-# Quick split (example logic)
-with_storage = ts_data[ts_data["n_storage"] > 0]
-baseline     = ts_data[ts_data["n_storage"] == 0]
+n_storage = summary.set_index("circuit_folder")["n_storage"]
+peak = ts_data.groupby("circuit_folder")["P_3ph (kW)"].max()
 
-peak_baseline = baseline.groupby("circuit_folder")["P_3ph (kW)"].max()
-peak_storage  = with_storage.groupby("circuit_folder")["P_3ph (kW)"].max()
-
-peak_reduction = (peak_baseline - peak_storage).dropna()
-print(peak_reduction.describe())
+print(pd.concat([n_storage, peak], axis=1))
 ```
 
-## 5.2 LHS vs Sobol Coverage (by circuit)
+## 5.2 NC vs TX Donor (by circuit)
+
+`design` holds the donor state. `m2_all_cases_all_seasons.csv` holds both donors of each feeder.
 
 ```python
-df = pd.read_csv("aggregate_m2_combined.csv")
-c52 = df[df["circuit_folder"] == "uhs17_1247_circuit_52"]
+df = pd.read_csv("m2_all_cases_all_seasons.csv")
+c1 = df[(df["circuit_folder"] == "uhs13_1247_circuit_1_mixed") & (df["row_type"] == "data")]
 
-lhs = c52[c52["design"].str.contains("lhs", case=False, na=False)]
-sob = c52[c52["design"].str.contains("sobol", case=False, na=False)]
+nc = c1[c1["design"] == "NC"]
+tx = c1[c1["design"] == "TX"]
 
-lhs_peak = lhs.groupby("scenario")["P_3ph (kW)"].max()
-sob_peak = sob.groupby("scenario")["P_3ph (kW)"].max()
+nc_peak = nc.groupby("season")["P_3ph (kW)"].max()
+tx_peak = tx.groupby("season")["P_3ph (kW)"].max()
 
-print(lhs_peak.describe())
-print(sob_peak.describe())
+print(nc_peak)
+print(tx_peak)
 ```
 
 ## 5.3 Joining Time Series and Metadata

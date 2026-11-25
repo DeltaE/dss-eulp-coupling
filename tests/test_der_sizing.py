@@ -226,6 +226,90 @@ def test_peak_ratio_under_load_growth():
     assert "host_sizes(b, seg, bldg_of_host, annual_yield_kwh_per_kw, use_factor)" in deploy
 
 
+def _deploy_sizing(profiles, resize, new_customers=()):
+    """host_sizes and peak_kw_for_load of the deploy, taken from its source text, with
+    pv_rule peak_ratio, load growth on and the loadshape CSVs of the folder profiles.
+    Host load_s (stretched) points at its own loadshape res_kw_1x1_pu, stretched from
+    res_kw_1_pu; host load_o (ordinary) points at res_kw_2_pu. Three days, day X second.
+    Returns size(base), the der_hosts.csv row of a host with factor 1.10."""
+    import ast
+    import re
+    import pandas as pd
+    from der_sizing import day_peak
+    path = os.path.join(REPO_ROOT, "7_circuit_instantiation", "power_flow_sim_daily_EV_STO_DG_deploy.py")
+    with open(os.path.join(REPO_ROOT, "pipeline_config.yaml"), encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+    seg = "residential"
+    ns = {"os": os, "re": re, "sys": sys, "pd": pd, "day_peak": day_peak, "roof_area_m2": roof_area_m2,
+          "read_lines": None, "try_float": None,
+          "PROFILES_PATH": profiles, "HORIZON_DAYS": 3, "X_INDEX": 1, "IRRADIANCE_NPTS": 96,
+          "PATH_LOADS_DSS_ORIG": os.path.join(profiles, "no_such_Loads_original.dss"),
+          "PEAK_FROM_ORIGINAL_KW": [],
+          "base_to_daily": {"load_s": {"res_kw_1x1_pu"}, "load_o": {"res_kw_2_pu"}},
+          "GROWTH": {"shape_building": {"res_kw_1x1_pu": "res_kw_1_pu"}},
+          "GROWTH_SETTINGS": {"der_resize_with_growth": resize}, "NEW_CUSTOMERS": set(new_customers),
+          "SIZE": {seg: {"roof_tilt_deg": 20.0, "inverter_loading_ratio": 1.2}},
+          "PV_HOSTS": {seg: ["load_s", "load_o"]}, "STORAGE_HOSTS": {seg: ["load_s", "load_o"]},
+          "PV_RULE": {seg: "peak_ratio"}, "SIZING_CASE": "moderate",
+          "PV_KW_PER_PEAK": der_number(cfg, "pv_kw_per_peak_kw"), "PV_MIN_KW": der_number(cfg, "pv_min_kw"),
+          "STORAGE_KW_PER_PEAK": der_number(cfg, "storage_kw_per_peak_kw"),
+          "STORAGE_MIN_KW": der_number(cfg, "storage_min_kw"),
+          "STORAGE_ENERGY_HOURS": der_number(cfg, "storage_hours"), "STORAGE_PF": der_number(cfg, "storage_pf")}
+    with open(path, encoding="utf-8") as f:
+        tree = ast.parse(f.read())
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name in ("host_sizes", "peak_kw_for_load"):
+            exec(compile(ast.Module(body=[node], type_ignores=[]), path, "exec"), ns)
+
+    def size(base):
+        use_factor = der_use_factor(base, 1.10, set(new_customers), resize)
+        bldg = {"loadshape": "", "bldg_id": 1, "floor_ft2": 2000.0, "stories": 1.0, "building_type": "x",
+                "annual_use_kwh": 10000.0 * use_factor, "roof_column": 1000.0}
+        return ns["host_sizes"](base, seg, bldg, 1500.0, use_factor)
+    return size
+
+
+def _readme_loadshapes(folder):
+    """README's worked example on made-up loadshapes: res_kw_1_pu with a day X peak of
+    900 kW (mean 650 kW) and its stretch a x old + b with a 1.82 and b -468 (factor 1.10,
+    peak_factor 1.30), day X peak 1,170 kW; res_kw_2_pu equal to res_kw_1_pu. Day 3 holds
+    a higher value, so a peak of the window would show."""
+    old = [500.0] * 96 + [400.0] * 48 + [900.0] * 48 + [950.0] * 96
+    for name, values in (("res_kw_1_pu", old), ("res_kw_1x1_pu", [1.82 * v - 468.0 for v in old]),
+                         ("res_kw_2_pu", old)):
+        with open(os.path.join(folder, f"{name}.csv"), "w", encoding="utf-8") as f:
+            f.write("".join(f"{v!r}\n" for v in values))
+
+
+def test_peak_ratio_stretched_host_sized_once():
+    """pv_rule peak_ratio with load growth (README "Load growth", worked example): a
+    stretched customer is sized on the day X peak of the loadshape it was stretched from
+    under der_resize_with_growth false (900 kW) and on its own loadshape under true
+    (1,170 kW), with no further factor; an ordinary host with the same factor 1.10 keeps
+    peak x factor (900 kW and 990 kW). PV kW is 0.30 x peak and storage kW 0.75 x peak."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as folder:
+        _readme_loadshapes(folder)
+        false, true = _deploy_sizing(folder, False), _deploy_sizing(folder, True)
+        for size, base, peak in ((false, "load_s", 900.0), (true, "load_s", 1170.0),
+                                 (false, "load_o", 900.0), (true, "load_o", 990.0)):
+            row = size(base)
+            assert math.isclose(row["peak_kw"], peak), (base, row["peak_kw"], peak)
+            assert row["pv_kw"] == round(0.30 * peak, 1), (base, row["pv_kw"])
+            assert row["storage_kw"] == round(0.75 * peak, 3), (base, row["storage_kw"])
+        # a new stretched customer is sized on its own loadshape under false too
+        assert math.isclose(_deploy_sizing(folder, False, {"load_s"})("load_s")["peak_kw"], 1170.0)
+
+
+def test_peak_ratio_stretched_host_missing_csv_stops():
+    """The loadshape CSV a stretched host is sized on is missing: [FAIL] and exit 1."""
+    import tempfile
+    with tempfile.TemporaryDirectory() as folder:
+        _readme_loadshapes(folder)
+        os.remove(os.path.join(folder, "res_kw_1_pu.csv"))
+        assert _stops(_deploy_sizing(folder, False), "load_s")
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

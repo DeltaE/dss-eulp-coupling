@@ -2,7 +2,7 @@
 
 ## 6.1 OpenDSS Convergence / Connection Issues
 - **Symptom:** Circuit fails to solve or crashes.
-- **Action:** Add circuit to a `SKIP_CIRCUITS` list in instantiation scripts and re-run matching/instantiation for remaining feeders.
+- **Action:** Add the circuit number to `skip_circuits` in `pipeline_config.yaml` and re-run matching/instantiation for remaining feeders.
 
 ## 6.2 Long Runtime for kVAr/kW Ratios
 - **Expected:** ~579 minutes for a full-state dataset.
